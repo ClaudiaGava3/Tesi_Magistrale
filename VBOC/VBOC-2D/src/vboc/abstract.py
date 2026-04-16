@@ -442,7 +442,7 @@ class AbstractController:
         # --- Warm-start storage ---
         self.x_guess = np.zeros((self.N, self.model.nx))
         self.u_guess = np.zeros((self.N, self.model.nu))
-        self.tol = self.params.cost_tol
+        #self.tol = self.params.cost_tol
 
     def setGuess(
         self,

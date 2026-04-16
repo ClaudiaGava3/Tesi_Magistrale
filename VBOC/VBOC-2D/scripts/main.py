@@ -610,7 +610,7 @@ if __name__ == '__main__':
             orient_init = np.random.uniform(-max_phi, max_phi, params.prob_num).reshape(-1, 1)
 
             # Generiamo VELOCITÀ casuali (vx, vz, wy)
-            vel_init = np.random.uniform(-1.0, 1.0, (params.prob_num, model.nv))
+            vel_init = np.random.uniform(-0.7, 0.7, (params.prob_num, model.nv))
 
         # Creiamo il vettore di stato iniziale di 6 elementi: [x, z, theta, vx, vz, wy]
         q_init = np.hstack([pos_init, orient_init, vel_init])
@@ -1129,11 +1129,21 @@ if __name__ == '__main__':
                     colors = np.linspace(0, 1, horizon_)
                     t = np.linspace(0, horizon_ * params.dt, horizon_)
 
-                    # Estraiamo lo scaling e ricostruiamo le dimensioni del box
+                    # Estraiamo lo scaling e i lati liberi per ricostruire il box asimmetrico
                     scale = x_data[k, 10]
-                    # box = [X_max, Z_max, X_min_dist, Z_min_dist] (tutti pari a scale * 1.0)
-                    box = np.array([scale, scale, scale, scale])
-                    
+                    l_x_plus = x_data[k, 6]
+                    l_z_plus = x_data[k, 7]
+                    l_x_minus = x_data[k, 8]
+                    l_z_minus = x_data[k, 9]
+
+                    # box = [X_max, Z_max, X_min_dist, Z_min_dist]
+                    box = np.array([
+                        scale * l_x_plus,
+                        scale * l_z_plus,
+                        scale * l_x_minus,
+                        scale * l_z_minus
+                    ])
+
                     # Limiti spaziali per i plot (Pos_X_min, Pos_Z_min, Theta_min)
                     traj_xlim_min = [-box[2], -box[3], -np.rad2deg(max_phi)]
                     traj_xlim_max = [ box[0],  box[1],  np.rad2deg(max_phi)]
@@ -1375,7 +1385,7 @@ if __name__ == '__main__':
                 title="Solver_Status",
                 xlabel="Status Code", 
                 ylabel="Frequency", 
-                bins=10, 
+                bins=3, 
                 saving_dir=hist_dir,
                 xticks=[0, 2, 4]
             )
@@ -1388,8 +1398,9 @@ if __name__ == '__main__':
                 title="Distribution_of_Converged_Horizons_N", 
                 xlabel="Horizon Length (N steps)", 
                 ylabel="Frequency", 
-                bins=15, # 10 colonne vanno bene per step discreti (20, 25, 30...)
-                saving_dir=hist_dir
+                bins=np.arange(19, 34, 2),
+                saving_dir=hist_dir,
+                xticks=np.arange(20, 33, 2)
             )
             # 5. Istogramma dei casi FALLITI
             failed_file = f'{params.DATA_DIR}{robotic_system}_failed_q_init_vboc.npy'

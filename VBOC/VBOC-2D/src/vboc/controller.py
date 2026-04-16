@@ -101,26 +101,22 @@ class ViabilityController(AbstractController):
         ori_0 = np.full(self.model.nori, 0.0) #cambiato vincolo a 0 da -np.pi
         box_min = np.full(self.model.nbox, 0.1)
         box_max = np.full(self.model.nbox, 1.0)
-        tol_ori=1e-5
-        tol_vel=1e-5
-        # tol_ori=self.tol
-        # tol_vel=self.tol
 
 
         # Zero-velocity and angles terminal constraint at stage N-1
         self.ocp_solver.constraints_set(
-            self.N - 1, "lbx", np.hstack([ori_0-tol_ori, zero_vel-tol_vel, box_min,np.array([0.0])]) # <-- Aggiunto limite box min
+            self.N - 1, "lbx", np.hstack([ori_0, zero_vel, box_min,np.array([0.0])]) # <-- Aggiunto limite box min
         )
         self.ocp_solver.constraints_set(
-            self.N - 1, "ubx", np.hstack([ori_0+tol_ori, zero_vel+tol_vel, box_max,np.array([1e5])]) # <-- Aggiunto limite box max
+            self.N - 1, "ubx", np.hstack([ori_0, zero_vel, box_max,np.array([1e5])]) # <-- Aggiunto limite box max
         )
 
         # Zero-velocity terminal constraint at final stage N
         self.ocp_solver.constraints_set(
-            self.N, "lbx", np.hstack([ori_0-tol_ori, zero_vel-tol_vel, box_min,np.array([0.0])]) # <-- Aggiunto limite box min
+            self.N, "lbx", np.hstack([ori_0, zero_vel, box_min,np.array([0.0])]) # <-- Aggiunto limite box min
         )
         self.ocp_solver.constraints_set(
-            self.N, "ubx", np.hstack([ori_0+tol_ori, zero_vel+tol_vel, box_max, np.array([1e5])]) # <-- Aggiunto limite box max
+            self.N, "ubx", np.hstack([ori_0, zero_vel, box_max, np.array([1e5])]) # <-- Aggiunto limite box max
         )
         # self.ocp_solver.constraints_set(
         #     self.N, "uh",
