@@ -45,7 +45,7 @@ def parse_args() -> dict:
     parser.add_argument(
         '-e', '--epochs',
         type=int,
-        default=1000,
+        default=2000,
         help='Number of epochs for training the neural network'
     )
     parser.add_argument(

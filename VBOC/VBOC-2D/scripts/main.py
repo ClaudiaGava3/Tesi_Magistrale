@@ -596,7 +596,7 @@ if __name__ == '__main__':
             max_phi = np.pi/2
         else:
             #min_phi = model.phi_max
-            max_phi = np.pi/2 
+            max_phi = np.pi/2
         #roll, pitch, yaw = generate_constrained_rpy(
         #    min_phi, max_phi, params.prob_num
         #)
@@ -610,7 +610,7 @@ if __name__ == '__main__':
             orient_init = np.random.uniform(-max_phi, max_phi, params.prob_num).reshape(-1, 1)
 
             # Generiamo VELOCITÀ casuali (vx, vz, wy)
-            vel_init = np.random.uniform(-0.7, 0.7, (params.prob_num, model.nv))
+            vel_init = np.random.uniform(-1.0, 1.0, (params.prob_num, model.nv))
 
         # Creiamo il vettore di stato iniziale di 6 elementi: [x, z, theta, vx, vz, wy]
         q_init = np.hstack([pos_init, orient_init, vel_init])

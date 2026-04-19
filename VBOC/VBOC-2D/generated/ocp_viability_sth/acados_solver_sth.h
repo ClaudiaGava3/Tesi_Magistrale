@@ -64,7 +64,7 @@
 #define STH_NY0    0
 #define STH_NY     0
 #define STH_NYN    0
-#define STH_N      20
+#define STH_N      32
 #define STH_NH     4
 #define STH_NHN    4
 #define STH_NH0    0

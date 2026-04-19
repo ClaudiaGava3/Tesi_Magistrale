@@ -57,13 +57,12 @@ class Model:
         npos = 2    # Position sub-space dimension
         nori = 1    # Orientation sub-space dimension
         nbox = 4    # Obstacle box constraint dimension
-        nprops = 4  # Le 4 dimensioni libere del box
         nscale = 1  # FATTORE DI SCALA (Sostituisce nbox)
 
 
         # --- CasADi symbolic variables ---
-        self.x = MX.sym("x", nq * 2 + nbox + nscale)    # Full state [q; q_dot]
-        self.x_dot = MX.sym("x_dot", nq * 2 + nbox + nscale)
+        self.x = MX.sym("x", nq + nv + nbox + nscale)    # Full state [q; q_dot]
+        self.x_dot = MX.sym("x_dot", nq + nv + nbox + nscale)
         self.u = MX.sym("u", nu)    # Control input
         self.p = MX.sym("p", nbox)    # OCP parameter x fixing box ratio
             
