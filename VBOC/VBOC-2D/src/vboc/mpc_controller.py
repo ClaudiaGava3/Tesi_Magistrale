@@ -14,7 +14,6 @@ class MpcController(AbstractController):
 
     def __init__(self, model) -> None:
         super().__init__(model)
-        # Projection matrix used to enforce the velocity constraint orthogonal to d
         
         # 2. CARICAMENTO RETE NEURALE
         nn_filename = f"{self.params.NN_DIR}{self.params.robot_name}_{self.params.act}.pt"
@@ -24,7 +23,7 @@ class MpcController(AbstractController):
         self.mean_X = checkpoint['mean']
         self.std_X = checkpoint['std']
         
-        # Inizializziamo la rete (Input 4D per il 2D: theta, vx, vz, wy)
+        # Inizializzazione rete neurale (Input 4D per il 2D: theta, vx, vz, wy)
         # NOTA: assicurati di usare la stessa activation del training (es. GELU)
         net = NeuralNetwork(
             input_size=4, 
@@ -45,27 +44,24 @@ class MpcController(AbstractController):
         wy_sym = self.model.x[5]
         x_nn_sym = cs.vertcat(theta_sym, vx_sym, vz_sym, wy_sym)
         
-        # Normalizziamo gli input per la rete
+        # Normalizzazione input per la rete
         x_norm = (x_nn_sym - cs.DM(self.mean_X)) / cs.DM(self.std_X)
         
-        # Creiamo la funzione L4CasADi
+        # Funzione L4CasADi
         self.l4c_model = l4c.L4CasADi(net, name="drone_viability_net")
         
-        # Output della rete: lo spazio di frenata predetto (Alpha)
+        # Output della rete: spazio di frenata predetto (Alpha)
         alpha_pred = self.l4c_model(x_norm.T)
         
-        # IL VINCOLO: Alpha Predetto - Alpha Reale <= 0
-        # self.model.p[0] è l'alpha_real che abbiamo definito nei parametri
+        # VINCOLO: Alpha Predetto - Alpha Reale <= 0
         self.ocp.model.con_h_expr_e = alpha_pred - self.model.p[0]
         self.ocp.constraints.uh_e = np.array([0.0])
         self.ocp.constraints.lh_e = np.array([-1e5]) # Limite inferiore largo
         
-        # 4. COMPILAZIONE DEL SOLVER
-        # Ora che abbiamo aggiunto il vincolo di L4CasADi, possiamo compilare!
+        # COMPILAZIONE DEL SOLVER
         gen_name = self.params.GEN_DIR + 'ocp_mpc_' + self.model.amodel.name
         self.ocp.code_export_directory = gen_name
 
-        # ---> AGGIUNGI QUESTE DUE RIGHE PER L4CASADI <---
         self.ocp.solver_options.model_external_shared_lib_dir = self.l4c_model.shared_lib_dir
         self.ocp.solver_options.model_external_shared_lib_name = self.l4c_model.name
 
@@ -84,15 +80,15 @@ class MpcController(AbstractController):
         """
         self.ocp_solver.reset()
 
-        # 1. Fissa lo stato iniziale ai valori correnti misurati dai sensori
+        # Stato iniziale ai valori correnti misurati dai sensori
         self.ocp_solver.constraints_set(0, "lbx", current_x)
         self.ocp_solver.constraints_set(0, "ubx", current_x)
 
-        # 2. Crea il vettore dei parametri per questo step: [alpha_real, x_ref(6)]
+        # Vettore dei parametri per questo step: [alpha_real, x_ref(6)]
         p_val = np.hstack([alpha_real, x_ref])
         
         for i in range(self.N):
-            # Warm-start primal variables and set the direction parameter
+            # Warm-start
             self.ocp_solver.set(i, 'x', self.x_guess[i])
             self.ocp_solver.set(i, 'u', self.u_guess[i])
             self.ocp_solver.set(i, 'p', p_val)
@@ -192,7 +188,7 @@ class MpcController(AbstractController):
         # self.ocp_solver.constraints_set(0, "lbx", q_init)
         # self.ocp_solver.constraints_set(0, "ubx", q_init)
 
-        # 4. Risolvi
+        # Solver
         status = self.ocp_solver.solve()
         
         if status in [0, 2]: # Successo o sub-ottimo accettabile
@@ -205,21 +201,20 @@ class MpcController(AbstractController):
             x_sol[self.N] = self.ocp_solver.get(self.N, 'x')
             
           # --- CALCOLO DI ALPHA CORRENTE ---
-            # Prendiamo lo stato finale della previsione (nodo N)
+            # Considero stato finale della previsione (nodo N)
             x_terminal = x_sol[self.N]
-            # Estraiamo theta, vx, vz, wy (indici 2, 3, 4, 5)
+            # Estraggo theta, vx, vz, wy (indici 2, 3, 4, 5)
             x_nn_input = x_terminal[2:6]
-            # Normalizziamo
+            # Normalizzo
             x_norm = (x_nn_input - self.mean_X) / self.std_X
 
-            # Interroghiamo la rete neurale (Python) per avere il valore da plottare
+            # Interrogo NN per avere alpha da plottare
             with torch.no_grad():
-                # self.l4c_model.model è la rete torch interna
                 alpha_val = self.l4c_model.model(torch.tensor(x_norm, dtype=torch.float32).unsqueeze(0)).item()
 
 
 
-            # Aggiorna il warm-start shiftandolo in avanti di 1 passo per la prossima iterazione
+            # Aggiorno warm-start
             new_x_guess = np.vstack([x_sol[1:], x_sol[-1]])
             new_u_guess = np.vstack([u_sol[1:], u_sol[-1]])
             self.setGuess(new_x_guess, new_u_guess)

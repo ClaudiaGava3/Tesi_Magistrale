@@ -175,8 +175,8 @@ static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   casadi_clear(w6, 2);
   /* #10: @7 = input[1][0] */
   casadi_copy(arg[1], 2, w7);
-  /* #11: @8 = 5722.5 */
-  w8 = 5.7225000000000000e+03;
+  /* #11: @8 = 2452.5 */
+  w8 = 2.4525000000000000e+03;
   /* #12: @7 = (@7-@8) */
   for (i=0, rr=w7; i<2; ++i) (*rr++) -= w8;
   /* #13: @9 = @7' */

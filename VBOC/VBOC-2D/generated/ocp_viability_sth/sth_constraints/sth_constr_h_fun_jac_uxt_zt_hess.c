@@ -36,6 +36,7 @@ extern "C" {
 #define casadi_c4 CASADI_PREFIX(c4)
 #define casadi_c5 CASADI_PREFIX(c5)
 #define casadi_c6 CASADI_PREFIX(c6)
+#define casadi_c7 CASADI_PREFIX(c7)
 #define casadi_clear CASADI_PREFIX(clear)
 #define casadi_copy CASADI_PREFIX(copy)
 #define casadi_f0 CASADI_PREFIX(f0)
@@ -88,13 +89,6 @@ void casadi_clear(casadi_real* x, casadi_int n) {
   }
 }
 
-void casadi_fill(casadi_real* x, casadi_int n, casadi_real alpha) {
-  casadi_int i;
-  if (x) {
-    for (i=0; i<n; ++i) *x++ = alpha;
-  }
-}
-
 void casadi_mtimes(const casadi_real* x, const casadi_int* sp_x, const casadi_real* y, const casadi_int* sp_y, casadi_real* z, const casadi_int* sp_z, casadi_real* w, casadi_int tr) {
   casadi_int ncol_x, ncol_y, ncol_z, cc;
   const casadi_int *colind_x, *row_x, *colind_y, *row_y, *colind_z, *row_z;
@@ -138,6 +132,13 @@ void casadi_mtimes(const casadi_real* x, const casadi_int* sp_x, const casadi_re
   }
 }
 
+void casadi_fill(casadi_real* x, casadi_int n, casadi_real alpha) {
+  casadi_int i;
+  if (x) {
+    for (i=0; i<n; ++i) *x++ = alpha;
+  }
+}
+
 void casadi_trans(const casadi_real* x, const casadi_int* sp_x, casadi_real* y,
     const casadi_int* sp_y, casadi_int* tmp) {
   casadi_int ncol_x, nnz_x, ncol_y, k;
@@ -170,9 +171,10 @@ static const casadi_real casadi_c0[3] = {1., 0., 0.};
 static const casadi_real casadi_c1[9] = {1., 0., 0., 0., 1., 0., 0., 0., 1.};
 static const casadi_real casadi_c2[3] = {0., 1., 0.};
 static const casadi_real casadi_c3[9] = {1., 0., 0., 0., 1., 0., 0., 0., 1.};
-static const casadi_real casadi_c4[3] = {0., 0., 1.};
-static const casadi_real casadi_c5[3] = {-1., 0., 0.};
-static const casadi_real casadi_c6[3] = {0., 0., -1.};
+static const casadi_real casadi_c4[3] = {2.2499999999999999e-02, 2.2499999999999999e-02, 2.5000000000000005e-03};
+static const casadi_real casadi_c5[3] = {0., 0., 1.};
+static const casadi_real casadi_c6[3] = {-1., 0., 0.};
+static const casadi_real casadi_c7[3] = {0., 0., -1.};
 
 /* sth_constr_h_fun_jac_uxt_zt_hess:(i0[11],i1[2],i2[4],i3[0],i4[4])->(o0[4],o1[13x4,16nz],o2[13x13,9nz],o3[4x0],o4[]) */
 static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem) {
@@ -180,7 +182,7 @@ static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   casadi_real *rr, *ss, *tt;
   const casadi_int *cii;
   const casadi_real *cs;
-  casadi_real *w0=w+3, w1, w2, *w3=w+16, *w4=w+19, *w5=w+22, *w6=w+31, w7, w8, *w9=w+42, *w10=w+45, w11, *w12=w+49, *w13=w+52, *w14=w+61, *w15=w+70, *w16=w+79, *w17=w+88, w18, w19, w20, w21, *w22=w+101, *w23=w+104, w24, w25, w26, *w27=w+110, *w28=w+113, w29, *w30=w+117, *w31=w+120, w32, *w33=w+124, *w34=w+140, *w35=w+147, w36, w37, *w38=w+154, *w40=w+158, *w42=w+160, *w43=w+162, *w44=w+166, *w45=w+175, *w46=w+184, *w47=w+194, *w48=w+202, *w49=w+213, *w50=w+216, *w51=w+219, *w52=w+228, *w53=w+231, *w54=w+234, *w55=w+243, *w56=w+246, *w57=w+249, *w58=w+252, *w59=w+255, *w60=w+264, *w61=w+273, w62, w63, w64, w65, *w66=w+280;
+  casadi_real *w0=w+3, w1, w2, *w3=w+16, *w4=w+19, *w5=w+22, *w6=w+31, w7, w8, *w9=w+42, *w10=w+45, w11, *w12=w+49, *w13=w+52, *w14=w+61, *w15=w+70, *w16=w+79, *w17=w+88, w18, w19, w20, w21, *w22=w+101, *w23=w+104, w24, w25, w26, *w27=w+110, *w28=w+113, w29, *w30=w+117, *w31=w+120, w32, *w33=w+124, *w34=w+140, *w35=w+147, w36, w37, *w38=w+154, *w40=w+158, *w42=w+160, *w43=w+162, *w44=w+166, *w45=w+175, *w46=w+184, *w47=w+194, *w48=w+202, *w49=w+213, *w50=w+216, *w51=w+219, *w52=w+228, *w53=w+231, *w54=w+234, *w55=w+243, *w56=w+246, *w57=w+249, *w58=w+252, *w59=w+255, *w60=w+264, *w61=w+273, *w62=w+276, w63, w64, w65, w66, *w67=w+283;
   /* #0: @0 = input[0][0] */
   casadi_copy(arg[0], 11, w0);
   /* #1: @1 = @0[0] */
@@ -239,8 +241,11 @@ static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   /* #21: @15 = mac(@13,@14,@5) */
   casadi_copy(w5, 9, w15);
   for (i=0, rr=w15; i<3; ++i) for (j=0; j<3; ++j, ++rr) for (k=0, ss=w13+j, tt=w14+i*3; k<3; ++k) *rr += ss[k*3]**tt++;
-  /* #22: @9 = all_0.275625(3x3,3nz) */
-  casadi_fill(w9, 3, 2.7562500000000001e-01);
+  /* #22: @9 = 
+  [[0.0225, 00, 00], 
+   [00, 0.0225, 00], 
+   [00, 00, 0.0025]] */
+  casadi_copy(casadi_c4, 3, w9);
   /* #23: @13 = mac(@15,@9,@5) */
   casadi_copy(w5, 9, w13);
   casadi_mtimes(w15, casadi_s0, w9, casadi_s1, w13, casadi_s0, w, 0);
@@ -274,12 +279,12 @@ static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   /* #36: @18 = @0[1] */
   for (rr=(&w18), ss=w0+1; ss!=w0+2; ss+=1) *rr++ = *ss;
   /* #37: @10 = [[0, 0, 1]] */
-  casadi_copy(casadi_c4, 3, w10);
+  casadi_copy(casadi_c5, 3, w10);
   /* #38: @22 = mac(@10,@17,@3) */
   casadi_copy(w3, 3, w22);
   for (i=0, rr=w22; i<3; ++i) for (j=0; j<1; ++j, ++rr) for (k=0, ss=w10+j, tt=w17+i*3; k<3; ++k) *rr += ss[k*1]**tt++;
   /* #39: @23 = [0, 0, 1] */
-  casadi_copy(casadi_c4, 3, w23);
+  casadi_copy(casadi_c5, 3, w23);
   /* #40: @21 = mac(@22,@23,@2) */
   casadi_copy((&w2), 1, (&w21));
   for (i=0, rr=(&w21); i<1; ++i) for (j=0; j<1; ++j, ++rr) for (k=0, ss=w22+j, tt=w23+i*3; k<3; ++k) *rr += ss[k*1]**tt++;
@@ -296,12 +301,12 @@ static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   /* #46: output[0][1] = @24 */
   if (res[0]) res[0][1] = w24;
   /* #47: @22 = [[-1, 0, 0]] */
-  casadi_copy(casadi_c5, 3, w22);
+  casadi_copy(casadi_c6, 3, w22);
   /* #48: @27 = mac(@22,@17,@3) */
   casadi_copy(w3, 3, w27);
   for (i=0, rr=w27; i<3; ++i) for (j=0; j<1; ++j, ++rr) for (k=0, ss=w22+j, tt=w17+i*3; k<3; ++k) *rr += ss[k*1]**tt++;
   /* #49: @28 = [-1, 0, 0] */
-  casadi_copy(casadi_c5, 3, w28);
+  casadi_copy(casadi_c6, 3, w28);
   /* #50: @24 = mac(@27,@28,@2) */
   casadi_copy((&w2), 1, (&w24));
   for (i=0, rr=(&w24); i<1; ++i) for (j=0; j<1; ++j, ++rr) for (k=0, ss=w27+j, tt=w28+i*3; k<3; ++k) *rr += ss[k*1]**tt++;
@@ -318,12 +323,12 @@ static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   /* #56: output[0][2] = @1 */
   if (res[0]) res[0][2] = w1;
   /* #57: @27 = [[0, 0, -1]] */
-  casadi_copy(casadi_c6, 3, w27);
+  casadi_copy(casadi_c7, 3, w27);
   /* #58: @30 = mac(@27,@17,@3) */
   casadi_copy(w3, 3, w30);
   for (i=0, rr=w30; i<3; ++i) for (j=0; j<1; ++j, ++rr) for (k=0, ss=w27+j, tt=w17+i*3; k<3; ++k) *rr += ss[k*1]**tt++;
   /* #59: @31 = [0, 0, -1] */
-  casadi_copy(casadi_c6, 3, w31);
+  casadi_copy(casadi_c7, 3, w31);
   /* #60: @1 = mac(@30,@31,@2) */
   casadi_copy((&w2), 1, (&w1));
   for (i=0, rr=(&w1); i<1; ++i) for (j=0; j<1; ++j, ++rr) for (k=0, ss=w30+j, tt=w31+i*3; k<3; ++k) *rr += ss[k*1]**tt++;
@@ -640,299 +645,301 @@ static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   /* #196: @54 = mac(@51,@15,@5) */
   casadi_copy(w5, 9, w54);
   for (i=0, rr=w54; i<3; ++i) for (j=0; j<3; ++j, ++rr) for (k=0, ss=w51+j, tt=w15+i*3; k<3; ++k) *rr += ss[k*3]**tt++;
-  /* #197: @60 = mac(@54,@9,@5) */
+  /* #197: @58 = @9' */
+  casadi_trans(w9,casadi_s1, w58, casadi_s1, iw);
+  /* #198: @60 = mac(@54,@58,@5) */
   casadi_copy(w5, 9, w60);
-  casadi_mtimes(w54, casadi_s0, w9, casadi_s1, w60, casadi_s0, w, 0);
-  /* #198: @59 = (@59+@60) */
+  casadi_mtimes(w54, casadi_s0, w58, casadi_s1, w60, casadi_s0, w, 0);
+  /* #199: @59 = (@59+@60) */
   for (i=0, rr=w59, cs=w60; i<9; ++i) (*rr++) += (*cs++);
-  /* #199: @60 = @14' */
+  /* #200: @60 = @14' */
   for (i=0, rr=w60, cs=w14; i<3; ++i) for (j=0; j<3; ++j) rr[i+j*3] = *cs++;
-  /* #200: @54 = mac(@59,@60,@5) */
+  /* #201: @54 = mac(@59,@60,@5) */
   casadi_copy(w5, 9, w54);
   for (i=0, rr=w54; i<3; ++i) for (j=0; j<3; ++j, ++rr) for (k=0, ss=w59+j, tt=w60+i*3; k<3; ++k) *rr += ss[k*3]**tt++;
-  /* #201: @59 = mac(@44,@54,@5) */
+  /* #202: @59 = mac(@44,@54,@5) */
   casadi_copy(w5, 9, w59);
   for (i=0, rr=w59; i<3; ++i) for (j=0; j<3; ++j, ++rr) for (k=0, ss=w44+j, tt=w54+i*3; k<3; ++k) *rr += ss[k*3]**tt++;
-  /* #202: @54 = @59' */
+  /* #203: @54 = @59' */
   for (i=0, rr=w54, cs=w59; i<3; ++i) for (j=0; j<3; ++j) rr[i+j*3] = *cs++;
-  /* #203: {@58, NULL, @61} = horzsplit(@54) */
-  casadi_copy(w54, 3, w58);
-  casadi_copy(w54+6, 3, w61);
-  /* #204: @61 = @61' */
-  /* #205: {@19, NULL, @37} = horzsplit(@61) */
-  w19 = w61[0];
-  w37 = w61[2];
-  /* #206: @62 = @47[2] */
-  for (rr=(&w62), ss=w47+2; ss!=w47+3; ss+=1) *rr++ = *ss;
-  /* #207: @63 = (@8*@62) */
-  w63  = (w8*w62);
-  /* #208: @37 = (@37*@63) */
-  w37 *= w63;
-  /* #209: @18 = (@18/@1) */
+  /* #204: {@61, NULL, @62} = horzsplit(@54) */
+  casadi_copy(w54, 3, w61);
+  casadi_copy(w54+6, 3, w62);
+  /* #205: @62 = @62' */
+  /* #206: {@19, NULL, @37} = horzsplit(@62) */
+  w19 = w62[0];
+  w37 = w62[2];
+  /* #207: @63 = @47[2] */
+  for (rr=(&w63), ss=w47+2; ss!=w47+3; ss+=1) *rr++ = *ss;
+  /* #208: @64 = (@8*@63) */
+  w64  = (w8*w63);
+  /* #209: @37 = (@37*@64) */
+  w37 *= w64;
+  /* #210: @18 = (@18/@1) */
   w18 /= w1;
-  /* #210: @62 = (@7*@62) */
-  w62  = (w7*w62);
-  /* #211: @64 = (-@62) */
-  w64 = (- w62 );
-  /* #212: @40 = horzcat(@64, @39, @63) */
-  rr=w40;
-  *rr++ = w64;
-  *rr++ = w63;
-  /* #213: @40 = @40' */
-  /* #214: @65 = (-@63) */
+  /* #211: @63 = (@7*@63) */
+  w63  = (w7*w63);
+  /* #212: @65 = (-@63) */
   w65 = (- w63 );
-  /* #215: @42 = horzcat(@65, @39, @64) */
-  rr=w42;
+  /* #213: @40 = horzcat(@65, @39, @64) */
+  rr=w40;
   *rr++ = w65;
   *rr++ = w64;
-  /* #216: @42 = @42' */
-  /* #217: @38 = horzcat(@40, @41, @42) */
+  /* #214: @40 = @40' */
+  /* #215: @66 = (-@64) */
+  w66 = (- w64 );
+  /* #216: @42 = horzcat(@66, @39, @65) */
+  rr=w42;
+  *rr++ = w66;
+  *rr++ = w65;
+  /* #217: @42 = @42' */
+  /* #218: @38 = horzcat(@40, @41, @42) */
   rr=w38;
   for (i=0, cs=w40; i<2; ++i) *rr++ = *cs++;
   for (i=0, cs=w42; i<2; ++i) *rr++ = *cs++;
-  /* #218: @43 = @38' */
+  /* #219: @43 = @38' */
   casadi_trans(w38,casadi_s2, w43, casadi_s2, iw);
-  /* #219: @54 = mac(@6,@43,@5) */
+  /* #220: @54 = mac(@6,@43,@5) */
   casadi_copy(w5, 9, w54);
   casadi_mtimes(w6, casadi_s0, w43, casadi_s2, w54, casadi_s0, w, 0);
-  /* #220: @6 = mac(@54,@14,@5) */
+  /* #221: @6 = mac(@54,@14,@5) */
   casadi_copy(w5, 9, w6);
   for (i=0, rr=w6; i<3; ++i) for (j=0; j<3; ++j, ++rr) for (k=0, ss=w54+j, tt=w14+i*3; k<3; ++k) *rr += ss[k*3]**tt++;
-  /* #221: @54 = @6' */
+  /* #222: @54 = @6' */
   for (i=0, rr=w54, cs=w6; i<3; ++i) for (j=0; j<3; ++j) rr[i+j*3] = *cs++;
-  /* #222: @14 = mac(@13,@54,@5) */
+  /* #223: @14 = mac(@13,@54,@5) */
   casadi_copy(w5, 9, w14);
   for (i=0, rr=w14; i<3; ++i) for (j=0; j<3; ++j, ++rr) for (k=0, ss=w13+j, tt=w54+i*3; k<3; ++k) *rr += ss[k*3]**tt++;
-  /* #223: @13 = mac(@6,@9,@5) */
+  /* #224: @13 = mac(@6,@9,@5) */
   casadi_copy(w5, 9, w13);
   casadi_mtimes(w6, casadi_s0, w9, casadi_s1, w13, casadi_s0, w, 0);
-  /* #224: @54 = mac(@13,@16,@5) */
+  /* #225: @54 = mac(@13,@16,@5) */
   casadi_copy(w5, 9, w54);
   for (i=0, rr=w54; i<3; ++i) for (j=0; j<3; ++j, ++rr) for (k=0, ss=w13+j, tt=w16+i*3; k<3; ++k) *rr += ss[k*3]**tt++;
-  /* #225: @14 = (@14+@54) */
+  /* #226: @14 = (@14+@54) */
   for (i=0, rr=w14, cs=w54; i<9; ++i) (*rr++) += (*cs++);
-  /* #226: @61 = mac(@27,@14,@3) */
-  casadi_copy(w3, 3, w61);
-  for (i=0, rr=w61; i<3; ++i) for (j=0; j<1; ++j, ++rr) for (k=0, ss=w27+j, tt=w14+i*3; k<3; ++k) *rr += ss[k*1]**tt++;
-  /* #227: @65 = mac(@61,@31,@2) */
-  casadi_copy((&w2), 1, (&w65));
-  for (i=0, rr=(&w65); i<1; ++i) for (j=0; j<1; ++j, ++rr) for (k=0, ss=w61+j, tt=w31+i*3; k<3; ++k) *rr += ss[k*1]**tt++;
-  /* #228: @65 = (@65/@1) */
-  w65 /= w1;
-  /* #229: @65 = (2.*@65) */
-  w65 = (2.* w65 );
-  /* #230: @18 = (@18*@65) */
-  w18 *= w65;
-  /* #231: @49 = (@49*@18) */
+  /* #227: @9 = mac(@27,@14,@3) */
+  casadi_copy(w3, 3, w9);
+  for (i=0, rr=w9; i<3; ++i) for (j=0; j<1; ++j, ++rr) for (k=0, ss=w27+j, tt=w14+i*3; k<3; ++k) *rr += ss[k*1]**tt++;
+  /* #228: @66 = mac(@9,@31,@2) */
+  casadi_copy((&w2), 1, (&w66));
+  for (i=0, rr=(&w66); i<1; ++i) for (j=0; j<1; ++j, ++rr) for (k=0, ss=w9+j, tt=w31+i*3; k<3; ++k) *rr += ss[k*1]**tt++;
+  /* #229: @66 = (@66/@1) */
+  w66 /= w1;
+  /* #230: @66 = (2.*@66) */
+  w66 = (2.* w66 );
+  /* #231: @18 = (@18*@66) */
+  w18 *= w66;
+  /* #232: @49 = (@49*@18) */
   for (i=0, rr=w49; i<3; ++i) (*rr++) *= w18;
-  /* #232: @49 = (-@49) */
+  /* #233: @49 = (-@49) */
   for (i=0, rr=w49, cs=w49; i<3; ++i) *rr++ = (- *cs++ );
-  /* #233: @54 = mac(@30,@49,@5) */
+  /* #234: @54 = mac(@30,@49,@5) */
   casadi_copy(w5, 9, w54);
   for (i=0, rr=w54; i<3; ++i) for (j=0; j<3; ++j, ++rr) for (k=0, ss=w30+j, tt=w49+i*1; k<1; ++k) *rr += ss[k*3]**tt++;
-  /* #234: @32 = (@32/@24) */
+  /* #235: @32 = (@32/@24) */
   w32 /= w24;
-  /* #235: @30 = mac(@22,@14,@3) */
+  /* #236: @30 = mac(@22,@14,@3) */
   casadi_copy(w3, 3, w30);
   for (i=0, rr=w30; i<3; ++i) for (j=0; j<1; ++j, ++rr) for (k=0, ss=w22+j, tt=w14+i*3; k<3; ++k) *rr += ss[k*1]**tt++;
-  /* #236: @18 = mac(@30,@28,@2) */
+  /* #237: @18 = mac(@30,@28,@2) */
   casadi_copy((&w2), 1, (&w18));
   for (i=0, rr=(&w18); i<1; ++i) for (j=0; j<1; ++j, ++rr) for (k=0, ss=w30+j, tt=w28+i*3; k<3; ++k) *rr += ss[k*1]**tt++;
-  /* #237: @18 = (@18/@24) */
+  /* #238: @18 = (@18/@24) */
   w18 /= w24;
-  /* #238: @18 = (2.*@18) */
+  /* #239: @18 = (2.*@18) */
   w18 = (2.* w18 );
-  /* #239: @32 = (@32*@18) */
+  /* #240: @32 = (@32*@18) */
   w32 *= w18;
-  /* #240: @52 = (@52*@32) */
+  /* #241: @52 = (@52*@32) */
   for (i=0, rr=w52; i<3; ++i) (*rr++) *= w32;
-  /* #241: @52 = (-@52) */
+  /* #242: @52 = (-@52) */
   for (i=0, rr=w52, cs=w52; i<3; ++i) *rr++ = (- *cs++ );
-  /* #242: @16 = mac(@50,@52,@5) */
+  /* #243: @16 = mac(@50,@52,@5) */
   casadi_copy(w5, 9, w16);
   for (i=0, rr=w16; i<3; ++i) for (j=0; j<3; ++j, ++rr) for (k=0, ss=w50+j, tt=w52+i*1; k<1; ++k) *rr += ss[k*3]**tt++;
-  /* #243: @54 = (@54+@16) */
+  /* #244: @54 = (@54+@16) */
   for (i=0, rr=w54, cs=w16; i<9; ++i) (*rr++) += (*cs++);
-  /* #244: @36 = (@36/@21) */
+  /* #245: @36 = (@36/@21) */
   w36 /= w21;
-  /* #245: @50 = mac(@10,@14,@3) */
+  /* #246: @50 = mac(@10,@14,@3) */
   casadi_copy(w3, 3, w50);
   for (i=0, rr=w50; i<3; ++i) for (j=0; j<1; ++j, ++rr) for (k=0, ss=w10+j, tt=w14+i*3; k<3; ++k) *rr += ss[k*1]**tt++;
-  /* #246: @32 = mac(@50,@23,@2) */
+  /* #247: @32 = mac(@50,@23,@2) */
   casadi_copy((&w2), 1, (&w32));
   for (i=0, rr=(&w32); i<1; ++i) for (j=0; j<1; ++j, ++rr) for (k=0, ss=w50+j, tt=w23+i*3; k<3; ++k) *rr += ss[k*1]**tt++;
-  /* #247: @32 = (@32/@21) */
+  /* #248: @32 = (@32/@21) */
   w32 /= w21;
-  /* #248: @32 = (2.*@32) */
+  /* #249: @32 = (2.*@32) */
   w32 = (2.* w32 );
-  /* #249: @36 = (@36*@32) */
+  /* #250: @36 = (@36*@32) */
   w36 *= w32;
-  /* #250: @55 = (@55*@36) */
+  /* #251: @55 = (@55*@36) */
   for (i=0, rr=w55; i<3; ++i) (*rr++) *= w36;
-  /* #251: @55 = (-@55) */
+  /* #252: @55 = (-@55) */
   for (i=0, rr=w55, cs=w55; i<3; ++i) *rr++ = (- *cs++ );
-  /* #252: @16 = mac(@53,@55,@5) */
+  /* #253: @16 = mac(@53,@55,@5) */
   casadi_copy(w5, 9, w16);
   for (i=0, rr=w16; i<3; ++i) for (j=0; j<3; ++j, ++rr) for (k=0, ss=w53+j, tt=w55+i*1; k<1; ++k) *rr += ss[k*3]**tt++;
-  /* #253: @54 = (@54+@16) */
+  /* #254: @54 = (@54+@16) */
   for (i=0, rr=w54, cs=w16; i<9; ++i) (*rr++) += (*cs++);
-  /* #254: @20 = (@20/@11) */
+  /* #255: @20 = (@20/@11) */
   w20 /= w11;
-  /* #255: @3 = mac(@4,@14,@3) */
+  /* #256: @3 = mac(@4,@14,@3) */
   for (i=0, rr=w3; i<3; ++i) for (j=0; j<1; ++j, ++rr) for (k=0, ss=w4+j, tt=w14+i*3; k<3; ++k) *rr += ss[k*1]**tt++;
-  /* #256: @2 = mac(@3,@12,@2) */
+  /* #257: @2 = mac(@3,@12,@2) */
   for (i=0, rr=(&w2); i<1; ++i) for (j=0; j<1; ++j, ++rr) for (k=0, ss=w3+j, tt=w12+i*3; k<3; ++k) *rr += ss[k*1]**tt++;
-  /* #257: @2 = (@2/@11) */
+  /* #258: @2 = (@2/@11) */
   w2 /= w11;
-  /* #258: @2 = (2.*@2) */
+  /* #259: @2 = (2.*@2) */
   w2 = (2.* w2 );
-  /* #259: @20 = (@20*@2) */
+  /* #260: @20 = (@20*@2) */
   w20 *= w2;
-  /* #260: @57 = (@57*@20) */
+  /* #261: @57 = (@57*@20) */
   for (i=0, rr=w57; i<3; ++i) (*rr++) *= w20;
-  /* #261: @57 = (-@57) */
+  /* #262: @57 = (-@57) */
   for (i=0, rr=w57, cs=w57; i<3; ++i) *rr++ = (- *cs++ );
-  /* #262: @14 = mac(@56,@57,@5) */
+  /* #263: @14 = mac(@56,@57,@5) */
   casadi_copy(w5, 9, w14);
   for (i=0, rr=w14; i<3; ++i) for (j=0; j<3; ++j, ++rr) for (k=0, ss=w56+j, tt=w57+i*1; k<1; ++k) *rr += ss[k*3]**tt++;
-  /* #263: @54 = (@54+@14) */
+  /* #264: @54 = (@54+@14) */
   for (i=0, rr=w54, cs=w14; i<9; ++i) (*rr++) += (*cs++);
-  /* #264: @14 = mac(@17,@54,@5) */
+  /* #265: @14 = mac(@17,@54,@5) */
   casadi_copy(w5, 9, w14);
   for (i=0, rr=w14; i<3; ++i) for (j=0; j<3; ++j, ++rr) for (k=0, ss=w17+j, tt=w54+i*3; k<3; ++k) *rr += ss[k*3]**tt++;
-  /* #265: @17 = @13' */
+  /* #266: @17 = @13' */
   for (i=0, rr=w17, cs=w13; i<3; ++i) for (j=0; j<3; ++j) rr[i+j*3] = *cs++;
-  /* #266: @13 = mac(@17,@51,@5) */
+  /* #267: @13 = mac(@17,@51,@5) */
   casadi_copy(w5, 9, w13);
   for (i=0, rr=w13; i<3; ++i) for (j=0; j<3; ++j, ++rr) for (k=0, ss=w17+j, tt=w51+i*3; k<3; ++k) *rr += ss[k*3]**tt++;
-  /* #267: @14 = (@14+@13) */
+  /* #268: @14 = (@14+@13) */
   for (i=0, rr=w14, cs=w13; i<9; ++i) (*rr++) += (*cs++);
-  /* #268: @13 = @14' */
+  /* #269: @13 = @14' */
   for (i=0, rr=w13, cs=w14; i<3; ++i) for (j=0; j<3; ++j) rr[i+j*3] = *cs++;
-  /* #269: @14 = mac(@51,@6,@5) */
+  /* #270: @14 = mac(@51,@6,@5) */
   casadi_copy(w5, 9, w14);
   for (i=0, rr=w14; i<3; ++i) for (j=0; j<3; ++j, ++rr) for (k=0, ss=w51+j, tt=w6+i*3; k<3; ++k) *rr += ss[k*3]**tt++;
-  /* #270: @51 = mac(@54,@15,@5) */
+  /* #271: @51 = mac(@54,@15,@5) */
   casadi_copy(w5, 9, w51);
   for (i=0, rr=w51; i<3; ++i) for (j=0; j<3; ++j, ++rr) for (k=0, ss=w54+j, tt=w15+i*3; k<3; ++k) *rr += ss[k*3]**tt++;
-  /* #271: @14 = (@14+@51) */
+  /* #272: @14 = (@14+@51) */
   for (i=0, rr=w14, cs=w51; i<9; ++i) (*rr++) += (*cs++);
-  /* #272: @51 = mac(@14,@9,@5) */
+  /* #273: @51 = mac(@14,@58,@5) */
   casadi_copy(w5, 9, w51);
-  casadi_mtimes(w14, casadi_s0, w9, casadi_s1, w51, casadi_s0, w, 0);
-  /* #273: @13 = (@13+@51) */
+  casadi_mtimes(w14, casadi_s0, w58, casadi_s1, w51, casadi_s0, w, 0);
+  /* #274: @13 = (@13+@51) */
   for (i=0, rr=w13, cs=w51; i<9; ++i) (*rr++) += (*cs++);
-  /* #274: @51 = mac(@13,@60,@5) */
+  /* #275: @51 = mac(@13,@60,@5) */
   casadi_copy(w5, 9, w51);
   for (i=0, rr=w51; i<3; ++i) for (j=0; j<3; ++j, ++rr) for (k=0, ss=w13+j, tt=w60+i*3; k<3; ++k) *rr += ss[k*3]**tt++;
-  /* #275: @5 = mac(@44,@51,@5) */
+  /* #276: @5 = mac(@44,@51,@5) */
   for (i=0, rr=w5; i<3; ++i) for (j=0; j<3; ++j, ++rr) for (k=0, ss=w44+j, tt=w51+i*3; k<3; ++k) *rr += ss[k*3]**tt++;
-  /* #276: @44 = @5' */
+  /* #277: @44 = @5' */
   for (i=0, rr=w44, cs=w5; i<3; ++i) for (j=0; j<3; ++j) rr[i+j*3] = *cs++;
-  /* #277: {@9, NULL, @56} = horzsplit(@44) */
-  casadi_copy(w44, 3, w9);
+  /* #278: {@58, NULL, @56} = horzsplit(@44) */
+  casadi_copy(w44, 3, w58);
   casadi_copy(w44+6, 3, w56);
-  /* #278: @56 = @56' */
-  /* #279: {@20, NULL, @2} = horzsplit(@56) */
+  /* #279: @56 = @56' */
+  /* #280: {@20, NULL, @2} = horzsplit(@56) */
   w20 = w56[0];
   w2 = w56[2];
-  /* #280: @2 = (@7*@2) */
+  /* #281: @2 = (@7*@2) */
   w2  = (w7*w2);
-  /* #281: @37 = (@37+@2) */
+  /* #282: @37 = (@37+@2) */
   w37 += w2;
-  /* #282: @37 = (-@37) */
+  /* #283: @37 = (-@37) */
   w37 = (- w37 );
-  /* #283: @20 = (@8*@20) */
+  /* #284: @20 = (@8*@20) */
   w20  = (w8*w20);
-  /* #284: @19 = (@19*@62) */
-  w19 *= w62;
-  /* #285: @20 = (@20-@19) */
-  w20 -= w19;
-  /* #286: @37 = (@37-@20) */
-  w37 -= w20;
-  /* #287: @9 = @9' */
-  /* #288: {@20, NULL, @19} = horzsplit(@9) */
-  w20 = w9[0];
-  w19 = w9[2];
-  /* #289: @8 = (@8*@19) */
-  w8 *= w19;
-  /* #290: @58 = @58' */
-  /* #291: {@19, NULL, @2} = horzsplit(@58) */
-  w19 = w58[0];
-  w2 = w58[2];
-  /* #292: @2 = (@2*@62) */
-  w2 *= w62;
-  /* #293: @8 = (@8-@2) */
-  w8 -= w2;
-  /* #294: @37 = (@37+@8) */
-  w37 += w8;
-  /* #295: @19 = (@19*@63) */
+  /* #285: @19 = (@19*@63) */
   w19 *= w63;
-  /* #296: @7 = (@7*@20) */
+  /* #286: @20 = (@20-@19) */
+  w20 -= w19;
+  /* #287: @37 = (@37-@20) */
+  w37 -= w20;
+  /* #288: @58 = @58' */
+  /* #289: {@20, NULL, @19} = horzsplit(@58) */
+  w20 = w58[0];
+  w19 = w58[2];
+  /* #290: @8 = (@8*@19) */
+  w8 *= w19;
+  /* #291: @61 = @61' */
+  /* #292: {@19, NULL, @2} = horzsplit(@61) */
+  w19 = w61[0];
+  w2 = w61[2];
+  /* #293: @2 = (@2*@63) */
+  w2 *= w63;
+  /* #294: @8 = (@8-@2) */
+  w8 -= w2;
+  /* #295: @37 = (@37+@8) */
+  w37 += w8;
+  /* #296: @19 = (@19*@64) */
+  w19 *= w64;
+  /* #297: @7 = (@7*@20) */
   w7 *= w20;
-  /* #297: @19 = (@19+@7) */
+  /* #298: @19 = (@19+@7) */
   w19 += w7;
-  /* #298: @37 = (@37-@19) */
+  /* #299: @37 = (@37-@19) */
   w37 -= w19;
-  /* #299: (@48[2] += @37) */
+  /* #300: (@48[2] += @37) */
   for (rr=w48+2, ss=(&w37); rr!=w48+3; rr+=1) *rr += *ss++;
-  /* #300: @66 = @48[2, 6, 7, 8, 9, 10] */
-  for (cii=casadi_s3, rr=w66, ss=w48; cii!=casadi_s3+6; ++cii) *rr++ = ss[*cii];
-  /* #301: (@45[:6] = @66) */
-  for (rr=w45+0, ss=w66; rr!=w45+6; rr+=1) *rr = *ss++;
-  /* #302: @37 = ones(13x1,1nz) */
+  /* #301: @67 = @48[2, 6, 7, 8, 9, 10] */
+  for (cii=casadi_s3, rr=w67, ss=w48; cii!=casadi_s3+6; ++cii) *rr++ = ss[*cii];
+  /* #302: (@45[:6] = @67) */
+  for (rr=w45+0, ss=w67; rr!=w45+6; rr+=1) *rr = *ss++;
+  /* #303: @37 = ones(13x1,1nz) */
   w37 = 1.;
-  /* #303: {NULL, @19} = vertsplit(@37) */
+  /* #304: {NULL, @19} = vertsplit(@37) */
   w19 = w37;
-  /* #304: @37 = @19[0] */
+  /* #305: @37 = @19[0] */
   for (rr=(&w37), ss=(&w19)+0; ss!=(&w19)+1; ss+=1) *rr++ = *ss;
-  /* #305: @25 = (@25*@37) */
+  /* #306: @25 = (@25*@37) */
   w25 *= w37;
-  /* #306: @25 = (-@25) */
+  /* #307: @25 = (-@25) */
   w25 = (- w25 );
-  /* #307: @48 = @0; (@48[10] += @25) */
+  /* #308: @48 = @0; (@48[10] += @25) */
   casadi_copy(w0, 11, w48);
   for (rr=w48+10, ss=(&w25); rr!=w48+11; rr+=1) *rr += *ss++;
-  /* #308: @25 = @48[10] */
+  /* #309: @25 = @48[10] */
   for (rr=(&w25), ss=w48+10; ss!=w48+11; ss+=1) *rr++ = *ss;
-  /* #309: (@45[6] = @25) */
+  /* #310: (@45[6] = @25) */
   for (rr=w45+6, ss=(&w25); rr!=w45+7; rr+=1) *rr = *ss++;
-  /* #310: @25 = ones(13x1,1nz) */
+  /* #311: @25 = ones(13x1,1nz) */
   w25 = 1.;
-  /* #311: {NULL, @37} = vertsplit(@25) */
+  /* #312: {NULL, @37} = vertsplit(@25) */
   w37 = w25;
-  /* #312: @25 = @37[0] */
+  /* #313: @25 = @37[0] */
   for (rr=(&w25), ss=(&w37)+0; ss!=(&w37)+1; ss+=1) *rr++ = *ss;
-  /* #313: @26 = (@26*@25) */
+  /* #314: @26 = (@26*@25) */
   w26 *= w25;
-  /* #314: @26 = (-@26) */
+  /* #315: @26 = (-@26) */
   w26 = (- w26 );
-  /* #315: @48 = @0; (@48[10] += @26) */
+  /* #316: @48 = @0; (@48[10] += @26) */
   casadi_copy(w0, 11, w48);
   for (rr=w48+10, ss=(&w26); rr!=w48+11; rr+=1) *rr += *ss++;
-  /* #316: @26 = @48[10] */
+  /* #317: @26 = @48[10] */
   for (rr=(&w26), ss=w48+10; ss!=w48+11; ss+=1) *rr++ = *ss;
-  /* #317: (@45[7] = @26) */
+  /* #318: (@45[7] = @26) */
   for (rr=w45+7, ss=(&w26); rr!=w45+8; rr+=1) *rr = *ss++;
-  /* #318: @26 = ones(13x1,1nz) */
+  /* #319: @26 = ones(13x1,1nz) */
   w26 = 1.;
-  /* #319: {NULL, @25} = vertsplit(@26) */
+  /* #320: {NULL, @25} = vertsplit(@26) */
   w25 = w26;
-  /* #320: @26 = @25[0] */
+  /* #321: @26 = @25[0] */
   for (rr=(&w26), ss=(&w25)+0; ss!=(&w25)+1; ss+=1) *rr++ = *ss;
-  /* #321: @29 = (@29*@26) */
+  /* #322: @29 = (@29*@26) */
   w29 *= w26;
-  /* #322: @29 = (-@29) */
+  /* #323: @29 = (-@29) */
   w29 = (- w29 );
-  /* #323: (@0[10] += @29) */
+  /* #324: (@0[10] += @29) */
   for (rr=w0+10, ss=(&w29); rr!=w0+11; rr+=1) *rr += *ss++;
-  /* #324: @29 = @0[10] */
+  /* #325: @29 = @0[10] */
   for (rr=(&w29), ss=w0+10; ss!=w0+11; ss+=1) *rr++ = *ss;
-  /* #325: (@45[8] = @29) */
+  /* #326: (@45[8] = @29) */
   for (rr=w45+8, ss=(&w29); rr!=w45+9; rr+=1) *rr = *ss++;
-  /* #326: @44 = @45' */
+  /* #327: @44 = @45' */
   casadi_trans(w45,casadi_s4, w44, casadi_s4, iw);
-  /* #327: output[2][0] = @44 */
+  /* #328: output[2][0] = @44 */
   casadi_copy(w44, 9, res[2]);
   return 0;
 }
@@ -1023,7 +1030,7 @@ CASADI_SYMBOL_EXPORT int sth_constr_h_fun_jac_uxt_zt_hess_work(casadi_int *sz_ar
   if (sz_arg) *sz_arg = 9;
   if (sz_res) *sz_res = 9;
   if (sz_iw) *sz_iw = 14;
-  if (sz_w) *sz_w = 286;
+  if (sz_w) *sz_w = 289;
   return 0;
 }
 
@@ -1031,7 +1038,7 @@ CASADI_SYMBOL_EXPORT int sth_constr_h_fun_jac_uxt_zt_hess_work_bytes(casadi_int 
   if (sz_arg) *sz_arg = 9*sizeof(const casadi_real*);
   if (sz_res) *sz_res = 9*sizeof(casadi_real*);
   if (sz_iw) *sz_iw = 14*sizeof(casadi_int);
-  if (sz_w) *sz_w = 286*sizeof(casadi_real);
+  if (sz_w) *sz_w = 289*sizeof(casadi_real);
   return 0;
 }
 

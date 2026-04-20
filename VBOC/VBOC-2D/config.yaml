@@ -29,24 +29,24 @@ hidden_size: 1024          # number of hidden units in the neural network
 hidden_layers: 2          # number of hidden layers in the neural network
 
 # Robot & Environment Parameters
-mass: 1.75 #3.5    # platform mass [kg]
+mass: 0.75 #3.5    # platform mass [kg]
 J:            # platform inertia [kg*m^2]
-- [0.0775, 0.0, 0.0]
-- [0.0, 0.0735, 0.0]
-- [0.0, 0.0, 0.1255]
-l: 0.385      # length of the arm [m]
+- [0.00775, 0.0, 0.0]
+- [0.0, 0.00735, 0.0]
+- [0.0, 0.0, 0.01255]
+l: 0.10     # length of the arm [m]
 cf: 1.5e-3    # thrust coefficient [N/(Hz)^2]
 ct: 4.590e-5  # torque coefficient [Nm/(Hz)^2]
 max_w: 108    # max spinning rate [Hz]
 alpha_tilt: 20     # Tilt cant angle [degree]
 
-min_width: 0.525  # width/2 of the platform [m]
-min_length: 0.525 # length/2 of the platform [m] ---> true value: 0.475
-min_height: 0.525   # height/2 of the platform [m] ---> true value: 0.2
+min_width: 0.15  # width/2 of the robot [m]
+min_length: 0.15 # length/2 of the robot [m]
+min_height: 0.05   # height/2 of the robot [m]
 
-max_width: 2 # max width/2 of the environment [m]
-max_length: 2 # max length/2 of the environment [m]
-max_height: 2 # max height/2 of the environment [m]
+max_width: 2 # max width/2 of the enviroment [m]
+max_length: 2 # max length/2 of the enviroment [m]
+max_height: 2 # max height/2 of the enviroment [m]
 
 v_min: [-3, -8, -12.2] # min initial velocity [m/s, rad/s] for box dimensions 1x1x1
 v_max: [3, 8, 12.2] # max initial velocity [m/s, rad/s] for box dimensions 1x1x1

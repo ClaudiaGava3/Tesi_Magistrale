@@ -59,18 +59,18 @@ class Model:
         #nbox = 4    # Obstacle box constraint dimension
         #nscale = 1  # FATTORE DI SCALA (Sostituisce nbox)
 
-      # --- NOVITÀ MPC: I Parametri ---
+      # --- PARAMETRI MPC ---
         self.alpha_real = MX.sym('alpha_real', 1)   # Lo spazio letto dai sensori
         self.x_ref = MX.sym('x_ref', nq+nv)       # Il target da raggiungere (6 elementi)
         
-        # Uniamo tutto nel vettore dei parametri 'p'
+        # Unisco tutto nel vettore dei parametri 'p'
         self.p = vertcat(self.alpha_real, self.x_ref)
         
         # --- Acados model registration ---
         self.acados_model = AcadosModel()
         self.acados_model.name = params.robot_name
         
-        # ASSEGNAZIONE CORRETTA: lo passiamo ad acados_model, non a ocp!
+        # ASSEGNAZIONE CORRETTA:
         self.acados_model.p = self.p
 
         
@@ -389,13 +389,12 @@ class AbstractController:
         u_hover_val = (self.model.mass * self.model.g) / (2.0 * self.model.cf)
         err_u = self.model.u - u_hover_val
         
-        
-        # Costruiamo le espressioni simboliche (Esattamente come chiedevi tu!)
+
         cost_step = err_x.T @ Q_cost @ err_x + err_u.T @ R_cost @ err_u
-        # Al nodo finale non si usano i motori
+        # Al nodo finale non uso i motori
         cost_terminal = err_x.T @ Q_cost @ err_x * 20
         
-        # Assegniamo le espressioni ad Acados
+        # Assegno le espressioni ad Acados
         self.ocp.model.cost_expr_ext_cost = cost_step
         self.ocp.model.cost_expr_ext_cost_e = cost_terminal
 
@@ -423,13 +422,13 @@ class AbstractController:
         self.ocp.constraints.idxbx = np.arange(self.model.npos, self.model.nx) 
         self.ocp.constraints.lbx = np.hstack([
             np.full(self.model.nori, -np.pi), 
-            np.full(self.model.nv, -2),
+            np.full(self.model.nv, -1e1),
             # np.full(self.model.nbox, 0.1),             # <--- Minimo per i lati (es. 10% della scala)     
             # np.array([0.0])                   # scale min
         ])
         self.ocp.constraints.ubx = np.hstack([
             np.full(self.model.nori, np.pi),  
-            np.full(self.model.nv, 2),
+            np.full(self.model.nv, 1e1),
             # np.full(self.model.nbox, 1.0),             # <--- MAX per i lati imposto a 1.0!      
             # np.array([1e5])                    # scale max
         ])

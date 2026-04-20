@@ -482,13 +482,7 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
         cost_scaling[23] = 0.02;
         cost_scaling[24] = 0.02;
         cost_scaling[25] = 0.02;
-        cost_scaling[26] = 0.02;
-        cost_scaling[27] = 0.02;
-        cost_scaling[28] = 0.02;
-        cost_scaling[29] = 0.02;
-        cost_scaling[30] = 0.02;
-        cost_scaling[31] = 0.02;
-        cost_scaling[32] = 1;
+        cost_scaling[26] = 1;
         for (int i = 0; i <= N; i++)
         {
             ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, i, "scaling", &cost_scaling[i]);
@@ -821,7 +815,7 @@ static void sth_acados_create_set_opts(sth_solver_capsule* capsule)
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "levenberg_marquardt", &levenberg_marquardt);
 
     /* options QP solver */
-    int qp_solver_cond_N;const int qp_solver_cond_N_ori = 32;
+    int qp_solver_cond_N;const int qp_solver_cond_N_ori = 26;
     qp_solver_cond_N = N < qp_solver_cond_N_ori ? N : qp_solver_cond_N_ori; // use the minimum value here
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "qp_cond_N", &qp_solver_cond_N);
 

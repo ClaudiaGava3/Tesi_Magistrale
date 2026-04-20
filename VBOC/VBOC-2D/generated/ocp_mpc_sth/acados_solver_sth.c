@@ -603,12 +603,12 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
     double* ubx = lubx + NBX;
     lbx[0] = -3.141592653589793;
     ubx[0] = 3.141592653589793;
-    lbx[1] = -2;
-    ubx[1] = 2;
-    lbx[2] = -2;
-    ubx[2] = 2;
-    lbx[3] = -2;
-    ubx[3] = 2;
+    lbx[1] = -10;
+    ubx[1] = 10;
+    lbx[2] = -10;
+    ubx[2] = 10;
+    lbx[3] = -10;
+    ubx[3] = 10;
 
     for (int i = 1; i < N; i++)
     {
