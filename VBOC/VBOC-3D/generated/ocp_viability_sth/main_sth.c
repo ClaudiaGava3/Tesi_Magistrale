@@ -117,6 +117,12 @@ int main()
     x_init[10] = 0.0;
     x_init[11] = 0.0;
     x_init[12] = 0.0;
+    x_init[13] = 0.0;
+    x_init[14] = 0.0;
+    x_init[15] = 0.0;
+    x_init[16] = 0.0;
+    x_init[17] = 0.0;
+    x_init[18] = 0.0;
 
     // initial value for control input
     double u0[NU];

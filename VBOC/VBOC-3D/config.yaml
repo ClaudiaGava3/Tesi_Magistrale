@@ -1,23 +1,26 @@
 # Solver Parameters
-prob_num: 2000          # number of OCP to create dataset
+prob_num: 20000          # number of OCP to create dataset
 cpu_num: 26
 
-N: 30   #20                  # horizon in number of samples
-N_increment: 0            # increment of the horizon
+#Con N=38 posso lasciare angoli casuali tra +-pi/2 e ho una convergenza di 996/1000 e tutti di status 0, di 1996/2000, di 19850/20000
+
+
+N: 10 #20                  # horizon in number of samples
+N_increment: 0   #0         # increment of the horizon
 dt: 20e-3                 # time step
 #alpha: 15                # safety margin 
 
 solver_mode: 'BALANCE'    # HPIPM mode, can be --> 'BALANCE', 'ROBUST', 'SPEED', 'SPEED_ABS'
-nlp_max_iter: 1000
-qp_max_iter: 200
+nlp_max_iter: 2 #1000
+qp_max_iter: 2 #200
 alpha_reduction: 0.3
 alpha_min: 1e-2
 levenberg_marquardt: 1e-9
 
-state_tol: 1e-6           # state tolerance
+state_tol: 1e-5 #1e-6           # state tolerance
 # conv_tol: 1e-3          # convergence tolerance for the task
 cost_tol: 1e-3           # Tolerance for the cost
-vboc_repeat: 5            # VBOC repetition
+vboc_repeat: 15 #5            # VBOC repetition
 
 # Training Parameters
 learning_rate: 1e-4       # learning rate
@@ -29,31 +32,27 @@ hidden_size: 1024          # number of hidden units in the neural network
 hidden_layers: 2          # number of hidden layers in the neural network
 
 # Robot & Environment Parameters
-mass: 3.5     # platform mass [kg]
+mass: 1.5 #3.5    # platform mass [kg]
 J:            # platform inertia [kg*m^2]
-- [0.155, 0.0, 0.0]
-- [0.0, 0.147, 0.0]
-- [0.0, 0.0, 0.251]
-l: 0.385      # length of the arm [m]
+- [0.0155, 0.0, 0.0]
+- [0.0, 0.0147, 0.0]
+- [0.0, 0.0, 0.0251]
+l: 0.10     # length of the arm [m]
 cf: 1.5e-3    # thrust coefficient [N/(Hz)^2]
 ct: 4.590e-5  # torque coefficient [Nm/(Hz)^2]
 max_w: 108    # max spinning rate [Hz]
 alpha_tilt: 20     # Tilt cant angle [degree]
 
-min_width: 0.525  # width/2 of the platform [m]
-min_length: 0.525 # length/2 of the platform [m] ---> true value: 0.475
-min_height: 0.525   # height/2 of the platform [m] ---> true value: 0.2
+min_width: 0.15  # width/2 of the robot [m]
+min_length: 0.15 # length/2 of the robot [m]
+min_height: 0.05   # height/2 of the robot [m]
 
-max_width: 2 # max width/2 of the environment [m]
-max_length: 2 # max length/2 of the environment [m]
-max_height: 2 # max height/2 of the environment [m]
+max_width: 2 # max width/2 of the enviroment [m]
+max_length: 2 # max length/2 of the enviroment [m]
+max_height: 2 # max height/2 of the enviroment [m]
 
-
-# Metti questi in config.yaml
-# v_min: [-1.5, -1.5, -2.0, -3.0, -3.0, -3.0]
-# v_max: [1.5, 1.5, 2.0, 3.0, 3.0, 3.0]
-v_min: [-3, -3, -8, -12.2, -12.2, -12.2]  # min initial velocity [m/s, rad/s]  for box dimensions 1x1x1
-v_max: [3, 3, 8, 12.2, 12.2, 12.2]        # max initial velocity [m/s, rad/s] for box dimensions 1x1x1
+v_min: [-3, -8, -12.2] # min initial velocity [m/s, rad/s] for box dimensions 1x1x1
+v_max: [3, 8, 12.2] # max initial velocity [m/s, rad/s] for box dimensions 1x1x1
 
 # Data generation
 orient_g_rej: true # select orientation with gravity rejection

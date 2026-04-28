@@ -37,7 +37,8 @@ def plot_histogram(
     xlabel: str = "Value",
     ylabel: str = "Frequency",
     bins: int = 30,
-    saving_dir: str = "plots/histograms/"
+    saving_dir: str = "plots/histograms/",
+    xticks: list = None
 ) -> None:
     """
     Plot a grid of histograms (up to 6) for each dimension of the input data.
@@ -61,7 +62,6 @@ def plot_histogram(
     saving_dir : str
         Directory where the PNG file will be saved.
     """
-
     #in 3D
     fig, axes = plt.subplots(3, 3, figsize=(16, 12))
 
@@ -83,6 +83,8 @@ def plot_histogram(
         axes[i].set_xlabel(xlabel)
         axes[i].set_ylabel(ylabel)
         axes[i].grid(True, which='both', alpha=0.75)
+        if xticks is not None:
+            axes[i].set_xticks(xticks)
         
     plt.savefig( os.path.join(saving_dir, title + ".png"))
     plt.close(fig)
@@ -176,13 +178,17 @@ def compute_data_on_border(
     # d /= np.linalg.norm(d)
 
     # --- Initial guess: stationary at q_init with gravity compensation ---
-    x_guess = np.zeros((N_guess, model.nx))
-    #x_guess[:, :model.nq] = np.full((N_guess, model.nq), q_init)
-
-
     #in 3D
-    x_guess[:, :12] = q_init      # Posizioni e velocità sono 12 elementi!
-    x_guess[:, 12] = box_guess    # L'indice dello scaling è 12
+    x_guess = np.zeros((N_guess, model.nx))
+    # Manteniamo la posizione piatta e lo scaling costante per tutto il guess
+    x_guess[:, :3] = q_init[:3]  
+    # Guess iniziale per i 6 lati (immaginiamo che partano cubi a proporzione 1.0)
+    x_guess[:, 12:18] = 1.0
+    x_guess[:, 18] = box_guess 
+
+    # MA al primissimo istante di tempo (nodo 0), diciamo ad Acados esattamente
+    # come parte il drone nella realtà (incluse le velocità e gli angoli veri)
+    x_guess[0, :12] = q_init
 
     # x_static = np.hstack((q_init, np.zeros(model.nx - model.nq)))
     # gravity_wrench = np.array([0, 0, model.mass * model.g])
@@ -192,33 +198,27 @@ def compute_data_on_border(
     # x_static = np.hstack((q_init, np.full(4, box_guess)))
     # allocation_matrix = model.R(x_static).full() @ model.F
 
-    # Passa un angolo di 0 per generare la matrice di allocazione perfetta per l'hovering
+    # 1. Definiamo uno stato orizzontale per il guess iniziale
+    x_flat = np.zeros(19)
+    x_flat[:3] = q_init[:3]  # Copia solo le posizioni (X, Y, Z)
+    x_flat[18] = box_guess    # Copia lo scaling (Indice 6 in 2D)
 
-    #in 3D
-    # 1. Definiamo uno stato perfettamente orizzontale per il guess iniziale
-    # Copiamo SOLO le posizioni (X, Y, Z) da q_init. 
-    # Tutti gli angoli (Roll, Pitch, Yaw) e le velocità vengono forzati a ZERO.
-    x_flat = np.zeros(13)
-    x_flat[:3] = q_init[:3]
-    x_flat[12] = box_guess
-    
-    # 2. Costruiamo la matrice di allocazione COMPLETA per il 3D:
-    # Uniamo Forze (F) e Coppie (M). Diventa una matrice 6x4.
+    # 2. Costruiamo la matrice di allocazione per il 2D: Matrice 6x2.
     allocation_matrix = np.vstack((model.F, model.M))
-    
-    # 3. Definiamo l'obiettivo fisico: [Fx, Fy, Fz, Mx, My, Mz]
-    # Vogliamo contrastare la gravità su Z, e avere ZERO rotazioni (coppie) sugli assi
+
+    # 3. Obiettivo fisico: [Fx, Fy, Fz, Mx, My, Mz]
+    # Bilanciamo la gravità su Z e annulliamo le coppie
     wrench_hover = np.array([0.0, 0.0, model.mass * model.g, 0.0, 0.0, 0.0])
     
-    # 4. Calcoliamo la spinta esatta e simmetrica dei 4 motori
+    # 4. Spinta bilanciata per i 4 motori
     u_hover = np.linalg.pinv(allocation_matrix) @ wrench_hover
-    u_guess = np.full((N_guess, model.nu), u_hover)
+    u_guess = np.tile(u_hover, (N_guess, 1))
+    #u_guess = np.full((N_guess, model.nu), u_hover)
 
     controller.setGuess(x_guess, u_guess)
-    
 
     # --- Solve the OCP ---
-    x_star, u_star, _, status = controller.solve_vboc(
+    x_star, u_star, N_final, status = controller.solve_vboc(
         q_init, ref_box, N_guess, n=N_increment,
         repeat=vboc_repeat
     )
@@ -234,11 +234,10 @@ def compute_data_on_border(
 
     # --- Return results ---
     if x_star is None:
-        return None, None, None, status
+        return None, None, None, None, status
     else:
         return (
-            x_star[0], x_star, u_star,
-            status
+            x_star[0], x_star, u_star, N_final, status
         )
     
 # def fixed_velocity_dir(
@@ -592,13 +591,12 @@ if __name__ == '__main__':
 
         # --- Initial orientation: sampled within the allowed inclination  
         # range ---
-        max_angle = np.pi/4
         if(params.orient_g_rej):
             #min_phi = 0.0
-            max_phi = max_angle
+            max_phi = np.pi/2
         else:
             #min_phi = model.phi_max
-            max_phi = max_angle
+            max_phi = np.pi/2
         #roll, pitch, yaw = generate_constrained_rpy(
         #    min_phi, max_phi, params.prob_num
         #)
@@ -608,14 +606,14 @@ if __name__ == '__main__':
         else:
             #orient_init = np.column_stack([roll, pitch, yaw])
             # Generiamo pitch casuale
-            
             #in 3D
             orient_init = np.random.uniform(-max_phi, max_phi, (params.prob_num, model.nori))
 
-            # Generiamo VELOCITÀ casuali (vx, vz, wy)
+            # Generiamo VELOCITÀ casuali (vx, vy, vz, p, q, r)
+            # in 3D: model.nv = 6
             vel_init = np.random.uniform(-1.0, 1.0, (params.prob_num, model.nv))
 
-        # Creiamo il vettore di stato iniziale di 6 elementi: [x, z, theta, vx, vz, wy]
+        # Creiamo il vettore di stato iniziale di 12 elementi (3 pos + 3 ori + 6 vel)
         q_init = np.hstack([pos_init, orient_init, vel_init])
 
         # --- Obstacle box bounds --- 
@@ -667,7 +665,8 @@ if __name__ == '__main__':
         # --- Accumulators for results across all batches ---
         #all_x_0, all_x_t, all_u_t, all_b_m, all_b_M, all_status, all_d_list = \
         #[],[],[],[],[],[],[]
-        all_x_0, all_x_t, all_u_t, all_status = [], [], [], []
+        all_x_0, all_x_t, all_u_t, all_n_final, all_status = [], [], [], [], []
+        all_failed_q_init = [] # <--- NUOVA LISTA PER I FALLIMENTI
 
         # Split the problems into sub-batches to allow intermediate saves
         if params.check:
@@ -718,9 +717,9 @@ if __name__ == '__main__':
             #     print(status)
             #     exit()
 
-        
         #in 3D
         ref_box = np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0]) # Box di riferimento 1:1
+
 
 
         print('Start data generation')
@@ -732,12 +731,21 @@ if __name__ == '__main__':
                      for q0 in q_init[(nb*sub_batch):((nb+1)*sub_batch)]]
                 )
 
-            # --- Unpack parallel results (Ora sono 4, non più 7!) ---
-            x_0, x_t, u_t, status = zip(*res)
+            # --- Unpack parallel results (Ora sono 5, non più 7!) ---
+            x_0, x_t, u_t, n_final_list, status = zip(*res)
             all_x_0.extend(x_0)
             all_x_t.extend(x_t)
             all_u_t.extend(u_t)
+            all_n_final.extend(n_final_list)
             all_status.extend(status)
+
+            # === NUOVO CODICE: CATTURA I CASI FALLITI ===
+            q0_batch = q_init[(nb*sub_batch):((nb+1)*sub_batch)]
+            for i in range(len(x_0)):
+                if x_0[i] is None:
+                    # Se ha fallito, salviamo la sua condizione iniziale
+                    all_failed_q_init.append(q0_batch[i])
+            # ============================================
 
             if all(item is None for item in x_0):
                 warnings.warn(f'No solution found for any problem in batch {nb}.', RuntimeWarning)
@@ -786,14 +794,18 @@ if __name__ == '__main__':
             x_data = np.vstack([i for i in all_x_0 if i is not None])
             x_traj = [i for i in all_x_t if i is not None]
             u_traj = [i for i in all_u_t if i is not None]
+            n_data = np.array([all_n_final[i] for i in range(len(all_n_final)) if all_x_0[i] is not None])  # Filtriamo N_final usando la stessa esatta logica di x_data per mantenere l'allineamento
             status_list = list(all_status)
             
             # Il "box" ottimizzato è solo un fattore di scala!
-            b_optimized = x_data[:, 12].reshape(-1, 1)
+            b_optimized = x_data[:, 18].reshape(-1, 1)
 
             np.save(f'{params.DATA_DIR}{robotic_system}_x_vboc', x_data)
             np.save(f'{params.DATA_DIR}{robotic_system}_b_vboc', b_optimized)
+            np.save(f'{params.DATA_DIR}{robotic_system}_n_horizons_vboc', n_data)
             np.save(f'{params.DATA_DIR}{robotic_system}_status_vboc', status_list)
+            # === SALVATAGGIO DEI FALLIMENTI ===
+            np.save(f'{params.DATA_DIR}{robotic_system}_failed_q_init_vboc', np.array(all_failed_q_init))
             
             solved = len(x_data)
             print(f'Batch {nb}: Total number of points saved until now: {solved}')
@@ -1083,20 +1095,24 @@ if __name__ == '__main__':
         #             plt.close(fig)
 
 
-    
-        #in 3D
+    #in 3D
+        # --- Plot generated trajectories ---
         if params.plot:
-            pose_label = ['x [m]', 'y [m]', 'z [m]', 'roll [deg]', 'pitch [deg]', 'yaw [deg]']
-            vel_label = ['v_x [m/s]', 'v_y [m/s]', 'v_z [m/s]', 'w_x [deg/s]', 'w_y [deg/s]', 'w_z [deg/s]']
+
+            pose_label = ['x [m]', 'y [m]', 'z [m]', 'phi [deg]', 'theta [deg]', 'psi [deg]']
+            vel_label = ['v_x [m/s]', 'v_y [m/s]', 'v_z [m/s]', 'p [deg/s]', 'q [deg/s]', 'r [deg/s]']
 
             traj_dir = os.path.join(plots_dir, 'trajectories')
             pose_dir = os.path.join(plots_dir, 'poses')
             velocity_dir = os.path.join(plots_dir, 'velocities')
             input_dir = os.path.join(plots_dir, 'inputs')
-            threeD_dir = os.path.join(plots_dir, '3D_Flights') 
+            threeD_dir = os.path.join(plots_dir, '3D_flights')
             
-            for subdir in [traj_dir, pose_dir, velocity_dir, input_dir, threeD_dir]:
+            plots_subdirs = [traj_dir, pose_dir, velocity_dir, input_dir, threeD_dir]
+            for subdir in plots_subdirs:
                 ensure_clean_dir(subdir)
+
+            normals = [np.array([1, 0, 0]), np.array([0, 1, 0]), np.array([0, 0, 1])]
 
             sub_plot = 1 if params.check else max(1, params.prob_num // 10)
 
@@ -1106,77 +1122,89 @@ if __name__ == '__main__':
                     colors = np.linspace(0, 1, horizon_)
                     t = np.linspace(0, horizon_ * params.dt, horizon_)
 
-                    scale = x_data[k, 12] # L'indice 12 è lo scaling
-                    box = np.full(6, scale) # Limiti [X+, Y+, Z+, X-, Y-, Z-]
-                    
-                    traj_xlim_min = [-box[3], -box[4], -box[5], -np.rad2deg(max_phi), -np.rad2deg(max_phi), -180.0]
-                    traj_xlim_max = [ box[0],  box[1],  box[2],  np.rad2deg(max_phi),  np.rad2deg(max_phi),  180.0]
+                    # Estrazione box 3D
+                    scale = x_data[k, 18]
+                    l_x_plus, l_y_plus, l_z_plus = x_data[k, 12:15]
+                    l_x_minus, l_y_minus, l_z_minus = x_data[k, 15:18]
 
-                    # 1. Poses over time
+                    box_max = np.array([scale * l_x_plus, scale * l_y_plus, scale * l_z_plus])
+                    box_min = np.array([-scale * l_x_minus, -scale * l_y_minus, -scale * l_z_minus])
+
+                    # 1. Poses
                     fig, ax = plt.subplots(2, 3, figsize=(15, 8))
                     ax = ax.flatten()
                     for i in range(nq):
                         ax[i].grid(True)
                         if i < model.npos:
-                            ax[i].plot(t, x_traj[k][:, i], label=pose_label[i])
-                            ax[i].axhline(traj_xlim_max[i], color='r', linestyle=':', label='Box Max')
-                            ax[i].axhline(traj_xlim_min[i], color='r', linestyle=':', label='Box Min')
+                            line, = ax[i].plot(t, x_traj[k][:, i], label=f'{pose_label[i]}')
+                            ellips_r = [np.sqrt(normals[i].T @ model.Q(x_traj[k][h, :]).full() @ normals[i]) for h in range(len(t))]
+                            ax[i].plot(t, x_traj[k][:, i] + ellips_r, color=line.get_color(), linestyle='--')
+                            ax[i].plot(t, x_traj[k][:, i] - ellips_r, color=line.get_color(), linestyle='--')
+                            ax[i].axhline(box_max[i], color='r', linestyle=':', label='Box Max')
+                            ax[i].axhline(box_min[i], color='r', linestyle=':', label='Box Min')
                         else:
-                            ax[i].plot(t, np.rad2deg(x_traj[k][:, i]), label=pose_label[i])
-                            ax[i].axhline(traj_xlim_max[i], color='r', linestyle=':', label='Max Tilt')
-                            ax[i].axhline(traj_xlim_min[i], color='r', linestyle=':')
+                            ax[i].plot(t, np.rad2deg(x_traj[k][:, i]), label=f'{pose_label[i]}')
                         ax[i].set_xlabel('Time [s]')
                         ax[i].legend()
-                    plt.suptitle(f'Poses Trajectory {k + 1}')
                     plt.tight_layout()
                     plt.savefig(os.path.join(pose_dir, f'pose_{k + 1}.png'))
                     plt.close(fig)
 
-                    # 2. Velocities over time
+                    # 2. Velocities
                     fig, ax = plt.subplots(2, 3, figsize=(15, 8))
                     ax = ax.flatten()
                     for i in range(nq):
                         ax[i].grid(True)
-                        y_data = x_traj[k][:, nq + i] if i < model.npos else np.rad2deg(x_traj[k][:, nq + i])
-                        ax[i].plot(t, y_data, label=vel_label[i])
+                        data_to_plot = x_traj[k][:, nq + i] if i < model.npos else np.rad2deg(x_traj[k][:, nq + i])
+                        ax[i].plot(t, data_to_plot, label=f'{vel_label[i]}')
                         ax[i].set_xlabel('Time [s]')
                         ax[i].legend()
-                    plt.suptitle(f'Velocities Trajectory {k + 1}')
                     plt.tight_layout()
                     plt.savefig(os.path.join(velocity_dir, f'vel_{k + 1}.png'))
                     plt.close(fig)
 
-                    # 3. Inputs
+                    # 3. Inputs (4 motori)
                     fig, ax = plt.subplots(figsize=(8, 5))
                     for i in range(nu):
                         ax.plot(t, u_traj[k][:, i], label=f'Motor {i + 1}')
-                    ax.axhline(model.u_bar, color='r', linestyle='--', label='Max RPM^2')
-                    ax.set_ylim([-100, model.u_bar + 100])
+                    ax.axhline(model.u_bar, color='r', linestyle='--', label='Max Power')
                     ax.grid(True)
                     ax.legend()
-                    plt.title(f'Inputs Trajectory {k + 1}')
+                    plt.tight_layout()
                     plt.savefig(os.path.join(input_dir, f'input_{k + 1}.png'))
                     plt.close(fig)
 
-                    # 4. 3D Position Trajectory
+                    # 4. 3D Flight Path
                     fig = plt.figure(figsize=(10, 8))
                     ax = fig.add_subplot(111, projection='3d')
-                    sc = ax.scatter(x_traj[k][:, 0], x_traj[k][:, 1], x_traj[k][:, 2], c=colors, cmap='coolwarm', s=10)
+                    sc = ax.scatter(
+                        x_traj[k][:, 0], x_traj[k][:, 1], x_traj[k][:, 2],
+                        c=colors, cmap='coolwarm', s=10
+                    )
                     
-                    # Disegna la scatola ottimizzata
-                    from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-                    r = [-scale, scale]
-                    X, Y = np.meshgrid(r, r)
-                    ax.plot_wireframe(X, Y, np.array([[scale, scale], [scale, scale]]), color='r', alpha=0.2)
-                    ax.plot_wireframe(X, Y, np.array([[-scale, -scale], [-scale, -scale]]), color='r', alpha=0.2)
-
-                    ax.set_xlim([-scale-0.5, scale+0.5])
-                    ax.set_ylim([-scale-0.5, scale+0.5])
-                    ax.set_zlim([-scale-0.5, scale+0.5])
+                    # Disegna gli assi del drone lungo la traiettoria
+                    step_arrow = max(1, len(x_traj[k]) // 10)
+                    for i in range(0, len(x_traj[k]), step_arrow):
+                        phi, theta, psi = x_traj[k][i, 3:6]
+                        # Rotazione da Eulero ZYX (Yaw, Pitch, Roll) a matrice
+                        rot_matrix = Rot.from_euler('ZYX', [psi, theta, phi]).as_matrix()
+                        x_arrow = rot_matrix[:, 0] * model.min_width
+                        y_arrow = rot_matrix[:, 1] * model.min_length
+                        z_arrow = rot_matrix[:, 2] * model.min_height
+                        
+                        ax.quiver(x_traj[k][i,0], x_traj[k][i,1], x_traj[k][i,2],
+                                  x_arrow[0], x_arrow[1], x_arrow[2], color='r')
+                        ax.quiver(x_traj[k][i,0], x_traj[k][i,1], x_traj[k][i,2],
+                                  y_arrow[0], y_arrow[1], y_arrow[2], color='g')
+                        ax.quiver(x_traj[k][i,0], x_traj[k][i,1], x_traj[k][i,2],
+                                  z_arrow[0], z_arrow[1], z_arrow[2], color='b')
+                    
                     ax.set_xlabel('X [m]')
                     ax.set_ylabel('Y [m]')
                     ax.set_zlabel('Z [m]')
-                    ax.set_title(f'3D Flight Path {k + 1} (Box = {scale:.2f}m)')
+                    ax.set_title(f'3D Flight Path {k + 1}')
+                    set_axes_equal(ax)
+                    plt.tight_layout()
                     plt.savefig(os.path.join(threeD_dir, f'3D_traj_{k + 1}.png'))
                     plt.close(fig)
     
@@ -1278,26 +1306,50 @@ if __name__ == '__main__':
             # 3. Solver Status
             plot_histogram(
                 status_data, 
-                title="Solver_Status", 
+                title="Solver_Status",
                 xlabel="Status Code", 
                 ylabel="Frequency", 
-                bins=10, 
+                bins=3, 
+                saving_dir=hist_dir,
+                xticks=[0, 2, 4]
+            )
+            ## 4. Istogramma degli Orizzonti di Convergenza (N)
+            n_data = np.load(f'{params.DATA_DIR}{robotic_system}_n_horizons_vboc.npy')
+        
+            plot_histogram(
+                n_data, 
+                title="Distribution_of_Converged_Horizons_N", 
+                xlabel="Horizon Length (N steps)", 
+                ylabel="Frequency", 
+                bins=20, # Lascia un numero generico di colonne, deciderà lui l'ampiezza
                 saving_dir=hist_dir
             )
 
+            # 5. Istogramma dei casi FALLITI
+            failed_file = f'{params.DATA_DIR}{robotic_system}_failed_q_init_vboc.npy'
+            if os.path.exists(failed_file):
+                failed_data = np.load(failed_file)
+                if len(failed_data) > 0:
+                    # In 3D
+                    plot_histogram(
+                        failed_data[:, 3:12],
+                        title="Failed_Cases_Initial_Conditions", 
+                        xlabel="Value",
+                        ylabel="Frequency", 
+                        bins=20, 
+                        saving_dir=hist_dir
+                    )
 
         # Drop position columns and prepend box dimensions as input features
         #x_data = np.hstack((b_data, x_data[:, model.npos:]))
-    
         #in 3D
         dataset = np.hstack(( x_data[:, 3:12], b_data))
         np.random.shuffle(dataset)
 
         # Dividiamo in Input (x_data) e Target (y_data)
-        
         #in 3D
         x_data = dataset[:, :9]
-        y_data = dataset[:, 9:13]
+        y_data = dataset[:, 9:]
 
         # --- Shuffle and split into training / validation / test sets ---
         #np.random.shuffle(x_data)
@@ -1336,9 +1388,9 @@ if __name__ == '__main__':
         
         # --- Build model, loss, and optimiser ---
         #nx_train = nbori+model.nv
-        
         #in 3D
         nx_train = 9
+    
 
         nn_model = NeuralNetwork(
             nx_train, 
@@ -1490,13 +1542,13 @@ if __name__ == '__main__':
 
 
     # =========================================================================
-    # VIABILITY KERNEL PLOTTING 3D E ANALISI DI SENSIBILITA'
+    # VIABILITY KERNEL PLOTTING 3D
     # =========================================================================
     if params.plot and not params.generation: 
         
         # --- Load trained network ---
         device = torch.device("cpu")
-        nx_train = 9 # <--- 9 input nel 3D!
+        nx_train = 9
         
         nn_data = torch.load(nn_filename, map_location=device)
         nn_model = NeuralNetwork(
@@ -1508,33 +1560,37 @@ if __name__ == '__main__':
             ub
         ).to(device)        
         nn_model.load_state_dict(nn_data['model'])
-        print('***PLOTTING BRS E SENSIBILITA\'***\n')
+        print('***PLOTTING BRS***\n')
 
         brs_dir = os.path.join(plots_dir, 'brs')
         ensure_clean_dir(brs_dir)
 
-        # Ricarichiamo i dati simulati grezzi (tutti i 13 stati)
+        # Ricarichiamo i dati simulati per i puntini nel grafico
         x_data_raw = np.load(f'{params.DATA_DIR}{robotic_system}_x_vboc.npy')
+        # Estraiamo solo i 4 input [theta, vx, vz, wy] per il plot BRS
+        x_data_plot = x_data_raw[:, 3:12]
 
-        # 1. PLOT DELLA FETTA 2D DEL KERNEL
+        # Chiamata pulita
         plot_brs(
             params, 
             model, 
             controller, 
             nn_model, 
             nn_data['mean'], 
-            nn_data['std'], 
-            x_data_raw
+            nn_data['std'],
+            x_data_plot
         )
-
-        # 2. PLOT DELL'ANALISI DI SENSIBILITA' (Velocità vs Dimensione Stanza)
+    
+    # =========================================================================
+        # 2. PLOT DELL'ANALISI DI SENSIBILITA' (Velocità vs Dimensione Stanza 3D)
+        # =========================================================================
         fig, ax = plt.subplots(1, 3, figsize=(18, 5))
         
-        # Indici in x_data_raw: vx=6, vy=7, vz=8, scale=12
+        # Nel 3D, gli indici in x_data_raw sono: vx=6, vy=7, vz=8, scale=18
         v_x = x_data_raw[:, 6]
         v_y = x_data_raw[:, 7]
         v_z = x_data_raw[:, 8]
-        scale = x_data_raw[:, 12]
+        scale = x_data_raw[:, 18]
         
         # v_x vs Scaling
         ax[0].scatter(v_x, scale, alpha=0.5, s=5, c='blue')
@@ -1555,7 +1611,7 @@ if __name__ == '__main__':
         ax[2].set_title('Dipendenza da v_z')
         ax[2].grid(True)
 
-        plt.suptitle('Dimensioni della stanza in funzione delle velocità iniziali (Raw Data)', fontsize=16)
+        plt.suptitle('Dimensioni della stanza in funzione delle velocità iniziali (3D)', fontsize=16)
         plt.tight_layout()
         plt.savefig(os.path.join(brs_dir, 'Velocities_vs_Scale_3D.png'))
         plt.close(fig)

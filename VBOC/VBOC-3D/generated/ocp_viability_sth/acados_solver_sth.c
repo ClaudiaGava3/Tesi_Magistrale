@@ -486,7 +486,15 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
         cost_scaling[27] = 0.02;
         cost_scaling[28] = 0.02;
         cost_scaling[29] = 0.02;
-        cost_scaling[30] = 1;
+        cost_scaling[30] = 0.02;
+        cost_scaling[31] = 0.02;
+        cost_scaling[32] = 0.02;
+        cost_scaling[33] = 0.02;
+        cost_scaling[34] = 0.02;
+        cost_scaling[35] = 0.02;
+        cost_scaling[36] = 0.02;
+        cost_scaling[37] = 0.02;
+        cost_scaling[38] = 1;
         for (int i = 0; i <= N; i++)
         {
             ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, i, "scaling", &cost_scaling[i]);
@@ -602,6 +610,12 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
     idxbx[7] = 10;
     idxbx[8] = 11;
     idxbx[9] = 12;
+    idxbx[10] = 13;
+    idxbx[11] = 14;
+    idxbx[12] = 15;
+    idxbx[13] = 16;
+    idxbx[14] = 17;
+    idxbx[15] = 18;
     double* lubx = calloc(2*NBX, sizeof(double));
     double* lbx = lubx;
     double* ubx = lubx + NBX;
@@ -623,7 +637,19 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
     ubx[7] = 100;
     lbx[8] = -100;
     ubx[8] = 100;
-    ubx[9] = 100000;
+    lbx[9] = 0.1;
+    ubx[9] = 1;
+    lbx[10] = 0.1;
+    ubx[10] = 1;
+    lbx[11] = 0.1;
+    ubx[11] = 1;
+    lbx[12] = 0.1;
+    ubx[12] = 1;
+    lbx[13] = 0.1;
+    ubx[13] = 1;
+    lbx[14] = 0.1;
+    ubx[14] = 1;
+    ubx[15] = 100000;
 
     for (int i = 1; i < N; i++)
     {
@@ -688,10 +714,28 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
     idxbx_e[7] = 10;
     idxbx_e[8] = 11;
     idxbx_e[9] = 12;
+    idxbx_e[10] = 13;
+    idxbx_e[11] = 14;
+    idxbx_e[12] = 15;
+    idxbx_e[13] = 16;
+    idxbx_e[14] = 17;
+    idxbx_e[15] = 18;
     double* lubx_e = calloc(2*NBXN, sizeof(double));
     double* lbx_e = lubx_e;
     double* ubx_e = lubx_e + NBXN;
-    ubx_e[9] = 100000;
+    lbx_e[9] = 0.1;
+    ubx_e[9] = 1;
+    lbx_e[10] = 0.1;
+    ubx_e[10] = 1;
+    lbx_e[11] = 0.1;
+    ubx_e[11] = 1;
+    lbx_e[12] = 0.1;
+    ubx_e[12] = 1;
+    lbx_e[13] = 0.1;
+    ubx_e[13] = 1;
+    lbx_e[14] = 0.1;
+    ubx_e[14] = 1;
+    ubx_e[15] = 100000;
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "idxbx", idxbx_e);
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "lbx", lbx_e);
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "ubx", ubx_e);
@@ -829,7 +873,7 @@ static void sth_acados_create_set_opts(sth_solver_capsule* capsule)
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "levenberg_marquardt", &levenberg_marquardt);
 
     /* options QP solver */
-    int qp_solver_cond_N;const int qp_solver_cond_N_ori = 30;
+    int qp_solver_cond_N;const int qp_solver_cond_N_ori = 38;
     qp_solver_cond_N = N < qp_solver_cond_N_ori ? N : qp_solver_cond_N_ori; // use the minimum value here
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "qp_cond_N", &qp_solver_cond_N);
 
@@ -858,16 +902,16 @@ static void sth_acados_create_set_opts(sth_solver_capsule* capsule)
 
 
     // set SQP specific options
-    double nlp_solver_tol_stat = 0.000001;
+    double nlp_solver_tol_stat = 0.00001;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "tol_stat", &nlp_solver_tol_stat);
 
-    double nlp_solver_tol_eq = 0.000001;
+    double nlp_solver_tol_eq = 0.00001;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "tol_eq", &nlp_solver_tol_eq);
 
-    double nlp_solver_tol_ineq = 0.000001;
+    double nlp_solver_tol_ineq = 0.00001;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "tol_ineq", &nlp_solver_tol_ineq);
 
-    double nlp_solver_tol_comp = 0.000001;
+    double nlp_solver_tol_comp = 0.00001;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "tol_comp", &nlp_solver_tol_comp);
 
     int nlp_solver_max_iter = 1000;

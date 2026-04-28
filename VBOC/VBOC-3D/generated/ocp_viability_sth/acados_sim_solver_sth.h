@@ -34,7 +34,7 @@
 #include "acados_c/sim_interface.h"
 #include "acados_c/external_function_interface.h"
 
-#define STH_NX     13
+#define STH_NX     19
 #define STH_NZ     0
 #define STH_NU     4
 #define STH_NP     6

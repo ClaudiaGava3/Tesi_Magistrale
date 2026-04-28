@@ -71,13 +71,13 @@ class ViabilityController(AbstractController):
                 # )
                 # Orientation bounded in [-π, π]; velocity loosely bounded for 
                 # feasibility
-                max_angle = 1.2 #meno di 180°
                 self.ocp_solver.constraints_set(
                      i, 
                      "lbx", 
                      np.hstack([
-                          np.full(self.model.nori, -max_angle), 
+                          np.full(self.model.nori, -np.pi), 
                           np.full(self.model.nv, -1e2),
+                          np.full(self.model.nbox, 0.1),
                           np.array([0.0])    # Limite inferiore box
                      ])
                 )
@@ -85,8 +85,9 @@ class ViabilityController(AbstractController):
                      i, 
                      "ubx", 
                      np.hstack([
-                          np.full(self.model.nori, max_angle), 
+                          np.full(self.model.nori, np.pi), 
                           np.full(self.model.nv, 1e2),
+                          np.full(self.model.nbox, 1.0),
                           np.array([1e5])    # Limite superiore box
                     ])
                 )
@@ -98,23 +99,24 @@ class ViabilityController(AbstractController):
         # Shared bounds reused for stages N-1 and N
         zero_vel = np.zeros(self.model.nv)
         ori_0 = np.full(self.model.nori, 0.0) #cambiato vincolo a 0 da -np.pi
-        tol_ori=1e-1
-        tol_vel=1e-1
+        box_min = np.full(self.model.nbox, 0.1)
+        box_max = np.full(self.model.nbox, 1.0)
+
 
         # Zero-velocity and angles terminal constraint at stage N-1
         self.ocp_solver.constraints_set(
-            self.N - 1, "lbx", np.hstack([ori_0-tol_ori, zero_vel-tol_vel, np.array([0.0])]) # <-- Aggiunto limite box min
+            self.N - 1, "lbx", np.hstack([ori_0, zero_vel, box_min,np.array([0.0])]) # <-- Aggiunto limite box min
         )
         self.ocp_solver.constraints_set(
-            self.N - 1, "ubx", np.hstack([ori_0+tol_ori, zero_vel+tol_vel, np.array([1e5])]) # <-- Aggiunto limite box max
+            self.N - 1, "ubx", np.hstack([ori_0, zero_vel, box_max,np.array([1e5])]) # <-- Aggiunto limite box max
         )
 
         # Zero-velocity terminal constraint at final stage N
         self.ocp_solver.constraints_set(
-            self.N, "lbx", np.hstack([ori_0-tol_ori, zero_vel-tol_vel, np.array([0.0])]) # <-- Aggiunto limite box min
+            self.N, "lbx", np.hstack([ori_0, zero_vel, box_min,np.array([0.0])]) # <-- Aggiunto limite box min
         )
         self.ocp_solver.constraints_set(
-            self.N, "ubx", np.hstack([ori_0+tol_ori, zero_vel+tol_vel, np.array([1e5])]) # <-- Aggiunto limite box max
+            self.N, "ubx", np.hstack([ori_0, zero_vel, box_max, np.array([1e5])]) # <-- Aggiunto limite box max
         )
         # self.ocp_solver.constraints_set(
         #     self.N, "uh",
@@ -147,7 +149,7 @@ class ViabilityController(AbstractController):
         #box_max_values: np.ndarray,
         N_start: int,
         n: int = 1,
-        repeat: int = 10,
+        repeat: int = 10
     ) -> tuple[np.ndarray | None, np.ndarray | None, int | None, int]:
         """Iteratively expand the horizon to compute the viability kernel boundary.
 
@@ -189,6 +191,7 @@ class ViabilityController(AbstractController):
         gamma = float('inf')   # Inizializziamo con fattore inf
         x_sol, u_sol = None, None
 
+        repeat = self.vboc_repeat
         for r in range(repeat):
             status = self.solve(q_init, ref_box)#, d, box_min_values, box_max_values)
 
@@ -196,46 +199,68 @@ class ViabilityController(AbstractController):
                 # Evaluate the projected velocity at the initial stage
                 x0 = self.ocp_solver.get(0, "x")
                 
-                #in 3D
-                gamma_new = x0[12] # <--- Il costo è lo scaling
+                #in 2D
+                gamma_new = x0[18] # <--- Il costo è lo scaling
 
 
-                print(
-                    f"Iteration {r}: gamma_new = {gamma_new:.4f}, "
-                    f"gamma = {gamma:.4f}, "
-                    f"diff = {gamma - gamma_new:.4f}, "
-                    f"status = {status}"
-                )
+                print(f"Iteration {r}: SUCCESS! Scale = {gamma_new:.4f}, Horizon N = {N}")
 
-                # Early stopping: no meaningful improvement and solver 
-                # converged
-                if gamma - gamma_new < self.tol and status == 0:
-                    break
+                # # Early stopping: no meaningful improvement and solver 
+                # # converged
+                # if gamma - gamma_new < self.tol and status == 0:
+                #     break
                 
-                gamma = gamma_new
+                # gamma = gamma_new
 
                 # Roll out the full solution trajectory
-                x_sol = np.empty((N + n, self.model.nx))
-                u_sol = np.empty((N + n, self.model.nu)) 
+                x_sol = np.empty((N, self.model.nx))
+                u_sol = np.empty((N, self.model.nu)) 
                 for i in range(N):
                     x_sol[i] = self.ocp_solver.get(i, 'x')
                     u_sol[i] = self.ocp_solver.get(i, 'u')
 
-                # Extend trajectory by repeating the terminal state with zero 
-                # input
-                x_sol[N:] = self.ocp_solver.get(N, 'x')
-                u_sol[N:] = np.zeros((n, self.model.nu))
+                break
 
-                # Warm-start the next iteration with the current solution
-                self.setGuess(x_sol, u_sol)
+                # # Extend trajectory by repeating the terminal state with zero 
+                # # input
+                # x_sol[N:] = self.ocp_solver.get(N, 'x')
+                # u_sol[N:] = np.zeros((n, self.model.nu))
+
+                # # Warm-start the next iteration with the current solution
+                # self.setGuess(x_sol, u_sol)
                 
-                # Increment the horizon and resize the solver accordingly
+                # # Increment the horizon and resize the solver accordingly
+                # N += n
+                # self.resetHorizon(N)
+                
+            # else:     
+            #     # Solver failed: abort and propagate the failure status
+            #     return None, None, None, status
+
+            else:     
+                # Se il solver fallisce, non ci arrendiamo! 
+                print(f"Iteration {r}: Solver failed with N={N}. Increasing horizon...")
+                
+                # Allunghiamo il guess iniziale prima di riprovare
+                new_x_guess = np.empty((N + n, self.model.nx))
+                new_u_guess = np.empty((N + n, self.model.nu)) 
+                
+                # Copiamo il vecchio guess per i primi N step
+                new_x_guess[:N] = self.x_guess
+                new_u_guess[:N] = self.u_guess
+                
+                # Riempiamo i nuovi 'n' step aggiuntivi
+                new_x_guess[N:] = self.x_guess[-1]
+                
+                # ---> ECCO DOVE VA LA RIGA! Sostituisce i motori a zero (np.zeros) <---
+                new_u_guess[N:] = self.u_guess[-1] 
+                
+                # Salviamo il nuovo guess allungato
+                self.setGuess(new_x_guess, new_u_guess)
+
+                # Incrementiamo N e aggiorniamo il solver
                 N += n
                 self.resetHorizon(N)
-                
-            else:     
-                # Solver failed: abort and propagate the failure status
-                return None, None, None, status
             
         if status == 0:
             return x_sol, u_sol, N, status

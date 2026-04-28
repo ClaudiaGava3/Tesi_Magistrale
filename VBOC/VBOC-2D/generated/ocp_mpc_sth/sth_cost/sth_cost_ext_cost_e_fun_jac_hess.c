@@ -152,7 +152,7 @@ static const casadi_int casadi_s5[5] = {1, 1, 0, 1, 0};
 static const casadi_int casadi_s6[3] = {0, 0, 0};
 static const casadi_int casadi_s7[9] = {0, 6, 0, 0, 0, 0, 0, 0, 0};
 
-static const casadi_real casadi_c0[6] = {1000., 1000., 20., 50., 50., 10.};
+static const casadi_real casadi_c0[6] = {1000., 1000., 20., 1., 1., 1.};
 
 /* sth_cost_ext_cost_e_fun_jac_hess:(i0[6],i1[0],i2[0],i3[7])->(o0,o1[6],o2[6x6,6nz],o3[],o4[0x6]) */
 static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem) {
@@ -178,9 +178,9 @@ static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   [[1000, 00, 00, 00, 00, 00], 
    [00, 1000, 00, 00, 00, 00], 
    [00, 00, 20, 00, 00, 00], 
-   [00, 00, 00, 50, 00, 00], 
-   [00, 00, 00, 00, 50, 00], 
-   [00, 00, 00, 00, 00, 10]] */
+   [00, 00, 00, 1, 00, 00], 
+   [00, 00, 00, 00, 1, 00], 
+   [00, 00, 00, 00, 00, 1]] */
   casadi_copy(casadi_c0, 6, w5);
   /* #8: @6 = mac(@4,@5,@2) */
   casadi_copy(w2, 6, w6);

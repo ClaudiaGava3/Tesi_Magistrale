@@ -138,7 +138,7 @@ static const casadi_int casadi_s6[4] = {0, 1, 0, 0};
 static const casadi_int casadi_s7[11] = {7, 1, 0, 7, 0, 1, 2, 3, 4, 5, 6};
 static const casadi_int casadi_s8[5] = {1, 1, 0, 1, 0};
 
-static const casadi_real casadi_c0[6] = {1000., 1000., 20., 50., 50., 10.};
+static const casadi_real casadi_c0[6] = {1000., 1000., 20., 1., 1., 1.};
 
 /* sth_cost_ext_cost_fun:(i0[6],i1[2],i2[0],i3[7])->(o0) */
 static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem) {
@@ -162,9 +162,9 @@ static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   [[1000, 00, 00, 00, 00, 00], 
    [00, 1000, 00, 00, 00, 00], 
    [00, 00, 20, 00, 00, 00], 
-   [00, 00, 00, 50, 00, 00], 
-   [00, 00, 00, 00, 50, 00], 
-   [00, 00, 00, 00, 00, 10]] */
+   [00, 00, 00, 1, 00, 00], 
+   [00, 00, 00, 00, 1, 00], 
+   [00, 00, 00, 00, 00, 1]] */
   casadi_copy(casadi_c0, 6, w4);
   /* #7: @1 = mac(@3,@4,@1) */
   casadi_mtimes(w3, casadi_s0, w4, casadi_s1, w1, casadi_s0, w, 0);

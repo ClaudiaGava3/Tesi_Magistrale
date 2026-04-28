@@ -28,7 +28,7 @@ def main():
     N_SIM = int(SIM_TIME / DT)
 
     # Stato iniziale del drone [x, z, theta, vx, vz, wy]
-    x0 = np.array([0.0, 0.0, 0.5, 1.0, -0.7, 0.0])
+    x0 = np.array([0.0, 0.0, 1.0, -1.0, 1.0, 1.0])
     
     # Target da raggiungere [x, z, theta, vx, vz, wy]
     x_ref = np.array([5, -2, 0.0, 0.0, 0.0, 0.0])

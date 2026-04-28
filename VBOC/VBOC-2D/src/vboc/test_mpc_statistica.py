@@ -20,7 +20,7 @@ def genera_condizioni_iniziali():
         # Partenza da (0,0) ma con angoli e velocità randomici
         x0_pos = 0.0
         z0_pos = 0.0 
-        theta0 = np.random.uniform(-np.radians(45), np.radians(45)) 
+        theta0 = np.random.uniform(-np.radians(90), np.radians(90)) 
         vx0 = np.random.uniform(-1.0, 1.0) 
         vz0 = np.random.uniform(-1.0, 1.0)
         wy0 = np.random.uniform(-1.0, 1.0)
@@ -37,8 +37,10 @@ def genera_condizioni_iniziali():
             
     x0 = np.array([x0_pos, z0_pos, theta0, vx0, vz0, wy0])
     x_ref = np.array([xref_pos, zref_pos, 0.0, 0.0, 0.0, 0.0])
+
+    alpha_real = np.random.uniform(0.2, 0.6) 
     
-    return x0, x_ref
+    return x0, x_ref, alpha_real
 
 def main():
     print("--- Inizializzazione Campagna Test ---")
@@ -51,24 +53,24 @@ def main():
     controller = MpcController(model)
 
     # --- PARAMETRI SIMULAZIONE ---
-    NUM_TESTS = 1000
+    NUM_TESTS = 100
     DT = params.dt
-    SIM_TIME = 3.0 
+    SIM_TIME = 2.0 
     N_SIM = int(SIM_TIME / DT)
-    ALPHA_REAL = 1.0 
     TOLLERANZA_TARGET = 0.05 
 
     # Inizializzazione liste
     risultati_errore = []
     risultati_max_alpha = []
     risultati_status = []
+    risultati_alpha_real = []
     voli_completati = []
 
     print(f"\nAvvio {NUM_TESTS} simulazioni. Volo: {SIM_TIME}s")
     start_total = time.time()
 
     for i in range(NUM_TESTS):
-        x0, x_ref = genera_condizioni_iniziali()
+        x0, x_ref, ALPHA_REAL = genera_condizioni_iniziali()
         current_x = x0.copy()
         
         max_alpha_test = 0.0
@@ -111,6 +113,7 @@ def main():
             errore_pos = np.linalg.norm(current_x[:2] - x_ref[:2])
             risultati_errore.append(errore_pos)
             risultati_max_alpha.append(max_alpha_test)
+            risultati_alpha_real.append(ALPHA_REAL)
             
             # --- NUOVA LOGICA DI VALUTAZIONE FISICA REALE ---
             if max_alpha_test >= ALPHA_REAL:
@@ -145,6 +148,7 @@ def main():
     err_array = np.array(risultati_errore)
     alpha_array = np.array(risultati_max_alpha)
     status_array = np.array(risultati_status)
+    alpha_real_array = np.array(risultati_alpha_real)
 
     arrivati = np.sum(status_array == "Arrivato")
     fuori_toll = np.sum(status_array == "Fuori Tolleranza")
@@ -252,7 +256,6 @@ def main():
             ax_alpha.plot(time_u, a_h, color=color, label=lbl)
 
         # Setup Label e Salvataggio
-        ax_alpha.axhline(ALPHA_REAL, color='red', linestyle='--', label='Alpha Real')
         fig_pos.savefig(os.path.join(cartella_plots, "1_posizioni.png"), dpi=300)
         fig_vel.savefig(os.path.join(cartella_plots, "2_velocita.png"), dpi=300)
         fig_mot.savefig(os.path.join(cartella_plots, "3_motori.png"), dpi=300)
@@ -287,6 +290,25 @@ def main():
     plt.tight_layout()
     
     plt.savefig(os.path.join("plots", "mpc", "0_scatter_statistico.png"), dpi=300, bbox_inches='tight')
+    plt.show()
+
+    # Assumendo che tu abbia salvato tutti gli ALPHA_REAL in un array chiamato "alpha_real_array"
+    
+    plt.figure(figsize=(9, 6))
+    
+    # Asse X: Spazio fisico disponibile, Asse Y: Spazio di frenata richiesto
+    plt.scatter(alpha_real_array[valid_idx], alpha_array[valid_idx], alpha=0.6, c=colori, edgecolor='k')
+    
+    # Disegna la linea diagonale (Il muro fisico)
+    limiti_grafico = [0.2, 0.6] # Adatta questi valori in base ai tuoi ostacoli
+    plt.plot(limiti_grafico, limiti_grafico, 'k--', linewidth=2, label='Impact limit')
+    
+    plt.title("Space Analysis: Space Required vs. Space Available")
+    plt.xlabel("Available Physical Space (Alpha Real)")
+    plt.ylabel("Required Braking Space (Alpha Predicted)")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
     plt.show()
 
 if __name__ == '__main__':

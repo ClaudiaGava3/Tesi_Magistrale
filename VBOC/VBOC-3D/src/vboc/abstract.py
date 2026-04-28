@@ -37,6 +37,7 @@ class Model:
         self.u_bar = params.u_bar 
         self.alpha_tilt = params.alpha_tilt
         self.eps = params.state_tol
+        self.vboc_repeat = params.vboc_repeat
 
         # --- Environment and drone size bounds ---
         self.min_width = params.min_width
@@ -49,8 +50,8 @@ class Model:
         self.v_max = params.v_max
         
 
-        # --- State and input dimensions 3D---
-        nq = 6  # Pose: 3 position + 3 orientation (Euler angles)
+        # --- State and input dimensions 2D---
+        nq = 6  # Pose: 2 position + 1 orientation (Euler angles)
         nv = 6
         nu = 4  # Input: 4 squared rotor spinning rates
         npos = 3    # Position sub-space dimension
@@ -58,15 +59,15 @@ class Model:
         nbox = 6    # Obstacle box constraint dimension
         nscale = 1  # FATTORE DI SCALA (Sostituisce nbox)
 
+
         # --- CasADi symbolic variables ---
-        self.x = MX.sym("x", nq * 2 + nscale)    # Full state [q; q_dot]
-        self.x_dot = MX.sym("x_dot", nq * 2 + nscale)
+        self.x = MX.sym("x", nq + nv + nbox + nscale)    # Full state [q; q_dot]
+        self.x_dot = MX.sym("x_dot", nq + nv + nbox + nscale)
         self.u = MX.sym("u", nu)    # Control input
         self.p = MX.sym("p", nbox)    # OCP parameter x fixing box ratio
             
         # --- Rotation matrix (ZYX Euler convention) ---
         euler_angles = self.x[npos:npos+nori] 
-        #in 3D
         roll, pitch, yaw = euler_angles[0], euler_angles[1], euler_angles[2]
 
         R_x = vertcat(
@@ -95,13 +96,13 @@ class Model:
         tan_a = np.tan(self.alpha_tilt)
 
         # F maps squared rotor speeds to body-frame force components [3 × nu]
-
         # in 3D
         self.F=self.cf*np.array([
             [0,0,0,0],
             [0,0,0,0],
             [1,1,1,1]
         ])
+
 
         # exacopter in 3D
         # self.F = self.cf * np.array([
@@ -115,11 +116,12 @@ class Model:
 
         # M maps squared rotor speeds to body-frame torque components [3 × nu]
         # in 3D
-        self.M= np.array([
-            [0.0,self.cf*self.l,0.0,-self.cf*self.l],
-            [-self.cf*self.l,0.0,self.cf*self.l,0.0],
-            [-self.ct, self.ct, -self.ct, self.ct]
+        self.M = np.array([
+            [0,      self.l*self.cf,  0,      -self.l*self.cf], # Roll (motori 2-4)
+            [-self.l*self.cf, 0,      self.l*self.cf,  0     ], # Pitch (motori 3-1)
+            [self.ct, -self.ct,      self.ct, -self.ct       ]  # Yaw
         ])
+
 
         # exacopter in 3D
         # self.M = self.ct * np.array([
@@ -163,7 +165,6 @@ class Model:
         )
         self.Tinv = Function('Tinv', [self.x], [Tinv_expr])
 
-        #in 3D
         omega_3d = self.x[9:12]
 
         euler_rates_3d = self.Tinv(self.x) @ omega_3d
@@ -172,14 +173,16 @@ class Model:
 
         # --- Explicit continuous-time dynamics: x_dot = f(x, u) ---
 
-        #3D
+        # 3D
         self.f_expl = vertcat(
-            self.x[6:9],         # Derivate posizioni
-            euler_rates_3d,      # Derivate angoli
-            accel_3d,            # Accelerazioni lineari
-            alpha_3d,            # Accelerazioni angolari
-            0.0                  # Derivata nulla dello Scaling (x[12])
+            self.x[6:9],         # Velocità lineari (v_x, v_y, v_z)
+            euler_rates_3d,      # phi_dot, theta_dot, psi_dot
+            accel_3d,            # vx_dot, vy_dot, vz_dot
+            alpha_3d,            # p_dot, q_dot, r_dot
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, # 6 parametri del box costanti
+            0.0                  # scaling costante
         )
+
 
         # exacopter in 3D
         # self.f_expl = vertcat(
@@ -244,21 +247,21 @@ class Model:
         )
 
         # Outward normals of the six faces of the axis-aligned bounding box
-
         #in 3D
         box_normals = [
-            DM([ 1.0,  0.0,  0.0]), # left
-            DM([ 0.0,  1.0,  0.0]), # back
-            DM([ 0.0,  0.0,  1.0]), # bottom
-            DM([-1.0,  0.0,  0.0]), # right
-            DM([ 0.0, -1.0,  0.0]), # front
-            DM([ 0.0,  0.0, -1.0]), # top
+            DM([1.0,0.0,0.0]),
+            DM([0.0,1.0,0.0]),
+            DM([0.0,0.0,1.0]),
+            DM([-1.0,0.0,0.0]),
+            DM([0.0,-1.0,0.0]),
+            DM([0.0,0.0,-1.0])
         ]
+
 
         # Build one scalar constraint per face
         self.con_h_expr_list = []
-        # Gli indici delle dimensioni del box in self.x sono 6, 7, 8, 9
-        #box_vars_indices = [6, 7, 8, 9]
+        # Gli indici delle dimensioni del box in self.x sono 12, 13, 14, 15, 16, 17
+        #box_vars_indices = [12, 13, 14, 15, 16, 17]
         
         #TENTATIVO 1 CON SOLO DIM BOX
         # for i,n in enumerate(box_normals):
@@ -270,10 +273,11 @@ class Model:
 
         #TENTATIVO 2 CON PROIEZIONE
         for i, n in enumerate(box_normals):
-            # Dimensione = fattore_di_scala (x[6]) * dimensione_base_fissa (p[i])
+            # Dimensione = fattore_di_scala (x[18]) * dimensione_base_fissa (p[i])
             #in 3D
-            box_dim = self.x[12] * self.p[i]
-            pos_proj = n[0]*self.x[0] + n[1]*self.x[1] + n[2]*self.x[2]
+            box_dim = self.x[18] * self.x[12+i]
+            # Proiezione della posizione del drone (x[0], x[1], x[2]) sulla normale n
+            pos_proj = dot(n, self.x[0:3])
             
             expr = pos_proj + sqrt(n.T @ self.Q(self.x) @ n) - box_dim
             self.con_h_expr_list.append(expr)
@@ -333,6 +337,8 @@ class AbstractController:
 
         self.N = self.params.N
         self.ocp = AcadosOcp()
+        self.vboc_repeat = self.params.vboc_repeat
+        self.tol=self.params.state_tol
 
         # --- Horizon and time discretisation ---
         self.ocp.solver_options.tf = self.params.N * self.params.dt
@@ -346,7 +352,7 @@ class AbstractController:
         self.ocp.cost.cost_type_0 = 'EXTERNAL'
 
         #in 3D
-        self.ocp.model.cost_expr_ext_cost_0 = 1.0 * self.model.x[12] # Costo = Scaling
+        self.ocp.model.cost_expr_ext_cost_0 = 1.0 * self.model.x[18] # Costo = Scaling
         
         self.ocp.parameter_values = np.zeros(self.model.nbox) # Inizializza i parametri p
 
@@ -369,16 +375,18 @@ class AbstractController:
         self.ocp.constraints.uh = np.full(self.model.nbox, 0.0)
         self.ocp.constraints.lh = np.full(self.model.nbox, -1e5)
 
-        # State box: theta (1), velocity (3), scale (1) = 5 elementi totali
+        # State box: theta (1), velocity (3), box (4)scale (1) = 9 elementi totali
         self.ocp.constraints.idxbx = np.arange(self.model.npos, self.model.nx) 
         self.ocp.constraints.lbx = np.hstack([
             np.full(self.model.nori, -np.pi), 
-            np.full(self.model.nv, -1e2),      
+            np.full(self.model.nv, -1e2),
+            np.full(self.model.nbox, 0.1),             # <--- Minimo per i lati (es. 10% della scala)     
             np.array([0.0])                   # scale min
         ])
         self.ocp.constraints.ubx = np.hstack([
             np.full(self.model.nori, np.pi),  
-            np.full(self.model.nv, 1e2),       
+            np.full(self.model.nv, 1e2),
+            np.full(self.model.nbox, 1.0),             # <--- MAX per i lati imposto a 1.0!      
             np.array([1e5])                    # scale max
         ])
 
@@ -386,12 +394,14 @@ class AbstractController:
         self.ocp.constraints.idxbx_e = np.arange(self.model.npos, self.model.nx)
         self.ocp.constraints.lbx_e = np.hstack([
             np.zeros(self.model.nori),        
-            np.zeros(self.model.nv),          
+            np.zeros(self.model.nv),
+            np.full(self.model.nbox, 0.1),         
             np.array([0.0])                   
         ])
         self.ocp.constraints.ubx_e = np.hstack([
             np.zeros(self.model.nori),        
-            np.zeros(self.model.nv),          
+            np.zeros(self.model.nv),
+            np.full(self.model.nbox, 1.0),         
             np.array([1e5])                   
         ])
 
@@ -432,7 +442,7 @@ class AbstractController:
         # --- Warm-start storage ---
         self.x_guess = np.zeros((self.N, self.model.nx))
         self.u_guess = np.zeros((self.N, self.model.nu))
-        self.tol = self.params.cost_tol
+        #self.tol = self.params.cost_tol
 
     def setGuess(
         self,

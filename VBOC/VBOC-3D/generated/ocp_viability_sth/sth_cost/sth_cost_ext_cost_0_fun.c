@@ -63,20 +63,20 @@ void casadi_copy(const casadi_real* x, casadi_int n, casadi_real* y) {
   }
 }
 
-static const casadi_int casadi_s0[17] = {13, 1, 0, 13, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+static const casadi_int casadi_s0[23] = {19, 1, 0, 19, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18};
 static const casadi_int casadi_s1[8] = {4, 1, 0, 4, 0, 1, 2, 3};
 static const casadi_int casadi_s2[4] = {0, 1, 0, 0};
 static const casadi_int casadi_s3[10] = {6, 1, 0, 6, 0, 1, 2, 3, 4, 5};
 static const casadi_int casadi_s4[5] = {1, 1, 0, 1, 0};
 
-/* sth_cost_ext_cost_0_fun:(i0[13],i1[4],i2[0],i3[6])->(o0) */
+/* sth_cost_ext_cost_0_fun:(i0[19],i1[4],i2[0],i3[6])->(o0) */
 static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem) {
   casadi_real *rr, *ss;
   casadi_real *w0=w+0, w1;
   /* #0: @0 = input[0][0] */
-  casadi_copy(arg[0], 13, w0);
-  /* #1: @1 = @0[12] */
-  for (rr=(&w1), ss=w0+12; ss!=w0+13; ss+=1) *rr++ = *ss;
+  casadi_copy(arg[0], 19, w0);
+  /* #1: @1 = @0[18] */
+  for (rr=(&w1), ss=w0+18; ss!=w0+19; ss+=1) *rr++ = *ss;
   /* #2: output[0][0] = @1 */
   if (res[0]) res[0][0] = w1;
   return 0;
@@ -158,7 +158,7 @@ CASADI_SYMBOL_EXPORT int sth_cost_ext_cost_0_fun_work(casadi_int *sz_arg, casadi
   if (sz_arg) *sz_arg = 5;
   if (sz_res) *sz_res = 2;
   if (sz_iw) *sz_iw = 0;
-  if (sz_w) *sz_w = 14;
+  if (sz_w) *sz_w = 20;
   return 0;
 }
 
@@ -166,7 +166,7 @@ CASADI_SYMBOL_EXPORT int sth_cost_ext_cost_0_fun_work_bytes(casadi_int *sz_arg, 
   if (sz_arg) *sz_arg = 5*sizeof(const casadi_real*);
   if (sz_res) *sz_res = 2*sizeof(casadi_real*);
   if (sz_iw) *sz_iw = 0*sizeof(casadi_int);
-  if (sz_w) *sz_w = 14*sizeof(casadi_real);
+  if (sz_w) *sz_w = 20*sizeof(casadi_real);
   return 0;
 }
 
