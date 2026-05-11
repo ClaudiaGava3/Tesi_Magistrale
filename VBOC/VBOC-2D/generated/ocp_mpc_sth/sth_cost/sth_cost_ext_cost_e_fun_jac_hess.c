@@ -147,14 +147,14 @@ static const casadi_int casadi_s0[15] = {1, 6, 0, 1, 2, 3, 4, 5, 6, 0, 0, 0, 0, 
 static const casadi_int casadi_s1[15] = {6, 6, 0, 1, 2, 3, 4, 5, 6, 0, 1, 2, 3, 4, 5};
 static const casadi_int casadi_s2[10] = {6, 1, 0, 6, 0, 1, 2, 3, 4, 5};
 static const casadi_int casadi_s3[4] = {0, 1, 0, 0};
-static const casadi_int casadi_s4[11] = {7, 1, 0, 7, 0, 1, 2, 3, 4, 5, 6};
+static const casadi_int casadi_s4[14] = {10, 1, 0, 10, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 static const casadi_int casadi_s5[5] = {1, 1, 0, 1, 0};
 static const casadi_int casadi_s6[3] = {0, 0, 0};
 static const casadi_int casadi_s7[9] = {0, 6, 0, 0, 0, 0, 0, 0, 0};
 
-static const casadi_real casadi_c0[6] = {1000., 1000., 20., 1., 1., 1.};
+static const casadi_real casadi_c0[6] = {100., 100., 20., 1., 1., 1.};
 
-/* sth_cost_ext_cost_e_fun_jac_hess:(i0[6],i1[0],i2[0],i3[7])->(o0,o1[6],o2[6x6,6nz],o3[],o4[0x6]) */
+/* sth_cost_ext_cost_e_fun_jac_hess:(i0[6],i1[0],i2[0],i3[10])->(o0,o1[6],o2[6x6,6nz],o3[],o4[0x6]) */
 static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem) {
   casadi_int i, j, k;
   casadi_real *rr, *ss, *tt;
@@ -169,14 +169,14 @@ static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   /* #3: @3 = input[0][0] */
   casadi_copy(arg[0], 6, w3);
   /* #4: @4 = input[3][1] */
-  casadi_copy(arg[3] ? arg[3]+1 : 0, 6, w4);
+  casadi_copy(arg[3] ? arg[3]+4 : 0, 6, w4);
   /* #5: @3 = (@3-@4) */
   for (i=0, rr=w3, cs=w4; i<6; ++i) (*rr++) -= (*cs++);
   /* #6: @4 = @3' */
   casadi_copy(w3, 6, w4);
   /* #7: @5 = 
-  [[1000, 00, 00, 00, 00, 00], 
-   [00, 1000, 00, 00, 00, 00], 
+  [[100, 00, 00, 00, 00, 00], 
+   [00, 100, 00, 00, 00, 00], 
    [00, 00, 20, 00, 00, 00], 
    [00, 00, 00, 1, 00, 00], 
    [00, 00, 00, 00, 1, 00], 

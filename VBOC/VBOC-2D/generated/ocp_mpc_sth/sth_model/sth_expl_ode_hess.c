@@ -175,7 +175,7 @@ static const casadi_int casadi_s13[10] = {6, 1, 0, 6, 0, 1, 2, 3, 4, 5};
 static const casadi_int casadi_s14[45] = {6, 6, 0, 6, 12, 18, 24, 30, 36, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5};
 static const casadi_int casadi_s15[17] = {6, 2, 0, 6, 12, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5};
 static const casadi_int casadi_s16[6] = {2, 1, 0, 2, 0, 1};
-static const casadi_int casadi_s17[11] = {7, 1, 0, 7, 0, 1, 2, 3, 4, 5, 6};
+static const casadi_int casadi_s17[14] = {10, 1, 0, 10, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 static const casadi_int casadi_s18[12] = {8, 1, 0, 8, 0, 1, 2, 3, 4, 5, 6, 7};
 static const casadi_int casadi_s19[40] = {36, 1, 0, 36, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35};
 
@@ -189,7 +189,7 @@ static const casadi_real casadi_c6[6] = {0., -1.5000000000000001e-04, 0., 0., 1.
 static const casadi_real casadi_c7[3] = {0., 1., 0.};
 static const casadi_real casadi_c8[14] = {0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 1.};
 
-/* sth_expl_ode_hess:(i0[6],i1[6x6],i2[6x2],i3[6],i4[2],i5[7])->(o0[8],o1[36]) */
+/* sth_expl_ode_hess:(i0[6],i1[6x6],i2[6x2],i3[6],i4[2],i5[10])->(o0[8],o1[36]) */
 static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem) {
   casadi_int i, j, k;
   casadi_real *rr, *ss, *tt;

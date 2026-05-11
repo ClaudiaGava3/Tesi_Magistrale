@@ -2,14 +2,14 @@
 prob_num: 20000          # number of OCP to create dataset
 cpu_num: 26
 
-N: 10  #20                  # horizon in number of samples
+N: 10  #10 #32                  # horizon in number of samples
 N_increment: 0   #0         # increment of the horizon
 dt: 20e-3                 # time step
 #alpha: 15                # safety margin 
 
 solver_mode: 'BALANCE'    # HPIPM mode, can be --> 'BALANCE', 'ROBUST', 'SPEED', 'SPEED_ABS'
-nlp_max_iter: 2 #1000
-qp_max_iter: 2 #200
+nlp_max_iter: 100 #1000
+qp_max_iter: 100 #200
 alpha_reduction: 0.3
 alpha_min: 1e-2
 levenberg_marquardt: 1e-9

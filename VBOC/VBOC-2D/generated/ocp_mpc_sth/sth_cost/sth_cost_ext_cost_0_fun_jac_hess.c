@@ -156,15 +156,15 @@ static const casadi_int casadi_s4[19] = {8, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 
 static const casadi_int casadi_s5[10] = {6, 1, 0, 6, 0, 1, 2, 3, 4, 5};
 static const casadi_int casadi_s6[6] = {2, 1, 0, 2, 0, 1};
 static const casadi_int casadi_s7[4] = {0, 1, 0, 0};
-static const casadi_int casadi_s8[11] = {7, 1, 0, 7, 0, 1, 2, 3, 4, 5, 6};
+static const casadi_int casadi_s8[14] = {10, 1, 0, 10, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 static const casadi_int casadi_s9[5] = {1, 1, 0, 1, 0};
 static const casadi_int casadi_s10[12] = {8, 1, 0, 8, 0, 1, 2, 3, 4, 5, 6, 7};
 static const casadi_int casadi_s11[3] = {0, 0, 0};
 static const casadi_int casadi_s12[11] = {0, 8, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-static const casadi_real casadi_c0[6] = {1000., 1000., 20., 1., 1., 1.};
+static const casadi_real casadi_c0[6] = {100., 100., 20., 1., 1., 1.};
 
-/* sth_cost_ext_cost_0_fun_jac_hess:(i0[6],i1[2],i2[0],i3[7])->(o0,o1[8],o2[8x8,8nz],o3[],o4[0x8]) */
+/* sth_cost_ext_cost_0_fun_jac_hess:(i0[6],i1[2],i2[0],i3[10])->(o0,o1[8],o2[8x8,8nz],o3[],o4[0x8]) */
 static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem) {
   casadi_int i, j, k;
   casadi_real *rr, *ss, *tt;
@@ -177,14 +177,14 @@ static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   /* #2: @2 = input[0][0] */
   casadi_copy(arg[0], 6, w2);
   /* #3: @3 = input[3][1] */
-  casadi_copy(arg[3] ? arg[3]+1 : 0, 6, w3);
+  casadi_copy(arg[3] ? arg[3]+4 : 0, 6, w3);
   /* #4: @2 = (@2-@3) */
   for (i=0, rr=w2, cs=w3; i<6; ++i) (*rr++) -= (*cs++);
   /* #5: @3 = @2' */
   casadi_copy(w2, 6, w3);
   /* #6: @4 = 
-  [[1000, 00, 00, 00, 00, 00], 
-   [00, 1000, 00, 00, 00, 00], 
+  [[100, 00, 00, 00, 00, 00], 
+   [00, 100, 00, 00, 00, 00], 
    [00, 00, 20, 00, 00, 00], 
    [00, 00, 00, 1, 00, 00], 
    [00, 00, 00, 00, 1, 00], 
@@ -206,8 +206,8 @@ static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   for (i=0, rr=w8; i<2; ++i) (*rr++) -= w9;
   /* #13: @10 = @8' */
   casadi_copy(w8, 2, w10);
-  /* #14: @11 = all_1e-05(2x2,2nz) */
-  casadi_fill(w11, 2, 1.0000000000000001e-05);
+  /* #14: @11 = all_0.0001(2x2,2nz) */
+  casadi_fill(w11, 2, 1.0000000000000000e-04);
   /* #15: @12 = mac(@10,@11,@7) */
   casadi_copy(w7, 2, w12);
   casadi_mtimes(w10, casadi_s2, w11, casadi_s3, w12, casadi_s2, w, 0);

@@ -37,7 +37,7 @@
 #define STH_NX     6
 #define STH_NZ     0
 #define STH_NU     2
-#define STH_NP     7
+#define STH_NP     10
 
 #ifdef __cplusplus
 extern "C" {

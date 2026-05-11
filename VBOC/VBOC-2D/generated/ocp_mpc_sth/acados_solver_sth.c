@@ -339,6 +339,20 @@ void sth_acados_create_setup_functions(sth_solver_capsule* capsule)
     ext_fun_opts.external_workspace = true;
     if (N > 0)
     {
+        // constraints.constr_type == "BGH" and dims.nh > 0
+        capsule->nl_constr_h_fun_jac = (external_function_external_param_casadi *) malloc(sizeof(external_function_external_param_casadi)*(N-1));
+        for (int i = 0; i < N-1; i++) {
+            MAP_CASADI_FNC(nl_constr_h_fun_jac[i], sth_constr_h_fun_jac_uxt_zt);
+        }
+        capsule->nl_constr_h_fun = (external_function_external_param_casadi *) malloc(sizeof(external_function_external_param_casadi)*(N-1));
+        for (int i = 0; i < N-1; i++) {
+            MAP_CASADI_FNC(nl_constr_h_fun[i], sth_constr_h_fun);
+        }
+        capsule->nl_constr_h_fun_jac_hess = (external_function_external_param_casadi *) malloc(sizeof(external_function_external_param_casadi)*(N-1));
+        for (int i = 0; i < N-1; i++) {
+            MAP_CASADI_FNC(nl_constr_h_fun_jac_hess[i], sth_constr_h_fun_jac_uxt_zt_hess);
+        }
+    
         // external cost
         MAP_CASADI_FNC(ext_cost_0_fun, sth_cost_ext_cost_0_fun);
         MAP_CASADI_FNC(ext_cost_0_fun_jac, sth_cost_ext_cost_0_fun_jac);
@@ -426,7 +440,6 @@ void sth_acados_create_set_default_parameters(sth_solver_capsule* capsule)
     const int N = capsule->nlp_solver_plan->N;
     // initialize parameters to nominal value
     double* p = calloc(NP, sizeof(double));
-    p[0] = 1;
 
     for (int i = 0; i <= N; i++) {
         sth_acados_update_params(capsule, i, p, NP);
@@ -594,21 +607,27 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
 
     // x
     int* idxbx = malloc(NBX * sizeof(int));
-    idxbx[0] = 2;
-    idxbx[1] = 3;
-    idxbx[2] = 4;
-    idxbx[3] = 5;
+    idxbx[0] = 0;
+    idxbx[1] = 1;
+    idxbx[2] = 2;
+    idxbx[3] = 3;
+    idxbx[4] = 4;
+    idxbx[5] = 5;
     double* lubx = calloc(2*NBX, sizeof(double));
     double* lbx = lubx;
     double* ubx = lubx + NBX;
-    lbx[0] = -3.141592653589793;
-    ubx[0] = 3.141592653589793;
-    lbx[1] = -10;
-    ubx[1] = 10;
-    lbx[2] = -10;
-    ubx[2] = 10;
-    lbx[3] = -10;
-    ubx[3] = 10;
+    lbx[0] = -100;
+    ubx[0] = 100;
+    lbx[1] = -100;
+    ubx[1] = 100;
+    lbx[2] = -3.141592653589793;
+    ubx[2] = 3.141592653589793;
+    lbx[3] = -100;
+    ubx[3] = 100;
+    lbx[4] = -100;
+    ubx[4] = 100;
+    lbx[5] = -100;
+    ubx[5] = 100;
 
     for (int i = 1; i < N; i++)
     {
@@ -620,6 +639,31 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
     free(lubx);
 
 
+    // set up nonlinear constraints for stage 1 to N-1
+    double* luh = calloc(2*NH, sizeof(double));
+    double* lh = luh;
+    double* uh = luh + NH;
+    uh[0] = 100000;
+    uh[1] = 100000;
+    uh[2] = 100000;
+    uh[3] = 100000;
+
+    for (int i = 1; i < N; i++)
+    {
+        ocp_nlp_constraints_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, i, "nl_constr_h_fun_jac",
+                                      &capsule->nl_constr_h_fun_jac[i-1]);
+        ocp_nlp_constraints_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, i, "nl_constr_h_fun",
+                                      &capsule->nl_constr_h_fun[i-1]);
+        
+        ocp_nlp_constraints_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, i,
+                                      "nl_constr_h_fun_jac_hess", &capsule->nl_constr_h_fun_jac_hess[i-1]);
+        
+        ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, i, "lh", lh);
+        ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, i, "uh", uh);
+        
+        
+    }
+    free(luh);
 
 
 
@@ -636,21 +680,27 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
     // set up bounds for last stage
     // x
     int* idxbx_e = malloc(NBXN * sizeof(int));
-    idxbx_e[0] = 2;
-    idxbx_e[1] = 3;
-    idxbx_e[2] = 4;
-    idxbx_e[3] = 5;
+    idxbx_e[0] = 0;
+    idxbx_e[1] = 1;
+    idxbx_e[2] = 2;
+    idxbx_e[3] = 3;
+    idxbx_e[4] = 4;
+    idxbx_e[5] = 5;
     double* lubx_e = calloc(2*NBXN, sizeof(double));
     double* lbx_e = lubx_e;
     double* ubx_e = lubx_e + NBXN;
-    lbx_e[0] = -1.5707963267948966;
-    ubx_e[0] = 1.5707963267948966;
-    lbx_e[1] = -1;
-    ubx_e[1] = 1;
-    lbx_e[2] = -1;
-    ubx_e[2] = 1;
+    lbx_e[0] = -100;
+    ubx_e[0] = 100;
+    lbx_e[1] = -100;
+    ubx_e[1] = 100;
+    lbx_e[2] = -1.5707963267948966;
+    ubx_e[2] = 1.5707963267948966;
     lbx_e[3] = -1;
     ubx_e[3] = 1;
+    lbx_e[4] = -1;
+    ubx_e[4] = 1;
+    lbx_e[5] = -1;
+    ubx_e[5] = 1;
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "idxbx", idxbx_e);
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "lbx", lbx_e);
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "ubx", ubx_e);
@@ -664,7 +714,10 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
     double* luh_e = calloc(2*NHN, sizeof(double));
     double* lh_e = luh_e;
     double* uh_e = luh_e + NHN;
-    lh_e[0] = -100000;
+    uh_e[0] = 100000;
+    uh_e[1] = 100000;
+    uh_e[2] = 100000;
+    uh_e[3] = 100000;
 
     ocp_nlp_constraints_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, N, "nl_constr_h_fun_jac", &capsule->nl_constr_h_e_fun_jac);
     ocp_nlp_constraints_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, N, "nl_constr_h_fun", &capsule->nl_constr_h_e_fun);
@@ -824,7 +877,7 @@ static void sth_acados_create_set_opts(sth_solver_capsule* capsule)
     double nlp_solver_tol_comp = 0.00001;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "tol_comp", &nlp_solver_tol_comp);
 
-    int nlp_solver_max_iter = 2;
+    int nlp_solver_max_iter = 100;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "max_iter", &nlp_solver_max_iter);
 
     // set options for adaptive Levenberg-Marquardt Update
@@ -887,7 +940,7 @@ static void sth_acados_create_set_opts(sth_solver_capsule* capsule)
     double anderson_activation_threshold = 10;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "anderson_activation_threshold", &anderson_activation_threshold);
 
-    int qp_solver_iter_max = 2;
+    int qp_solver_iter_max = 100;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "qp_iter_max", &qp_solver_iter_max);
 
 
@@ -1079,7 +1132,7 @@ int sth_acados_update_params(sth_solver_capsule* capsule, int stage, double *p, 
 {
     int solver_status = 0;
 
-    int casadi_np = 7;
+    int casadi_np = 10;
     if (casadi_np != np) {
         printf("acados_update_params: trying to set %i parameters for external functions."
             " External function has %i parameters. Exiting.\n", np, casadi_np);
@@ -1185,6 +1238,15 @@ int sth_acados_free(sth_solver_capsule* capsule)
     
 
     // constraints
+    for (int i = 0; i < N-1; i++)
+    {
+        external_function_external_param_casadi_free(&capsule->nl_constr_h_fun_jac[i]);
+        external_function_external_param_casadi_free(&capsule->nl_constr_h_fun[i]);
+        external_function_external_param_casadi_free(&capsule->nl_constr_h_fun_jac_hess[i]);
+    }
+    free(capsule->nl_constr_h_fun_jac);
+    free(capsule->nl_constr_h_fun);
+    free(capsule->nl_constr_h_fun_jac_hess);
     external_function_external_param_casadi_free(&capsule->nl_constr_h_e_fun_jac);
     external_function_external_param_casadi_free(&capsule->nl_constr_h_e_fun);
     external_function_external_param_casadi_free(&capsule->nl_constr_h_e_fun_jac_hess);
@@ -1209,7 +1271,7 @@ void sth_acados_print_stats(sth_solver_capsule* capsule)
         printf("stat_n_max = %d is too small, increase it in the template!\n", stat_n_max);
         exit(1);
     }
-    double stat[48];
+    double stat[1616];
     ocp_nlp_get(capsule->nlp_solver, "statistics", stat);
 
     int nrow = nlp_iter+1 < stat_m ? nlp_iter+1 : stat_m;

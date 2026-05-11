@@ -39,9 +39,9 @@
 #define STH_NX     6
 #define STH_NZ     0
 #define STH_NU     2
-#define STH_NP     7
+#define STH_NP     10
 #define STH_NP_GLOBAL     0
-#define STH_NBX    4
+#define STH_NBX    6
 #define STH_NBX0   6
 #define STH_NBU    2
 #define STH_NSBX   0
@@ -59,14 +59,14 @@
 #define STH_NS0    0
 #define STH_NSN    0
 #define STH_NG     0
-#define STH_NBXN   4
+#define STH_NBXN   6
 #define STH_NGN    0
 #define STH_NY0    0
 #define STH_NY     0
 #define STH_NYN    0
 #define STH_N      10
-#define STH_NH     0
-#define STH_NHN    1
+#define STH_NH     4
+#define STH_NHN    4
 #define STH_NH0    0
 #define STH_NPHI0  0
 #define STH_NPHI   0
@@ -131,6 +131,11 @@ typedef struct sth_solver_capsule
 
 
     // constraints
+    external_function_external_param_casadi *nl_constr_h_fun_jac;
+    external_function_external_param_casadi *nl_constr_h_fun;
+    external_function_external_param_casadi *nl_constr_h_fun_jac_hess;
+
+
 
 
 
