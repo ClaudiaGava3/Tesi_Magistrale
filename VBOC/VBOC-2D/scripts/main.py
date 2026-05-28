@@ -23,7 +23,17 @@ from urdf_parser_py.urdf import URDF
 from src.vboc.abstract import Model
 from src.vboc.controller import ViabilityController
 from src.vboc.learning import NeuralNetwork, NovelNeuralNetwork, RegressionNN, plot_brs
-from vboc.parser import Parameters, parse_args
+from src.vboc.parser import Parameters, parse_args
+
+# Impostazioni globali per le dimensioni del font
+plt.rcParams.update({
+    'axes.titlesize': 28,     # Dimensione titolo
+    'axes.labelsize': 24,     # Dimensione etichette assi (X e Y)
+    'xtick.labelsize': 12,    # Dimensione numeri asse X
+    'ytick.labelsize': 12,    # Dimensione numeri asse Y
+    'legend.fontsize': 22,    # Dimensione legenda
+    'font.size': 22           # Dimensione base per tutto il resto
+}) 
 
 install()
 
@@ -79,9 +89,10 @@ def plot_histogram(
     for i in range(data.shape[1]):
         axes[i].set_visible(True)
         axes[i].hist(data[:, i], bins=bins, edgecolor='black', alpha=0.7)
-        axes[i].set_title(f"Dimension {i+1}")
-        axes[i].set_xlabel(xlabel)
-        axes[i].set_ylabel(ylabel)
+        #axes[i].set_title(f"Dimension {i+1}")
+        axes[i].set_title("Dimension " + str(i+1), fontsize=20)
+        axes[i].set_xlabel(xlabel, fontsize=18)
+        axes[i].set_ylabel(ylabel, fontsize=18)
         axes[i].grid(True, which='both', alpha=0.75)
 
     if xticks is not None:
@@ -119,9 +130,7 @@ def compute_data_on_border(
     N_guess: int,
     N_increment: int,
     vboc_repeat: int,
-    #box_min_values: np.ndarray,
-    #box_max_values: np.ndarray,
-    #random_seed: int
+
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, int]:
     """
     Compute a single data point on the border of the viability kernel.
@@ -168,15 +177,6 @@ def compute_data_on_border(
     
     controller.resetHorizon(N_guess)
 
-    # --- Velocity direction ---
-    # if params.check:
-    #     # Fixed direction for debug/check mode
-    #     d = np.array([0.0, 0.0, -1.0, 0.0, 0.0, 0.0])
-    # else:
-    #     # Normal distribution ensures uniform sampling on the unit sphere
-    #     np.random.seed(random_seed)
-    #     d = np.array([np.random.normal() for _ in range(model.nv)])
-    # d /= np.linalg.norm(d)
 
     # --- Initial guess: stationary at q_init with gravity compensation ---
     #in 2D
@@ -191,13 +191,6 @@ def compute_data_on_border(
     # come parte il drone nella realtà (incluse le velocità e gli angoli veri)
     x_guess[0, :6] = q_init
 
-    # x_static = np.hstack((q_init, np.zeros(model.nx - model.nq)))
-    # gravity_wrench = np.array([0, 0, model.mass * model.g])
-    # allocation_matrix = model.R(x_static).full() @ model.F
-    # u_hover = np.linalg.pinv(allocation_matrix) @ gravity_wrench
-
-    # x_static = np.hstack((q_init, np.full(4, box_guess)))
-    # allocation_matrix = model.R(x_static).full() @ model.F
 
     # 1. Definiamo uno stato orizzontale per il guess iniziale
     x_flat = np.zeros(11)
@@ -239,116 +232,7 @@ def compute_data_on_border(
         return (
             x_star[0], x_star, u_star, N_final, status
         )
-    
-# def fixed_velocity_dir(
-#     N_guess: int,
-#     N_increment: int,
-#     vboc_repeat: int,
-#     n_pts: int = 50
-# ) -> tuple[list, list]:
-#     """
-#     Compute data on a section of the viability kernel.
 
-#     For each position DOF, solves the VBOC problem along a grid of points
-#     in both the positive and negative velocity directions.
-
-#     Parameters
-#     ----------
-#     N_guess : int
-#         Initial prediction horizon length.
-#     N_increment : int
-#         Number of time steps added per VBOC iteration.
-#     vboc_repeat : int
-#         Maximum number of VBOC solve repetitions before declaring failure.
-#     n_pts : int, optional
-#         Number of grid points per DOF. Default is 50.
-
-#     Returns
-#     -------
-#     sec_pts : list of np.ndarray
-#         Section points for each position DOF.
-#     status_list : list of np.ndarray
-#         Solver status vector for each position DOF.
-#     """
-#     sec_pts = []
-#     status_list = []
-#     controller.resetHorizon(N_guess)
-
-#     # Gravity-compensating hover thrust at the origin 
-#     # (shared across all iterations)
-#     u_hover = (
-#         np.linalg.pinv(model.R(np.zeros(model.nx)).full() @ model.F) @ 
-#         np.array([0, 0, model.mass * model.g])
-#     )
-
-#     for i in range(model.npos):
-#         # --- Build position grid for DOF i, mapped to box dimensions ---
-
-#         q_lo = model.env_dimensions[i] - model.drone_occupancy[i]
-#         q_hi = (
-#             model.env_dimensions[i+model.npos] 
-#             - model.drone_occupancy[i+model.npos]
-#         )
-#         q_grid = np.linspace(q_lo, q_hi, n_pts)
-
-#         box_max_grid = np.empty(n_pts) * np.nan
-#         box_min_grid = np.empty(n_pts) * np.nan
-#         for k in range(n_pts):
-#             box_max_grid[k] = min(
-#                 model.env_dimensions[i+3], 
-#                 model.env_dimensions[i+3] - q_grid[k]
-#             )
-#             box_min_grid[k] = -max(
-#                 model.env_dimensions[i], 
-#                 model.env_dimensions[i] - q_grid[k]
-#             )
-
-#         # Duplicate grid for positive (j < n_pts) and negative 
-#         # (j >= n_pts) directions
-#         q_grid = np.tile(q_grid, 2)
-#         box_max_grid = np.tile(box_max_grid, 2) 
-#         box_min_grid = np.tile(box_min_grid, 2)
-
-#         # --- Storage for this DOF ---
-#         x_sec = np.empty((0, model.nx)) * np.nan 
-#         status_vec = np.empty(n_pts * 2) * np.nan
-        
-#         for j in tqdm(range(n_pts * 2), desc=f"DOF {i+1}/{model.npos}"):
-            
-#             # Box bounds: start from environment limits, then override DOF i
-#             box_max_values = model.env_dimensions[3:].copy()
-#             box_min_values = -model.env_dimensions[:3].copy()
-#             box_max_values[i] = box_max_grid[j]
-#             box_min_values[i] = box_min_grid[j]
-
-#             # Unit velocity direction: +1 for first half, -1 for second half
-#             d = np.zeros(model.nv)
-#             d[i] = 1 if j < n_pts else -1
-
-#             # Warm-start guess: stationary at the origin
-#             q_init = np.zeros(model.nq)             
-#             x_guess = np.zeros((N_guess, model.nx))
-#             u_guess = np.full((N_guess, model.nu), u_hover)
-#             controller.setGuess(x_guess, u_guess)
-
-#             # --- Solve VBOC ---
-#             x_star, _, _, status = controller.solve_vboc(
-#                 q_init, d, box_min_values, box_max_values, N_guess,
-#                 n=N_increment, repeat=vboc_repeat
-#             )
-            
-#             if status == 0:
-#                 # Replace the optimised position with the grid value,
-#                 # since the OCP fixes velocity direction, not position.
-#                 x_star[0, i] = q_grid[j]
-#                 x_sec = np.vstack([x_sec, x_star[0]])
-
-#             status_vec[j] = status
-
-#         sec_pts.append(x_sec)
-#         status_list.append(status_vec)
-
-#     return sec_pts, status_list
 
 def generate_constrained_rpy(
     min_inclination: float,
@@ -592,19 +476,14 @@ if __name__ == '__main__':
         # --- Initial orientation: sampled within the allowed inclination  
         # range ---
         if(params.orient_g_rej):
-            #min_phi = 0.0
             max_phi = np.pi/2
         else:
-            #min_phi = model.phi_max
             max_phi = np.pi/2
-        #roll, pitch, yaw = generate_constrained_rpy(
-        #    min_phi, max_phi, params.prob_num
-        #)
+        
         if params.check:
             orient_init = np.zeros((params.prob_num, model.nori))
             vel_init = np.zeros((params.prob_num, model.nv))
         else:
-            #orient_init = np.column_stack([roll, pitch, yaw])
             # Generiamo pitch casuale
             #in 2D
             orient_init = np.random.uniform(-max_phi, max_phi, params.prob_num).reshape(-1, 1)
@@ -617,44 +496,7 @@ if __name__ == '__main__':
 
         # --- Obstacle box bounds --- 
         box_guess=1e1
-        # box_min_values = np.empty((params.prob_num, model.npos))
-        # box_max_values = np.empty((params.prob_num, model.npos))
-        # if params.check:
-        #     # Fixed maximum box in check mode
-        #     for i in range(params.prob_num):
-        #         box_min_values[i,:] = np.array(
-        #             [model.max_width, model.max_length, model.max_height]
-        #         )
-        #         box_max_values[i,:] = np.array(
-        #             [model.max_width, model.max_length, model.max_height]
-        #         )
-        # else:
-        #     # Random box, with minimum size determined by the drone's 
-        #     # ellipsoidal occupancy
-        #     for i in range(params.prob_num):
-        #         min_dx = np.sqrt(
-        #             np.array([1,0,0]) @ 
-        #             model.Q(np.hstack([q_init[i,:], np.zeros(model.nv)])) @ 
-        #             np.array([1,0,0]).T
-        #         )
-        #         min_dy = np.sqrt(
-        #             np.array([0,1,0]) @ 
-        #             model.Q(np.hstack([q_init[i,:], np.zeros(model.nv)])) @ 
-        #             np.array([0,1,0]).T
-        #         )
-        #         min_dz = np.sqrt(
-        #             np.array([0,0,1]) @ 
-        #             model.Q(np.hstack([q_init[i,:], np.zeros(model.nv)])) @ 
-        #             np.array([0,0,1]).T
-        #         )
-        #         dx = np.random.uniform(min_dx, model.max_width)
-        #         dy = np.random.uniform(min_dy, model.max_length)
-        #         dz = np.random.uniform(min_dz, model.max_height)
-        #         box_min_values[i, :] = np.array([dx, dy, dz])
-        #         dx = np.random.uniform(min_dx, model.max_width)
-        #         dy = np.random.uniform(min_dy, model.max_length)
-        #         dz = np.random.uniform(min_dz, model.max_height)
-        #         box_max_values[i, :] = np.array([dx, dy, dz])
+
 
         # --- Random seeds, one per problem ---
         randomSeeds = [random.randint(0, params.prob_num) 
@@ -674,51 +516,9 @@ if __name__ == '__main__':
             sub_batch = 100
         n_batch = int(params.prob_num/sub_batch)
 
-        # # --- Per-batch storage (overwritten at each save) ---
-        # x_data, x_traj, u_traj, b_min, b_max = [], [], [], [], []
-        # solved = 0
-
-        # print('Start data generation')
-        # for nb in range(n_batch):  
-        #     with Pool(params.cpu_num) as p:
-        #         res = p.starmap(
-        #             compute_data_on_border, 
-        #             [(q0, N, N_increment, vboc_repeat, box_min, box_max, 
-        #               randomSeeds) for q0, box_min, box_max, randomSeeds in 
-        #               zip(q_init[(nb*sub_batch):((nb+1)*sub_batch)], 
-        #                   box_min_values[(nb*sub_batch):((nb+1)*sub_batch)], 
-        #                   box_max_values[(nb*sub_batch):((nb+1)*sub_batch)], 
-        #                   randomSeeds[(nb*sub_batch):((nb+1)*sub_batch)])]
-        #         )
-        
-
-            # --- Unpack parallel results ---
-            # x_0, x_t, u_t, b_m, b_M, status, d_list = zip(*res)
-            # all_x_0.extend(x_0)
-            # all_x_t.extend(x_t)
-            # all_u_t.extend(u_t)
-            # all_b_m.extend(b_m)
-            # all_b_M.extend(b_M)
-            # all_status.extend(status)
-            # all_d_list.extend(d_list)
-
-            # # Warn and skip if no feasible solution was found in this batch
-            # if all(item is None for item in x_0):
-            #     warnings.warn(f'No solution found for any problem in batch' \
-            #                   '{nb}. Skipping this batch.', RuntimeWarning)
-            #     print(status)
-            #     continue
-            # # Abort if no feasible solution has been found across all batches 
-            # # so far
-            # if all(item is None for item in all_x_0):
-            #     warnings.warn('No solution found for any problem. ' \
-            #     'Exiting the program.', RuntimeWarning)
-            #     print(status)
-            #     exit()
 
         #in 2D
         ref_box = np.array([1.0, 1.0, 1.0, 1.0]) # Box di riferimento 1:1
-
 
 
         print('Start data generation')
@@ -754,41 +554,6 @@ if __name__ == '__main__':
                 warnings.warn('No solution found for any problem. Exiting.', RuntimeWarning)
                 exit()
 
-            # # --- Intermediate save: filter out failed problems ---
-            # x_data = np.vstack([i for i in all_x_0 if i is not None])
-            # x_traj = [i for i in all_x_t if i is not None]
-            # u_traj = [i for i in all_u_t if i is not None]
-            # b_min = list(all_b_m)
-            # b_max = list(all_b_M)
-            # d = list(all_d_list)
-            # status = list(all_status)
-            # b_combined = np.vstack([np.hstack((b_min[i], b_max[i])) 
-            #                         for i in range(len(b_min))]
-            # )
-            # np.save(f'{params.DATA_DIR}{robotic_system}_d_vboc', d)
-            # np.save(
-            #     f'{params.DATA_DIR}{robotic_system}_b_all_vboc', b_combined
-            # )
-            # np.save(f'{params.DATA_DIR}{robotic_system}_status_vboc', status)
-            # b_min_succ = [all_b_m[i] for i in range(len(all_b_m)) 
-            #               if all_x_0[i] is not None
-            # ]
-            # b_max_succ = [all_b_M[i] for i in range(len(all_b_M)) 
-            #               if all_x_0[i] is not None
-            # ]
-            # b_combined_succ = np.vstack(
-            #     [np.hstack((b_min_succ[i], b_max_succ[i])) 
-            #      for i in range(len(b_min_succ))
-            #     ]
-            # )
-            # solved = len(x_data)
-            # print(f'Batch {nb}: Total number of points saved until now: %d' 
-            #       % solved
-            # )
-            # np.save(f'{params.DATA_DIR}{robotic_system}_x_vboc', x_data)
-            # np.save(
-            #     f'{params.DATA_DIR}{robotic_system}_b_vboc', b_combined_succ
-            # )
 
             x_data = np.vstack([i for i in all_x_0 if i is not None])
             x_traj = [i for i in all_x_t if i is not None]
@@ -815,285 +580,6 @@ if __name__ == '__main__':
  # =========================================================================
     # PLOT
 # =========================================================================
-    # versione precedente
-        # # --- Plot generated trajectories ---
-        # if params.plot:
-
-        #     # Labels and titles for pose/velocity subplots
-        #     extended_pose_title = ['Position', 'Orientation', 'Inclination']
-        #     velocities_title = ['Linear velocity', 'Angular velocity']
-        #     pose_label = [
-        #         'x [m]', 'y [m]', 'z [m]', 'r [deg]', 'p [deg]', 'y [deg]'
-        #     ]
-        #     vel_label = [
-        #         'v$_x$ [m/s]', 'v$_y$ [m/s]', 'v$_z$ [m/s]',
-        #           '$\omega_x$ [deg/s]', '$\omega_y$ [deg/s]', 
-        #           '$\omega_z$ [deg/s]'
-        #     ]
-        #     y_lab_pose = ['Pos. [m]', 'Orient. [deg]', 'Incl. [deg]']
-        #     y_lab_vel = ['v [m/s]', '$\omega$ [deg/s]']
-
-        #     # Create (or recreate) output subdirectories
-        #     traj_dir = os.path.join(plots_dir, 'trajectories')
-        #     pose_dir = os.path.join(plots_dir, 'poses')
-        #     velocity_dir = os.path.join(plots_dir, 'velocities')
-        #     input_dir = os.path.join(plots_dir, 'inputs')
-        #     threeD_dir = os.path.join(plots_dir, '3D')
-        #     plots_subdirs = [
-        #         traj_dir, pose_dir, velocity_dir, input_dir, threeD_dir
-        #     ]
-        #     for subdir in plots_subdirs:
-        #         ensure_clean_dir(subdir)
-
-        #     # Unit normals used to project the occupancy ellipsoid onto each 
-        #     # axis
-        #     normals = [
-        #         np.array([1,0,0]),
-        #         np.array([0,1,0]),
-        #         np.array([0,0,1]) 
-        #     ]
-
-        #     # Plot every trajectory, or 1 in 10 outside check mode
-        #     if params.check:
-        #         sub_plot = 1
-        #     else:
-        #         sub_plot = params.prob_num / 10
-
-        #     for k in range(len(x_traj)):
-        #         if k % sub_plot == 0:
-        #             horizon_ = x_traj[k].shape[0]
-        #             colors = np.linspace(0, 1, horizon_)
-        #             t = np.linspace(0, horizon_ * params.dt, horizon_)
-
-        #             traj_xlim_min = (-b_min[k]).tolist() + \
-        #                 [-np.rad2deg(max_phi), -np.rad2deg(max_phi), -180.0]
-        #             traj_xlim_max = b_max[k].tolist() + \
-        #                 [np.rad2deg(max_phi), np.rad2deg(max_phi), 180.0]
-
-        #             # Phase-plane plot: position vs velocity for each DOF
-        #             fig, ax = plt.subplots(2, 3)
-        #             ax = ax.reshape(-1)
-        #             for i in range(nq):
-        #                 ax[i].grid(True, linewidth=0.5)
-        #                 if i < model.npos:
-        #                     ax[i].scatter(
-        #                         x_traj[k][:, i], x_traj[k][:, nq + i],
-        #                         c=colors, 
-        #                         cmap='coolwarm', 
-        #                         s=1
-        #                     )
-        #                 else:
-        #                     ax[i].scatter(
-        #                         np.rad2deg(x_traj[k][:, i]), 
-        #                         np.rad2deg(x_traj[k][:, nq + i]), 
-        #                         c=colors, 
-        #                         cmap='coolwarm', 
-        #                         s=1
-        #                     )
-        #                 ax[i].set_xlim([traj_xlim_min[i], traj_xlim_max[i]])
-        #                 ax[i].set_xlabel(f'{pose_label[i]}')
-        #                 ax[i].set_ylabel(f'{vel_label[i]}')
-        #             plt.suptitle(f'Trajectory {k + 1}, d {all_d_list[k][:3]}')
-        #             plt.tight_layout()
-        #             plt.savefig(os.path.join(traj_dir, f'traj_{k + 1}.png'))
-        #             plt.close(fig)
-
-        #             # Pose over time, with occupancy ellipsoid bounds for 
-        #             # position DOFs
-        #             fig, ax = plt.subplots(3, 1)
-        #             ax = ax.reshape(-1)
-        #             j = 0
-        #             for i in range(nq):
-        #                 if i == model.npos:
-        #                     j += 1
-        #                 ax[j].grid(True)
-        #                 ax[j].set_title(f'{extended_pose_title[j]}')
-        #                 if i < model.npos:
-        #                     line, = ax[j].plot(
-        #                         t, x_traj[k][:, i], label=f'{pose_label[i]}'
-        #                     )
-        #                     ellips_r = []
-        #                     for h in range(len(t)):
-        #                         ellips_r.append(
-        #                             np.sqrt(normals[i].T @ 
-        #                                     model.Q(x_traj[k][h, :]) @ 
-        #                                     normals[i])
-        #                         )
-        #                     ax[j].plot(
-        #                         t, 
-        #                         x_traj[k][:, i] + ellips_r, 
-        #                         color=line.get_color(), 
-        #                         linestyle='--', 
-        #                         linewidth=0.8
-        #                     )
-        #                     ax[j].plot(
-        #                         t, 
-        #                         x_traj[k][:, i] - ellips_r, 
-        #                         color=line.get_color(), 
-        #                         linestyle='--', 
-        #                         linewidth=0.8
-        #                     )
-        #                 else:
-        #                     line, = ax[j].plot(
-        #                         t,
-        #                         np.rad2deg(x_traj[k][:, i]), 
-        #                         label=f'{pose_label[i]}'
-        #                     )
-        #                 # ax[j].axhline(
-        #                 # traj_xlim_min[i], 
-        #                 # color=line.get_color(), 
-        #                 # linestyle='--', 
-        #                 # linewidth=0.8)
-        #                 # ax[j].axhline(
-        #                 # traj_xlim_max[i], 
-        #                 # color=line.get_color(), 
-        #                 # linestyle='--', 
-        #                 # linewidth=0.8)
-        #                 ax[j].set_xlabel('Time [s]')
-        #                 ax[j].set_ylabel(y_lab_pose[j])
-        #                 ax[j].legend()
-        #             j += 1
-        #             # Last subplot: total inclination angle with safety 
-        #             # thresholds
-        #             ax[j].grid(True)
-        #             ax[j].set_title(f'{extended_pose_title[j]}')
-        #             line, = ax[j].plot(
-        #                 t, 
-        #                 np.rad2deg(np.sqrt(np.square(x_traj[k][:, 3]) + 
-        #                                    np.square(x_traj[k][:, 4]))),
-        #                 label=f'{pose_label[i]}'
-        #             )
-        #             # ax[j].axhline(
-        #             # min_phi, 
-        #             # color=line.get_color(), 
-        #             # linestyle='--', 
-        #             # linewidth=0.8)
-        #             ax[j].axhline(
-        #                 np.rad2deg(max_phi), 
-        #                 color=line.get_color(), 
-        #                 linestyle='--', 
-        #                 linewidth=0.8
-        #             )
-        #             ax[j].axhline(
-        #                 np.rad2deg(model.phi_hovering_max), 
-        #                 color='r', 
-        #                 linestyle='--', 
-        #                 linewidth=0.8
-        #             )
-        #             ax[j].set_xlabel('Time [s]')
-        #             ax[j].set_ylabel(y_lab_pose[j])
-        #             ax[j].legend()
-
-        #             plt.suptitle(f'Trajectory {k + 1}')
-        #             plt.tight_layout()
-        #             plt.savefig(os.path.join(pose_dir, f'pose_{k + 1}.png'))
-        #             plt.close(fig)
-
-        #             # Linear and angular velocity over time
-        #             fig, ax = plt.subplots(2, 1)
-        #             ax = ax.reshape(-1)
-        #             j = 0
-        #             for i in range(nq):
-        #                 if i == model.npos:
-        #                     j += 1
-        #                 ax[j].grid(True)
-        #                 ax[j].set_title(f'{velocities_title[j]}')
-        #                 if i < model.npos:
-        #                     line, = ax[j].plot(
-        #                         t, 
-        #                         x_traj[k][:, i + nq], 
-        #                         label=f'{vel_label[i]}'
-        #                     )
-        #                 else:
-        #                     line, = ax[j].plot(
-        #                         t, 
-        #                         np.rad2deg(x_traj[k][:, i + nq]), 
-        #                         label=f'{vel_label[i]}'
-        #                     )
-        #                 ax[j].set_xlabel('Time [s]')
-        #                 ax[j].set_ylabel(y_lab_vel[j])
-        #                 ax[j].legend()
-        #             plt.suptitle(f'Trajectory {k + 1}')
-        #             plt.tight_layout()
-        #             plt.savefig(os.path.join(velocity_dir, f'vel_{k + 1}.png'))
-        #             plt.close(fig)
-
-        #             # Control inputs over time
-        #             offset = 200
-        #             fig, ax = plt.subplots()
-        #             for i in range(nu):
-        #                 ax.grid(True)
-        #                 ax.plot(t, u_traj[k][:, i], label=f'u_{i + 1}')
-        #                 ax.set_title('Inputs')
-        #                 ax.axhline(
-        #                     model.u_bar, 
-        #                     color='r', 
-        #                     linestyle='--', 
-        #                     lw=0.8
-        #                 )
-        #                 ax.set_xlabel('Time [s]')
-        #                 ax.set_ylabel('$u^2$ [(Hz/s)$^2$]')
-        #                 ax.set_ylim([0.0 - offset, model.u_bar+offset])
-        #                 ax.legend()
-        #             plt.suptitle(f'Trajectory {k + 1}')
-        #             plt.tight_layout()
-        #             plt.savefig(os.path.join(input_dir, f'input_{k + 1}.png'))
-        #             plt.close(fig)
-
-        #             # 3D position trajectory with body-frame axes every 10 
-        #             # steps
-        #             fig = plt.figure()
-        #             ax = fig.add_subplot(111, projection='3d')
-        #             sc = ax.scatter(
-        #                 x_traj[k][:, 0], 
-        #                 x_traj[k][:, 1], 
-        #                 x_traj[k][:, 2], 
-        #                 c=colors, 
-        #                 cmap='coolwarm', 
-        #                 s=10
-        #             )
-                    
-        #             # Overlay body-frame arrows to visualise orientation along 
-        #             # the path
-        #             for i in range(0, len(x_traj[k]), 10):
-        #                 roll, pitch, yaw = x_traj[k][i,3:6]
-        #                 rotation_matrix = Rot.from_euler(
-        #                     'xyz', [roll, pitch, yaw]).as_matrix()
-        #                 x_arrow = rotation_matrix[:, 0] * model.min_width
-        #                 y_arrow = rotation_matrix[:, 1] * model.min_length
-        #                 z_arrow = rotation_matrix[:, 2] * model.min_height
-        #                 ax.quiver(
-        #                     x_traj[k][i,0], x_traj[k][i,1], x_traj[k][i,2],
-        #                     x_arrow[0], x_arrow[1], x_arrow[2], color='b', 
-        #                     label='X-axis' if i == 0 else ""
-        #                 )
-        #                 ax.quiver(
-        #                     x_traj[k][i,0], x_traj[k][i,1], x_traj[k][i,2],
-        #                     y_arrow[0], y_arrow[1], y_arrow[2], color='r', 
-        #                     label='Y-axis' if i == 0 else ""
-        #                 )
-        #                 ax.quiver(
-        #                     x_traj[k][i,0], x_traj[k][i,1], x_traj[k][i,2],
-        #                     z_arrow[0], z_arrow[1], z_arrow[2], color='g', 
-        #                     label='Z-axis' if i == 0 else ""
-        #                 )
-                                
-        #             ax.set_xlabel('X [m]')
-        #             ax.set_ylabel('Y [m]')
-        #             ax.set_zlabel('Z [m]')
-        #             ax.set_xlim(traj_xlim_min[0], traj_xlim_max[0])
-        #             ax.set_ylim(traj_xlim_min[1], traj_xlim_max[1])
-        #             ax.set_zlim(traj_xlim_min[2], traj_xlim_max[2])
-        #             ax.set_title(f'3D Position Trajectory {k + 1}')
-        #             set_axes_equal(ax)
-        #             # plt.colorbar(sc, ax=ax, label='Time progression')
-        #             plt.tight_layout()
-        #             plt.savefig(
-        #                 os.path.join(threeD_dir, f'3D_traj_{k + 1}.png')
-        #             )
-        #             plt.close(fig)
-
-
     #in 2D
         # --- Plot generated trajectories ---
         if params.plot:
@@ -1295,65 +781,7 @@ if __name__ == '__main__':
         b_all_data = np.load(params.DATA_DIR + 'sth_b_all_vboc.npy')
         d_data = np.load(params.DATA_DIR + 'sth_d_vboc.npy')
         status_data = np.load(params.DATA_DIR + 'sth_status_vboc.npy')
-        
-        # --- Histograms of raw data distributions ---
-        # if params.plot:
-        #     hist_dir = os.path.join(plots_dir, 'histograms')
-        #     ensure_clean_dir(hist_dir)
-        #     b_all_data = np.load(
-        #         f'{params.DATA_DIR}{robotic_system}_b_all_vboc.npy'
-        #     )
-        #     d_data = np.load(f'{params.DATA_DIR}{robotic_system}_d_vboc.npy')
-        #     status_data = np.load(
-        #         f'{params.DATA_DIR}{robotic_system}_status_vboc.npy'
-        #     )
-        #     plot_histogram(
-        #         x_data[:,:6], 
-        #         title="x[0:6]", 
-        #         xlabel="Value",
-        #         ylabel="Frequency", 
-        #         bins=50, 
-        #         saving_dir=hist_dir
-        #     )
-        #     plot_histogram(
-        #         x_data[:,6:], 
-        #         title="x[6:12]", 
-        #         xlabel="Value", 
-        #         ylabel="Frequency", 
-        #         bins=50, 
-        #         saving_dir=hist_dir
-        #     )
-        #     plot_histogram(
-        #         b_data, 
-        #         title="b", 
-        #         xlabel="Value", 
-        #         ylabel="Frequency", 
-        #         bins=50, 
-        #         saving_dir=hist_dir)
-        #     plot_histogram(
-        #         b_all_data, 
-        #         title="b_all", 
-        #         xlabel="Value", 
-        #         ylabel="Frequency", 
-        #         bins=50, 
-        #         saving_dir=hist_dir
-        #     )
-        #     plot_histogram(
-        #         -d_data, 
-        #         title="d", 
-        #         xlabel="Value", 
-        #         ylabel="Frequency", 
-        #         bins=50, 
-        #         saving_dir=hist_dir
-        #     )
-        #     plot_histogram(
-        #         status_data, 
-        #         title="status", 
-        #         xlabel="Value", 
-        #         ylabel="Frequency", 
-        #         bins=10, 
-        #         saving_dir=hist_dir
-        #     )    
+          
 
         # --- Histograms of raw data distributions ---
         if params.plot:
@@ -1418,7 +846,6 @@ if __name__ == '__main__':
                     )
 
         # Drop position columns and prepend box dimensions as input features
-        #x_data = np.hstack((b_data, x_data[:, model.npos:]))
         #in 2D
         dataset = np.hstack(( x_data[:, 2:6], b_data))
         np.random.shuffle(dataset)
@@ -1451,12 +878,6 @@ if __name__ == '__main__':
         for x_input in [x_train, x_val, x_test]:
             x_input[:] = (x_input - mean) / std
 
-        # Normalize velocity components by their L2 norm (output = the norm 
-        # itself)
-        # y_data = np.linalg.norm(x_data[:, nbori:], axis=1).reshape(n, 1)
-        # for k in range(n):
-        #     if y_data[k] != 0.: 
-        #         x_data[k, nbori:] /= y_data[k] 
 
         # --- Split outputs ---
         y_train = y_data[:train_size]
@@ -1532,7 +953,7 @@ if __name__ == '__main__':
         # --- Plot training and validation loss curves ---
         loss_dir = os.path.join(plots_dir, 'loss_evolution')
         ensure_clean_dir(loss_dir)
-        fig = plt.figure()
+        fig = plt.figure(figsize=(10, 6))
         plt.grid(True, which='both')
         plt.semilogy(train_evol, label='Training', c='b', lw=2)
         plt.semilogy(val_evol, label='Validation', c='g', lw=2)
@@ -1542,81 +963,6 @@ if __name__ == '__main__':
         plt.title(f'Training evolution, horizon {N}')
         plt.savefig(os.path.join(loss_dir, f'evolution_{N}.png'))
         plt.close(fig)
-
-    # =========================================================================
-    # VIABILITY KERNEL PLOTTING
-    # =========================================================================
-    # if params.plot and not params.generation: 
-        
-    #     # --- Load trained network ---
-    #     device = torch.device("cpu")
-    #     nbori = model.nbox+model.nori
-    #     nx_train = nbori+model.nv
-    #     #nn_data = torch.load(nn_filename)
-    #     nn_data = torch.load(nn_filename, map_location=device)
-    #     nn_model = NeuralNetwork(
-    #         nx_train, 
-    #         params.hidden_size, 
-    #         1, 
-    #         params.hidden_layers, 
-    #         act_fun, 
-    #         ub
-    #     ).to(device)        
-    #     nn_model.load_state_dict(nn_data['model'])
-    #     print('***PLOTTING BRS***\n')
-
-    #     # Compute fixed-direction section data if not already cached
-    #     if not os.path.exists(
-    #         f'{params.DATA_DIR}{robotic_system}_x_fixed_vboc.npy'
-    #     ):
-    #         x_fixed, x_status = fixed_velocity_dir(
-    #             N, 
-    #             N_increment, 
-    #             vboc_repeat, 
-    #             n_pts=100
-    #         )
-    #         np.save(
-    #             f'{params.DATA_DIR}{robotic_system}_x_fixed_vboc', 
-    #             np.array(x_fixed, dtype=object), 
-    #             allow_pickle=True
-    #         )
-    #         np.save(f'{params.DATA_DIR}{robotic_system}_status_fixed_vboc', 
-    #                 np.array(x_status, dtype=object), 
-    #                 allow_pickle=True
-    #         )
-    #     else:
-    #         x_fixed = np.load(
-    #             f'{params.DATA_DIR}{robotic_system}_x_fixed_vboc.npy',
-    #             allow_pickle=True
-    #         )
-    #         x_status = np.load(
-    #             f'{params.DATA_DIR}{robotic_system}_status_fixed_vboc.npy',
-    #             allow_pickle=True
-    #         )
-
-    #     brs_dir = os.path.join(plots_dir, 'brs')
-    #     ensure_clean_dir(brs_dir)
-
-    #     plot_brs(
-    #         params, 
-    #         model, 
-    #         controller, 
-    #         nn_model, 
-    #         nn_data['mean'], 
-    #         nn_data['std'], 
-    #         x_fixed, 
-    #         x_status
-    #     )
- 
-    # print('***ALL DONE***')
-    # elapsed_time = time.time() - start_time
-    # hours = int(elapsed_time // 3600)
-    # minutes = int((elapsed_time % 3600) // 60)
-    # seconds = int(elapsed_time % 60)
-    # print(f'Elapsed time: {hours}:{minutes:2d}:{seconds:2d}')
-
-    # os.system('aplay /home/maxbertus/Music/notification.wav > /dev/null 2>&1')
-
 
     # =========================================================================
     # VIABILITY KERNEL PLOTTING 2D

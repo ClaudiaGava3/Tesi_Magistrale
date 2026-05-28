@@ -193,7 +193,6 @@ int sth_acados_sim_create(sth_sim_solver_capsule * capsule)
     /* initialize parameter values */
     double* p = calloc(np, sizeof(double));
     
-    p[0] = 1;
 
     sth_acados_sim_update_params(capsule, p, np);
     free(p);

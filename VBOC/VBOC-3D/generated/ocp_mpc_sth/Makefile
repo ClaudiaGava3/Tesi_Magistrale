@@ -47,6 +47,9 @@ MODEL_OBJ := $(MODEL_SRC:.c=.o)
 OCP_SRC=
 
 
+OCP_SRC+= sth_constraints/sth_constr_h_fun_jac_uxt_zt.c
+OCP_SRC+= sth_constraints/sth_constr_h_fun_jac_uxt_zt_hess.c
+OCP_SRC+= sth_constraints/sth_constr_h_fun.c
 OCP_SRC+= sth_constraints/sth_constr_h_e_fun_jac_uxt_zt.c
 OCP_SRC+= sth_constraints/sth_constr_h_e_fun_jac_uxt_zt_hess.c
 OCP_SRC+= sth_constraints/sth_constr_h_e_fun.c

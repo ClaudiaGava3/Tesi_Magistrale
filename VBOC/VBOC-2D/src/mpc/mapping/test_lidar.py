@@ -12,10 +12,12 @@ plt.rcParams.update({
     'font.size': 22           # Dimensione base per tutto il resto
 })
 
-# =============================================================================
+# ============================================================================
 # 1. SIMULAZIONE LIDAR E SFERE TANGENTI
-# =============================================================================
-def get_lidar_hits_2d(drone_x, drone_z, obstacles, num_rays=360, max_range=5.0):
+# ============================================================================
+
+# PER OSTACOLI PARALLELI
+def get_lidar_hits_2d(drone_x, drone_z, obstacles, num_rays=360, max_range=2.0):
     hits = []
     distances = []
     
@@ -60,6 +62,70 @@ def get_lidar_hits_2d(drone_x, drone_z, obstacles, num_rays=360, max_range=5.0):
         
     return hits, radii
 
+# PER OSTACOLI QUALSIASI
+def get_lidar_hits_2d_qualsiasi(drone_x, drone_z, segments, num_rays=360, max_range=1.5):
+    hits = []
+    distances = []
+    
+    # Calcolo dell'angolo tra un raggio e l'altro
+    angle_step_rad = (2 * np.pi) / num_rays
+    angles = np.linspace(0, 2 * np.pi, num_rays, endpoint=False)
+    
+    for angle in angles:
+        dx, dz = np.cos(angle), np.sin(angle)
+        ray_min_dist = max_range
+        
+        for seg in segments:
+            # Estraiamo i due vertici del muro A e B
+            (x_A, z_A), (x_B, z_B) = seg
+
+            # Vettore direzione del muro (da A verso B)
+            s_x = x_B - x_A
+            s_z = z_B - z_A
+            
+
+            # 1. Calcolo del Denominatore (Prodotto incrociato 2D)
+            den = dx * s_z - dz * s_x
+
+            # Se il denominatore è 0, raggio e muro sono perfettamente paralleli
+            if den != 0:
+                # Vettore distanza tra il drone e l'inizio del muro (A)
+                diff_x = x_A - drone_x
+                diff_z = z_A - drone_z
+
+                # 2. Risoluzione del sistema lineare (Regola di Cramer)
+                # t = Distanza lungo il raggio del drone
+                t = (diff_x * s_z - diff_z * s_x) / den
+                
+                # u = Punto di impatto lungo il segmento del muro
+                u = (diff_x * dz - diff_z * dx) / den
+                
+                # 3. CONDIZIONE FISICA DI IMPATTO
+                # Il raggio va in avanti (t > 0) E colpisce fisicamente il muro (0 <= u <= 1)
+                if t > 0 and 0 <= u <= 1:
+                    # 4. Trova il muro più vicino
+                    if t < ray_min_dist:
+                        ray_min_dist = t
+
+            
+        # Se abbiamo colpito qualcosa entro il max_range, calcoliamo il punto esatto
+        if ray_min_dist < max_range:
+            hit_x = drone_x + ray_min_dist * dx
+            hit_z = drone_z + ray_min_dist * dz
+            hits.append([hit_x, hit_z])
+            distances.append(ray_min_dist)
+            
+    hits = np.array(hits)
+    distances = np.array(distances)
+    
+    # Raggio = distanza * tan(angolo/2). Si aggiunge un 5% (1.05) di sicurezza 
+    # per far compenetrare leggermente le sfere ed evitare "buchi" numerici.
+    if len(distances) > 0:
+        radii = distances * np.tan(angle_step_rad / 2) * 1.05
+    else:
+        radii = np.array([])
+        
+    return hits, radii
 
 # =============================================================================
 # 2. ALGORITMO DI MAX (Adattato al 2D)
@@ -101,12 +167,14 @@ def min_cube_select_2d(Q, R, target_rel_x, target_rel_z, drone_radius=0.1):
     R: array N dei raggi delle sfere
     target_rel_x, target_rel_z: posizione del target relativa al drone!
     """
+
+    LIMIT = 1.0
+
     if len(Q) == 0:
         # Se non c'è nulla, il box è il massimo possibile
-        #return -1.0, 1.0, -1.0, 1.0, 1
-        return -5.0, 5.0, -5.0, 5.0, 1
+        return -LIMIT, LIMIT, -LIMIT, LIMIT, 1
         
-    LIMIT = 5.0 
+    
     # Box 2D: [xMin, xMax, zMin, zMax]
     box = np.array([-LIMIT, LIMIT, -LIMIT, LIMIT], dtype=float)
     
@@ -181,6 +249,8 @@ def _push_faces_2d(box, Qi, Ri, drone_radius, target_rel_x, target_rel_z):
     xMin, xMax, zMin, zMax = box
     moved = False
 
+    LIMIT = 1.0
+
     for i in range(len(Qi)):
         cx, cz = Qi[i]
         r = Ri[i]
@@ -188,19 +258,19 @@ def _push_faces_2d(box, Qi, Ri, drone_radius, target_rel_x, target_rel_z):
 
         # Valuta di spingere i 4 bordi
         new_xMin = cx + r + 1e-4
-        if -5.0 <= new_xMin <= 0:
+        if -LIMIT <= new_xMin <= 0:
             candidates.append((0, new_xMin))
 
         new_xMax = cx - r - 1e-4
-        if 0 <= new_xMax <= 5.0:
+        if 0 <= new_xMax <= LIMIT:
             candidates.append((1, new_xMax))
 
         new_zMin = cz + r + 1e-4
-        if -5.0 <= new_zMin <= 0:
+        if -LIMIT <= new_zMin <= 0:
             candidates.append((2, new_zMin))
 
         new_zMax = cz - r - 1e-4
-        if 0 <= new_zMax <= 5.0:
+        if 0 <= new_zMax <= LIMIT:
             candidates.append((3, new_zMax))
 
         if not candidates:
@@ -215,7 +285,7 @@ def _push_faces_2d(box, Qi, Ri, drone_radius, target_rel_x, target_rel_z):
         # Se 0.0 -> Torna ad essere l'algoritmo originale di Max.
         # Se troppo alto -> Ignora l'area e fa box strettissimi lunghi verso il target.
         # 15.0 o 20.0 di solito è un buon compromesso.
-        W = 15.0 
+        W = 0.5 
 
         for face_idx, val in candidates:
             # Creiamo un box fittizio per calcolare come sarebbe l'area
@@ -228,16 +298,16 @@ def _push_faces_2d(box, Qi, Ri, drone_radius, target_rel_x, target_rel_z):
             # 2. Calcola il Bonus Direzionale
             # Se il target è a destra (X positiva), premiamo test_box[1] (x_max)
             # Se il target è a sinistra (X negativa), premiamo quanto test_box[0] (x_min) va verso sinistra
-            if target_rel_x > 0.5:
+            if target_rel_x > 0.2:
                 bonus_x = test_box[1]
-            elif target_rel_x < -0.5:
+            elif target_rel_x < -0.2:
                 bonus_x = - test_box[0]
             else:
                 bonus_x = 0.0
                 
-            if target_rel_z > 0.5:
+            if target_rel_z > 0.2:
                 bonus_z = test_box[3]
-            elif target_rel_z < -0.5:
+            elif target_rel_z < -0.2:
                 bonus_z = -test_box[2]
             else:
                 bonus_z = 0.0
@@ -319,6 +389,77 @@ def run_test_and_plot():
     ax.grid(True, linestyle=':')
     #ax.legend(loc='upper right')
     plt.title("Asymmetric Box with Tangent Spheres (Lidar)")
+    plt.show()
+
+def run_test_and_plot2():
+    # 1. Posizione del drone e target
+    drone_x, drone_z = 2.5,  7.0
+    target_rel_x, target_rel_z = 10.0, 0.0  # Il target è a X=10, Z=5
+
+    # 2. Creiamo un MURO OBLIQUO (Diagonale da X=3,Z=1 a X=7,Z=9)
+    num_points = 50
+    wall_x = np.linspace(3.0, 7.0, num_points)
+    wall_z = np.linspace(1.0, 9.0, num_points)
+    hits = np.column_stack((wall_x, wall_z))
+    radii = np.full(num_points, 0.05) # Raggio approssimato dei punti LiDAR
+
+    # Convertiamo i punti in coordinate relative per l'algoritmo di Max
+    Q_rel = hits.copy()
+    Q_rel[:, 0] -= drone_x
+    Q_rel[:, 1] -= drone_z
+
+    # 3. Eseguiamo l'algoritmo di Max
+    xMin_r, xMax_r, zMin_r, zMax_r, status = min_cube_select_2d(
+        Q_rel, radii, target_rel_x, target_rel_z, drone_radius=0.1
+    )
+
+    # Convertiamo il Safe-Box in coordinate assolute
+    box_abs = [
+        xMin_r + drone_x, xMax_r + drone_x, 
+        zMin_r + drone_z, zMax_r + drone_z
+    ]
+
+    # 4. PLOT PER IL PROFESSORE
+    fig, ax = plt.subplots(figsize=(12, 8))
+    
+    # Disegniamo il muro obliquo reale
+    ax.plot(wall_x, wall_z, color='black', linewidth=4, label='Muro Obliquo Reale')
+    ax.scatter(hits[:, 0], hits[:, 1], color='red', s=15, zorder=5, label='Punti LiDAR')
+
+    # Disegniamo la SOVRASTIMA dell'ostacolo (Il "blocco" fantasma che vede l'AABB)
+    rect_x_min, rect_x_max = np.min(wall_x), np.max(wall_x)
+    rect_z_min, rect_z_max = np.min(wall_z), np.max(wall_z)
+    ax.add_patch(patches.Rectangle(
+        (rect_x_min, rect_z_min), rect_x_max - rect_x_min, rect_z_max - rect_z_min, 
+        edgecolor='red', facecolor='red', alpha=0.15, linestyle='--', linewidth=2, 
+        label='Ostacolo percepito (AABB)'
+    ))
+
+    # Disegniamo il Safe-Box di Max
+    box_w = box_abs[1] - box_abs[0]
+    box_h = box_abs[3] - box_abs[2]
+    ax.add_patch(patches.Rectangle(
+        (box_abs[0], box_abs[2]), box_w, box_h, 
+        edgecolor='lime', facecolor='none', linewidth=3, zorder=10,
+        label='Safe-Box (Algoritmo Max)'
+    ))
+
+    # Drone e Target
+    ax.scatter(drone_x, drone_z, color='green', s=150, zorder=10, label='Drone')
+    ax.scatter(drone_x + target_rel_x, drone_z + target_rel_z, color='orange', marker='X', s=150, zorder=10, label='Target')
+
+    # Estetica
+    ax.set_xlim([-1, 11])
+    ax.set_ylim([-1, 11])
+    ax.set_aspect('equal')
+    ax.set_title("Fallimento Algoritmo AABB con Ostacoli Obliqui")
+    ax.set_xlabel("X [m]")
+    ax.set_ylabel("Z [m]")
+    #ax.legend(loc='lower right')
+    plt.grid(True, linestyle=':', alpha=0.6)
+    
+    plt.tight_layout()
+    plt.savefig("Fallimento_Obliquo.png", dpi=300)
     plt.show()
     
 if __name__ == '__main__':

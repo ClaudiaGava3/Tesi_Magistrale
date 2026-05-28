@@ -411,6 +411,7 @@ class AbstractController:
 
 
         # --- Path constraints ---
+        # VINCOLO SEMPLIFICATO SOLO PER X
         # Aggiungiamo il vincolo fisico: il drone non deve superare il muro
         # obs_x è self.model.p[0], x del drone è self.model.x[0]
         self.ocp.model.con_h_expr = self.model.p[0] - self.model.x[0]
@@ -428,13 +429,13 @@ class AbstractController:
             np.full(self.model.nv, 1e2)
         ])
 
-        # # --- Terminal constraints per caso con NN ---
-        # # non lo obbligo a fermarsi!!!!!
-        # self.ocp.constraints.idxbx_e = np.arange(self.model.npos, self.model.nx)
-        # self.ocp.constraints.lbx_e = np.hstack([np.full(self.model.nori, -np.pi/2), np.full(self.model.nv, -1)
-        # ])
-        # self.ocp.constraints.ubx_e = np.hstack([np.full(self.model.nori, np.pi/2),  np.full(self.model.nv, 1)
-        # ])
+        # --- Terminal constraints per caso con NN ---
+        # non lo obbligo a fermarsi!!!!!
+        self.ocp.constraints.idxbx_e = np.arange(self.model.npos, self.model.nx)
+        self.ocp.constraints.lbx_e = np.hstack([np.full(self.model.nori, -np.pi/2), np.full(self.model.nv, -1)
+        ])
+        self.ocp.constraints.ubx_e = np.hstack([np.full(self.model.nori, np.pi/2),  np.full(self.model.nv, 1)
+        ])
 
 
 

@@ -57,7 +57,7 @@ class MpcController(AbstractController):
         
         # --- 2. VINCOLO TERMINALE ---
         # La distanza dal muro (p[0] - x[0]) deve essere maggiore o uguale ad alpha_pred
-        self.ocp.model.con_h_expr_e = self.model.p[0] - self.model.x[0] #- alpha_pred
+        self.ocp.model.con_h_expr_e = self.model.p[0] - self.model.x[0] - alpha_pred
         self.ocp.constraints.lh_e = np.array([0.0])   # Deve essere >= 0
         self.ocp.constraints.uh_e = np.array([1e5])
         

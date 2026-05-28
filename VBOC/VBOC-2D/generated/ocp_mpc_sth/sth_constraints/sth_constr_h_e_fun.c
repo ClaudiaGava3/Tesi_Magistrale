@@ -70,8 +70,8 @@ static const casadi_int casadi_s1[4] = {0, 1, 0, 0};
 static const casadi_int casadi_s2[14] = {10, 1, 0, 10, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 static const casadi_int casadi_s3[8] = {4, 1, 0, 4, 0, 1, 2, 3};
 
-static const casadi_real casadi_c0[4] = {3.8642447711770703e-03, -1.7031900510497040e-03, -1.3844960638673706e-03, -7.5678036015860307e-03};
-static const casadi_real casadi_c1[4] = {9.0181461293141740e-01, 5.7537876327933402e-01, 5.7804937595614625e-01, 5.7671068811752046e-01};
+static const casadi_real casadi_c0[4] = {-3.8669162915629480e-03, 3.0640952534681156e-03, 2.8944561402987571e-03, -2.3298475797608998e-03};
+static const casadi_real casadi_c1[4] = {9.0566385081320011e-01, 5.7646684472156984e-01, 5.7664981477303345e-01, 5.7616926977401506e-01};
 
 /* External functions */
 int drone_viability_net(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem);
@@ -113,11 +113,11 @@ static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   *rr++ = w5;
   *rr++ = w6;
   *rr++ = w7;
-  /* #10: @9 = [0.00386424, -0.00170319, -0.0013845, -0.0075678] */
+  /* #10: @9 = [-0.00386692, 0.0030641, 0.00289446, -0.00232985] */
   casadi_copy(casadi_c0, 4, w9);
   /* #11: @8 = (@8-@9) */
   for (i=0, rr=w8, cs=w9; i<4; ++i) (*rr++) -= (*cs++);
-  /* #12: @9 = [0.901815, 0.575379, 0.578049, 0.576711] */
+  /* #12: @9 = [0.905664, 0.576467, 0.57665, 0.576169] */
   casadi_copy(casadi_c1, 4, w9);
   /* #13: @8 = (@8/@9) */
   for (i=0, rr=w8, cs=w9; i<4; ++i) (*rr++) /= (*cs++);

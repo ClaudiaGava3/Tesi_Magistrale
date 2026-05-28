@@ -66,10 +66,26 @@ def get_ambiente(id_stanza):
         ]
         x_ref = np.array([5.0, -2.5, 0.0, 0.0, 0.0, 0.0])
         titolo = "Staggered Walls"
+
+    elif id_stanza == 4:
+        # STANZA 4: Muro Obliquo (Simulato con una sequenza di blocchi AABB)
+        # Il muro si sviluppa diagonalmente da X=3, Z=1 a X=6, Z=5
+        obstacles = []
+        num_blocchi = 500 # Più blocchi metti, più la superficie sembra liscia (e "cattiva" per l'AABB)
+        x_vals = np.linspace(1.5, 3.0, num_blocchi)
+        z_vals = np.linspace(-1.5, 1.5, num_blocchi)
+        
+        for i in range(num_blocchi):
+            # Creiamo piccoli cubetti 0.2x0.2 lungo la diagonale
+            # Formato: [x_min, x_max, y_min, y_max, z_min, z_max]
+            obstacles.append([x_vals[i]-0.01, x_vals[i]+0.01, z_vals[i]-0.01, z_vals[i]+0.01])
+
+        x_ref = np.array([3.0, 0.0, 0.0, 0.0, 0.0, 0.0])   
+        titolo = "Stanza 4: Muro Obliquo"
         
     else:
         obstacles = []
-        x_ref = np.array([5.0, -2.0, 0.0, 0.0, 0.0, 0.0])
+        x_ref = np.array([5.0, -1.5, 0.0, 0.0, 0.0, 0.0])
         titolo = "Empty Room"
         
     return obstacles, x_ref, titolo
@@ -130,7 +146,7 @@ def main():
     N_SIM = int(SIM_TIME / DT)
 
     # LOOP SULLE 3 STANZE
-    for STANZA_ID in [1, 2, 3]:
+    for STANZA_ID in [1, 2, 3, 4]:
         obstacles, x_ref, titolo_stanza = get_ambiente(STANZA_ID)
         
         print(f"\n=============================================")
@@ -148,10 +164,14 @@ def main():
         controller.x_guess = np.tile(x0, (controller.N, 1))
         controller.u_guess = np.full((controller.N, model.nu), u_hover)
 
+        # controllo stalli
+        contatore_stallo = 0
+        MAX_STALLO_ITER = 50
+
         for t in range(N_SIM):
             
             # 1. Simula LIDAR e crea i raggi tangenti
-            hits, radii = get_lidar_hits_2d(current_x[0], current_x[1], obstacles, num_rays=360)
+            hits, radii = get_lidar_hits_2d(current_x[0], current_x[1], obstacles, num_rays=360, max_range=2.0)
             
             # 2. Algoritmo di Max
             Q_rel = hits.copy()
@@ -192,16 +212,55 @@ def main():
             # dist_z_max = box_abs[3] - current_x[1]
             # min_dist_to_wall = min(dist_x_min, dist_x_max, dist_z_min, dist_z_max)
 
-            if status == 4:
-                print(f" --> L'MPC ha dichiarato la traiettoria INFATTIBILE al passo {t}.")
-                # print(f" --> Alpha richiesto: {alpha_curr:.2f}m | Distanza dal muro più vicino: {min_dist_to_wall:.2f}m")
-                break
-            # else:
-                # print(f" --> (Status {status}, alpha_pred {alpha_curr:.2f}, min_dist_muro {min_dist_to_wall:.2f}).")
+            if status in [3, 4]:
+                # print(f"\n⚠️ Muro Teletrasportato (Box Flip)! Il solver è andato in panico. Avvio Recovery Mode...")
+                
+                # # Resettiamo la "memoria" del solver (Warm Start)
+                controller.ocp_solver.reset()
+                # Gli diciamo di ipotizzare di stare fermo dov'è
+                controller.x_guess = np.tile(current_x, (controller.N, 1))
+                controller.u_guess = np.full((controller.N, model.nu), u_hover)
+                
+                # Ritentiamo a risolvere con la mente locale "pulita"
+                x_sol, u_sol, alpha_curr, status = controller.solve_step(current_x, x_ref, box_abs)
+                
+                if status in [3, 4]:
+                    print(f"❌ Recovery Fallita. Il drone è fisicamente in trappola. Chiusura.")
+                    break
 
             current_x = x_sol[1] 
             x_history.append(current_x)
             box_history.append(box_abs)
+
+        # # ==========================================
+        # # GESTIONE DELLO STALLO (Local Minimum Escape)
+        # # ==========================================
+        # # Verifichiamo lo spostamento rispetto al passo precedente
+
+
+        # if t > 0:
+        #     spostamento = np.linalg.norm(current_x[:2] - x_history[-2][:2])
+            
+        #     if spostamento < 0.01:  # Se si è mosso di meno di 1 cm
+        #         contatore_stallo += 1
+        #     else:
+        #         contatore_stallo = 0  # Resetta il contatore se si sblocca
+
+        #     # Se è fermo da 50 iterazioni, agiamo
+        #     if contatore_stallo >= MAX_STALLO_ITER:
+        #         print(f"\n⚠️ STALLO RILEVATO (Passo {t})! Il drone è intrappolato in un minimo locale.")
+        #         print("   -> Perturbo il target locale verso l'alto di 20 cm...")
+                
+        #         # Alziamo la Z del waypoint corrente di 20 cm
+        #         waypoints[target_idx][1] += 0.20 
+                
+        #         # Aggiorniamo subito la variabile usata nel ciclo per il prossimo passo
+        #         x_ref_attuale = waypoints[target_idx] 
+                
+        #         # Resettiamo il contatore per dargli tempo di muoversi
+        #         contatore_stallo = 0 
+        # # ==========================================
+
 
         # Plotta la stanza prima di passare alla successiva
         plot_mappa_2d(x_history, box_history, obstacles, x_ref, x0, titolo_stanza)

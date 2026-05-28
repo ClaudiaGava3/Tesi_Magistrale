@@ -165,10 +165,7 @@ class Model:
             euler_rates_3d[1],   # theta_dot (derivato dal tuo Tinv!)
             accel_3d[0],         # vx_dot
             accel_3d[2],         # vz_dot
-            alpha_3d[1],         # wy_dot (derivato dalla tua equazione con cross!)
-            #0.0, 0.0, 0.0, 0.0,   # Derivate dei 4 parametri del box (costanti)
-            #0.0     # Derivata dello scaling (costante)
-            
+            alpha_3d[1],         # wy_dot            
         )
        
 

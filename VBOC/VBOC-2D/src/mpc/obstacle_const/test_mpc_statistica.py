@@ -68,7 +68,7 @@ def genera_condizioni_iniziali(x_muro_fisso):
     return x0, x_ref, delta_obs
 
 def main():
-    print("--- Inizializzazione Campagna Statistica 1000 Test ---")
+    print("--- Inizializzazione Campagna Test ---")
     robot_name = 'sth'
     params = Parameters(robot_name)
     params.act = 'gelu' 
