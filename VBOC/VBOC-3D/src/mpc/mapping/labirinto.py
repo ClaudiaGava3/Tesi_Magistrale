@@ -268,8 +268,7 @@ def crea_animazione_3d(x_history, box_history, ostacoli, waypoints):
     # Lista per le linee del Box Verde wireframe
     box_lines = [ax.plot([], [], [], color="lime", alpha=0.6, linewidth=1.5)[0] for _ in range(12)]
 
-    # --- Setup Ambiente Statico per ostacoli paralleli---
-    # Disegniamo gli ostacoli. SALTIAMO il Muro Sinistro (indice 3) per poter vedere "dentro"
+    #--- Setup Ambiente Statico per ostacoli paralleli---
     for i, obs in enumerate(ostacoli):
         if i == 3: continue # Muro "di vetro" per la telecamera
         x_min, x_max, y_min, y_max, z_min, z_max = obs
@@ -286,9 +285,9 @@ def crea_animazione_3d(x_history, box_history, ostacoli, waypoints):
     #     poly = Poly3DCollection([faccia], facecolors='gray', linewidths=1.0, edgecolors='black', alpha=0.4)
     #     ax.add_collection3d(poly)
 
-    # # Disegna i Waypoints
-    # for i, wp in enumerate(waypoints):
-    #     ax.scatter(wp[0], wp[1], wp[2], color='red', marker='X', s=100, zorder=6)
+    # Disegna i Waypoints
+    for i, wp in enumerate(waypoints):
+        ax.scatter(wp[0], wp[1], wp[2], color='red', marker='X', s=100, zorder=6)
 
     # Settaggi vista
     ax.set_xlim([-1, 24])

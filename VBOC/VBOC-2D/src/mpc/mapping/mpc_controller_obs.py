@@ -223,4 +223,4 @@ class MpcController(AbstractController):
             
             return x_sol, u_sol, alpha_pred_val, status
         else:
-            return None, None, 0.0, status
+            return None, None, alpha_pred_val, status

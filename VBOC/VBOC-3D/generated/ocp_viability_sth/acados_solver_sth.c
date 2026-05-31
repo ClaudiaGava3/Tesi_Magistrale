@@ -474,27 +474,7 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
         cost_scaling[15] = 0.02;
         cost_scaling[16] = 0.02;
         cost_scaling[17] = 0.02;
-        cost_scaling[18] = 0.02;
-        cost_scaling[19] = 0.02;
-        cost_scaling[20] = 0.02;
-        cost_scaling[21] = 0.02;
-        cost_scaling[22] = 0.02;
-        cost_scaling[23] = 0.02;
-        cost_scaling[24] = 0.02;
-        cost_scaling[25] = 0.02;
-        cost_scaling[26] = 0.02;
-        cost_scaling[27] = 0.02;
-        cost_scaling[28] = 0.02;
-        cost_scaling[29] = 0.02;
-        cost_scaling[30] = 0.02;
-        cost_scaling[31] = 0.02;
-        cost_scaling[32] = 0.02;
-        cost_scaling[33] = 0.02;
-        cost_scaling[34] = 0.02;
-        cost_scaling[35] = 0.02;
-        cost_scaling[36] = 0.02;
-        cost_scaling[37] = 0.02;
-        cost_scaling[38] = 1;
+        cost_scaling[18] = 1;
         for (int i = 0; i <= N; i++)
         {
             ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, i, "scaling", &cost_scaling[i]);
@@ -873,7 +853,7 @@ static void sth_acados_create_set_opts(sth_solver_capsule* capsule)
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "levenberg_marquardt", &levenberg_marquardt);
 
     /* options QP solver */
-    int qp_solver_cond_N;const int qp_solver_cond_N_ori = 38;
+    int qp_solver_cond_N;const int qp_solver_cond_N_ori = 18;
     qp_solver_cond_N = N < qp_solver_cond_N_ori ? N : qp_solver_cond_N_ori; // use the minimum value here
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "qp_cond_N", &qp_solver_cond_N);
 
@@ -914,7 +894,7 @@ static void sth_acados_create_set_opts(sth_solver_capsule* capsule)
     double nlp_solver_tol_comp = 0.00001;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "tol_comp", &nlp_solver_tol_comp);
 
-    int nlp_solver_max_iter = 1000;
+    int nlp_solver_max_iter = 100;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "max_iter", &nlp_solver_max_iter);
 
     // set options for adaptive Levenberg-Marquardt Update
@@ -977,7 +957,7 @@ static void sth_acados_create_set_opts(sth_solver_capsule* capsule)
     double anderson_activation_threshold = 10;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "anderson_activation_threshold", &anderson_activation_threshold);
 
-    int qp_solver_iter_max = 200;
+    int qp_solver_iter_max = 100;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "qp_iter_max", &qp_solver_iter_max);
 
 
@@ -1286,7 +1266,7 @@ void sth_acados_print_stats(sth_solver_capsule* capsule)
         printf("stat_n_max = %d is too small, increase it in the template!\n", stat_n_max);
         exit(1);
     }
-    double stat[16016];
+    double stat[1616];
     ocp_nlp_get(capsule->nlp_solver, "statistics", stat);
 
     int nrow = nlp_iter+1 < stat_m ? nlp_iter+1 : stat_m;

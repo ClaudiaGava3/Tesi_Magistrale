@@ -23,7 +23,7 @@ def genera_ambiente_2d_test():
         [[7.0, -3.0], [9.0, -3.0], [9.0, -0.5], [7.0, -0.5]],     # Quadrato Basso
         
         # NUOVI OSTACOLI BLU
-        [[7.8, 3.9], [10.0, 4.1], [9.6, 0.8]],                     # Triangolo alto SX
+        [[7.8, 3.9], [10.0, 3.9], [9.6, 0.8]],                     # Triangolo alto SX
         [[11.0, -0.4], [13.9, -0.6], [14.3, -1.7], [11.9, -2.8]], # Rettangolo obliquo basso
         [[12.0, 2.5], [12.6, 3.3], [13.6, 3.3], [14.1, 2.4], 
          [14.1, 1.2], [13.4, 0.9], [12.4, 1.0]],                  # Esagono centrale
@@ -47,13 +47,13 @@ def genera_ambiente_2d_test():
         np.array([10.2,-2.1, 0.0, 0.0, 0.0, 0.0]),
         np.array([11.0, 0.7, 0.0, 0.0, 0.0, 0.0]),
         np.array([11.2, 4.0, 0.0, 0.0, 0.0, 0.0]),
-        np.array([15.1, 3.8, 0.0, 0.0, 0.0, 0.0]),
-        np.array([14.8, 0.8, 0.0, 0.0, 0.0, 0.0]),
-        np.array([15.5,-2.6, 0.0, 0.0, 0.0, 0.0]),
-        np.array([18.2, 1.4, 0.0, 0.0, 0.0, 0.0]),
-        np.array([19.6,-2.3, 0.0, 0.0, 0.0, 0.0]),
-        np.array([20.1, 3.4, 0.0, 0.0, 0.0, 0.0]),
-        np.array([22.5, 0.4, 0.0, 0.0, 0.0, 0.0])
+        # np.array([15.1, 3.8, 0.0, 0.0, 0.0, 0.0]),
+        # np.array([14.8, 0.8, 0.0, 0.0, 0.0, 0.0]),
+        # np.array([15.5,-2.6, 0.0, 0.0, 0.0, 0.0]),
+        # np.array([18.2, 1.4, 0.0, 0.0, 0.0, 0.0]),
+        # np.array([19.6,-2.3, 0.0, 0.0, 0.0, 0.0]),
+        # np.array([20.1, 3.4, 0.0, 0.0, 0.0, 0.0]),
+        # np.array([22.5, 0.4, 0.0, 0.0, 0.0, 0.0])
     ]
     
     
@@ -120,7 +120,7 @@ def main_statistico():
         # Variabili di stato di labirinto.py
         contatore_stallo = 0
         MAX_STALLO_ITER = 50
-        in_recovery = False
+        in_recovery = True
 
         timer_recovery = 0
         target_recovery = None
@@ -142,13 +142,14 @@ def main_statistico():
                     in_recovery = False
                     
                     # Ripristino Vincoli (Logica originale labirinto.py)
-                    for i in range(1, controller.N + 1):
-                        controller.ocp_solver.constraints_set(i, "lh", np.zeros(4))
+                    controller.ocp_solver.constraints_set(controller.N, "lh", np.zeros(4))
                     
                     lbx_e_curr = controller.ocp_solver.constraints_get(controller.N, "lbx")
                     ubx_e_curr = controller.ocp_solver.constraints_get(controller.N, "ubx")
+
                     lbx_e_curr[3:] = [-1.0, -1.0, -1.0]
                     ubx_e_curr[3:] = [ 1.0,  1.0,  1.0]
+
                     controller.ocp_solver.constraints_set(controller.N, "lbx", lbx_e_curr)
                     controller.ocp_solver.constraints_set(controller.N, "ubx", ubx_e_curr)
                     
@@ -226,7 +227,7 @@ def main_statistico():
                 # PIANO C: Ritiro al Centro
                 if (status in [3, 4]) and not in_recovery:
                     print("Piano C avviato")
-                    passi_indietro = 5
+                    passi_indietro = 10
                     if len(box_history) > passi_indietro:
                         box_sicuro = box_history[-passi_indietro]
                     else:
@@ -255,10 +256,12 @@ def main_statistico():
                     
                     if status in [3, 4]:
                         esito = "Schianti"
+                        in_recovery = False
                         break
                 
                 elif status in [3, 4] and in_recovery:
                     esito = "Schianti"
+                    in_recovery = False
                     break
 
             if u_sol is not None:
@@ -305,8 +308,8 @@ def main_statistico():
 
                 if contatore_stallo >= MAX_STALLO_ITER:
                     print(f"\n⚠️ STALLO RILEVATO (Passo {t})! Perturbo il target verso l'alto.")
-                    # Alza il target di 0.25, ma NON OLTRE il soffitto (Z=4.5)
-                    current_target[1] = min(current_target[1] + 0.25, 4.5)
+                    
+                    current_target[1] += 0.20
                     x_ref_attuale = current_target.copy()
                     contatore_stallo = 0
 
@@ -319,23 +322,6 @@ def main_statistico():
                         x_ref_attuale = current_target.copy()
                         contatore_stallo = 0
 
-
-                 # 2. CONTROLLO ARRIVO AL TARGET LOCALE (Ghost)
-                dist_al_locale = np.linalg.norm(current_x[:2] - current_target[:2])
-                if dist_al_locale < 0.3:
-                    # Il drone ha raggiunto la quota alta per scavalcare l'ostacolo.
-                    # Ora resetta il target a quello originale per forzare la discesa.
-                    if not np.array_equal(current_target, target_base):
-                        print(f"\n✅ Target di stallo superato. Ripunto al Target Finale a terra.")
-                        current_target = target_base.copy()
-                        x_ref_attuale = current_target.copy()
-                    contatore_stallo = 0
-
-            # Controllo Vittoria
-            dist_target = np.linalg.norm(current_x[:2] - target_base[:2])
-            if dist_target < 0.3:
-                esito = "Successi"
-                break
 
         risultati[esito] += 1
         if esito == "Successi" :

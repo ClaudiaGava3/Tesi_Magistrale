@@ -407,12 +407,6 @@ void sth_acados_create_setup_functions(sth_solver_capsule* capsule)
 
         
     } // N > 0
-    MAP_CASADI_FNC(nl_constr_h_e_fun_jac, sth_constr_h_e_fun_jac_uxt_zt);
-    MAP_CASADI_FNC(nl_constr_h_e_fun, sth_constr_h_e_fun);
-    MAP_CASADI_FNC(nl_constr_h_e_fun_jac_hess, sth_constr_h_e_fun_jac_uxt_zt_hess);
-    
-    
-    
     // external cost - function
     MAP_CASADI_FNC(ext_cost_e_fun, sth_cost_ext_cost_e_fun);
 
@@ -713,79 +707,10 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
 
     /* terminal constraints */
 
-    // set up bounds for last stage
-    // x
-    int* idxbx_e = malloc(NBXN * sizeof(int));
-    idxbx_e[0] = 0;
-    idxbx_e[1] = 1;
-    idxbx_e[2] = 2;
-    idxbx_e[3] = 3;
-    idxbx_e[4] = 4;
-    idxbx_e[5] = 5;
-    idxbx_e[6] = 6;
-    idxbx_e[7] = 7;
-    idxbx_e[8] = 8;
-    idxbx_e[9] = 9;
-    idxbx_e[10] = 10;
-    idxbx_e[11] = 11;
-    double* lubx_e = calloc(2*NBXN, sizeof(double));
-    double* lbx_e = lubx_e;
-    double* ubx_e = lubx_e + NBXN;
-    lbx_e[0] = -100;
-    ubx_e[0] = 100;
-    lbx_e[1] = -100;
-    ubx_e[1] = 100;
-    lbx_e[2] = -100;
-    ubx_e[2] = 100;
-    lbx_e[3] = -1.5707963267948966;
-    ubx_e[3] = 1.5707963267948966;
-    lbx_e[4] = -1.5707963267948966;
-    ubx_e[4] = 1.5707963267948966;
-    lbx_e[5] = -1.5707963267948966;
-    ubx_e[5] = 1.5707963267948966;
-    lbx_e[6] = -1;
-    ubx_e[6] = 1;
-    lbx_e[7] = -1;
-    ubx_e[7] = 1;
-    lbx_e[8] = -1;
-    ubx_e[8] = 1;
-    lbx_e[9] = -1;
-    ubx_e[9] = 1;
-    lbx_e[10] = -1;
-    ubx_e[10] = 1;
-    lbx_e[11] = -1;
-    ubx_e[11] = 1;
-    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "idxbx", idxbx_e);
-    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "lbx", lbx_e);
-    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "ubx", ubx_e);
-    free(idxbx_e);
-    free(lubx_e);
 
 
 
 
-    // set up nonlinear constraints for last stage
-    double* luh_e = calloc(2*NHN, sizeof(double));
-    double* lh_e = luh_e;
-    double* uh_e = luh_e + NHN;
-    uh_e[0] = 100000;
-    uh_e[1] = 100000;
-    uh_e[2] = 100000;
-    uh_e[3] = 100000;
-    uh_e[4] = 100000;
-    uh_e[5] = 100000;
-
-    ocp_nlp_constraints_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, N, "nl_constr_h_fun_jac", &capsule->nl_constr_h_e_fun_jac);
-    ocp_nlp_constraints_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, N, "nl_constr_h_fun", &capsule->nl_constr_h_e_fun);
-    
-    ocp_nlp_constraints_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, N, "nl_constr_h_fun_jac_hess",
-                                  &capsule->nl_constr_h_e_fun_jac_hess);
-    
-    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "lh", lh_e);
-    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "uh", uh_e);
-    
-    
-    free(luh_e);
 
 
 
@@ -1303,9 +1228,6 @@ int sth_acados_free(sth_solver_capsule* capsule)
     free(capsule->nl_constr_h_fun_jac);
     free(capsule->nl_constr_h_fun);
     free(capsule->nl_constr_h_fun_jac_hess);
-    external_function_external_param_casadi_free(&capsule->nl_constr_h_e_fun_jac);
-    external_function_external_param_casadi_free(&capsule->nl_constr_h_e_fun);
-    external_function_external_param_casadi_free(&capsule->nl_constr_h_e_fun_jac_hess);
 
 
 

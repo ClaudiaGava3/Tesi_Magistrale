@@ -240,7 +240,7 @@ def _push_faces_3d(box, Qi, Ri, drone_radius, target_rel_x, target_rel_y, target
         best_score = -float('inf')
         best_face_idx = -1
         best_val = 0
-        W = 0.2 #20 per ostacoli paralleli, 0.2 per ostacoli obliqui
+        W = 20 #20 per ostacoli paralleli, 0.2 per ostacoli obliqui
 
         for face_idx, val in candidates:
             test_box = box.copy()

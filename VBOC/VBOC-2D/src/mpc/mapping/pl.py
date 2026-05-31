@@ -15,7 +15,7 @@ def mostra_schizzo_target():
         [[7.0, -3.0], [9.0, -3.0], [9.0, -0.5], [7.0, -0.5]],     # Quadrato Basso
         
         # NUOVI OSTACOLI BLU
-        [[7.8, 3.9], [10.0, 4.1], [9.6, 0.8]],                     # Triangolo alto SX
+        [[7.8, 3.9], [10.0, 3.9], [9.6, 0.8]],                     # Triangolo alto SX
         [[11.0, -0.4], [13.9, -0.6], [14.3, -1.7], [11.9, -2.8]], # Rettangolo obliquo basso
         [[12.0, 2.5], [12.6, 3.3], [13.6, 3.3], [14.1, 2.4], 
          [14.1, 1.2], [13.4, 0.9], [12.4, 1.0]],                  # Esagono centrale
@@ -47,6 +47,7 @@ def mostra_schizzo_target():
         np.array([20.1, 3.4, 0.0, 0.0, 0.0, 0.0]),
         np.array([22.5, 0.4, 0.0, 0.0, 0.0, 0.0])
     ]
+    
 
     # 3. Plot
     plt.figure(figsize=(14, 6))
@@ -64,7 +65,7 @@ def mostra_schizzo_target():
     
     plt.xlim(-2, 25)
     plt.ylim(-6, 6)
-    plt.title('Bozza dei 15 Target Strategici (Le 3 fasce critiche)')
+    plt.title('Bozza ambiente e target')
     plt.grid(True, linestyle='--', alpha=0.6)
     plt.legend(loc='upper right')
     plt.tight_layout()

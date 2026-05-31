@@ -17,7 +17,7 @@ plt.rcParams.update({
 # ============================================================================
 
 # PER OSTACOLI PARALLELI
-def get_lidar_hits_2d(drone_x, drone_z, obstacles, num_rays=360, max_range=2.0):
+def get_lidar_hits_2d(drone_x, drone_z, obstacles, num_rays=360, max_range=1.5):
     hits = []
     distances = []
     

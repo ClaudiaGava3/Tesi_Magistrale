@@ -23,7 +23,17 @@ from urdf_parser_py.urdf import URDF
 from src.vboc.abstract import Model
 from src.vboc.controller import ViabilityController
 from src.vboc.learning import NeuralNetwork, NovelNeuralNetwork, RegressionNN, plot_brs
-from vboc.parser import Parameters, parse_args
+from src.vboc.parser import Parameters, parse_args
+
+# Impostazioni globali per le dimensioni del font
+plt.rcParams.update({
+    'axes.titlesize': 28,     # Dimensione titolo
+    'axes.labelsize': 24,     # Dimensione etichette assi (X e Y)
+    'xtick.labelsize': 12,    # Dimensione numeri asse X
+    'ytick.labelsize': 12,    # Dimensione numeri asse Y
+    'legend.fontsize': 22,    # Dimensione legenda
+    'font.size': 22           # Dimensione base per tutto il resto
+})
 
 install()
 
@@ -1455,7 +1465,7 @@ if __name__ == '__main__':
         # --- Plot training and validation loss curves ---
         loss_dir = os.path.join(plots_dir, 'loss_evolution')
         ensure_clean_dir(loss_dir)
-        fig = plt.figure()
+        fig = plt.figure(figsize=(10, 6))
         plt.grid(True, which='both')
         plt.semilogy(train_evol, label='Training', c='b', lw=2)
         plt.semilogy(val_evol, label='Validation', c='g', lw=2)
