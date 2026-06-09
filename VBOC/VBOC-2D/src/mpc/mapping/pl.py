@@ -48,6 +48,16 @@ def mostra_schizzo_target():
         np.array([22.5, 0.4, 0.0, 0.0, 0.0, 0.0])
     ]
     
+    # Impostazioni globali per le dimensioni del font
+    plt.rcParams.update({
+        'axes.titlesize': 28,     # Dimensione titolo
+        'axes.labelsize': 24,     # Dimensione etichette assi (X e Y)
+        'xtick.labelsize': 12,    # Dimensione numeri asse X
+        'ytick.labelsize': 12,    # Dimensione numeri asse Y
+        'legend.fontsize': 22,    # Dimensione legenda
+        'font.size': 22           # Dimensione base per tutto il resto
+    })
+
 
     # 3. Plot
     plt.figure(figsize=(14, 6))
@@ -59,15 +69,15 @@ def mostra_schizzo_target():
         
     for i, t in enumerate(targets):
         ax.scatter(t[0], t[1], color='red', marker='X', s=100, zorder=5, 
-                   label='Target' if i==0 else "")
+                   label='Targets' if i==0 else "")
         
-    ax.scatter(0.0, 0.0, color='blue', s=150, zorder=6, label='Punto di Partenza')
+    ax.scatter(0.0, 0.0, color='blue', s=150, zorder=6, label='Starting Point')
     
     plt.xlim(-2, 25)
     plt.ylim(-6, 6)
-    plt.title('Bozza ambiente e target')
+    plt.title('Environmental Schematization (obstacles and targets)')
     plt.grid(True, linestyle='--', alpha=0.6)
-    plt.legend(loc='upper right')
+    #plt.legend(loc='upper right')
     plt.tight_layout()
     plt.show()
 

@@ -14,17 +14,24 @@ plt.rcParams.update({
 
 def create_success_plot():
     # 1. Dati in ingresso
-    x = np.array([4, 6, 8, 10, 12])
+    # x = np.array([4, 6, 8, 10, 12])
+
+    #Lidar distance
+    x = np.array([1.0, 1.5, 2.0, 2.5, 3.0])
 
     # # not null x0
-    y1 = np.array([95.5, 87.2, 85, 82.2, 79.2])  # MPC + NN
-    y2 = np.array([95.8, 87.5, 34, 1.8, 0.2])   # MPC naive
+    # y1 = np.array([95.5, 87.2, 85, 82.2, 79.2])  # MPC + NN
+    # y2 = np.array([95.8, 87.5, 34, 1.8, 0.2])   # MPC naive
 
     # null x0
     # y1 = np.array([100.0, 100.0, 100.0, 100.0, 100.0])  # MPC + NN
     # y2 = np.array([100.0, 93.8, 62.0, 0.0, 0.0])   # MPC naive
 
+    # Lidar distance with N=20
+    y1 = np.array([10/13*100,9/13*100,5/13*100,3/13*100,3/13*100])  # MPC + NN
+    y2 = np.array([5/13*100,4/13*100,2/13*100,2/13*100,2/13*100])   # MPC naive
 
+    
     # 2. Interpolazione (per rendere le linee curve e morbide)
     # Creiamo un set di punti più denso (300 punti tra 4 e 12)
     x_smooth = np.linspace(x.min(), x.max(), 300)
@@ -47,9 +54,9 @@ def create_success_plot():
     plt.scatter(x, y2, color='crimson', s=50) # Aggiungiamo i punti originali
 
     # 4. Personalizzazione (Inglese)
-    plt.title('Success rate vs Distance (N=15)', fontweight='bold', pad=15)
-    plt.suptitle('Not Null x0', fontsize=26, y=0.95) 
-    plt.xlabel('Distance [m]')
+    plt.title('Success rate vs LiDAR ray', fontweight='bold', pad=15)
+    plt.suptitle('N = 20', fontsize=26, y=0.95) 
+    plt.xlabel('LiDAR ray [m]')
     plt.ylabel('Success Rate [%]')
     
     # Range degli assi per chiarezza

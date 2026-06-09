@@ -6,10 +6,67 @@ import time
 from parser import Parameters
 from mpc_abstract_obs import Model
 from mpc_controller_obs import MpcController
-from test_lidar import min_cube_select_2d, get_lidar_hits_2d_qualsiasi 
+from test_lidar import min_cube_select_2d, get_lidar_hits_2d_qualsiasi
 
 
-# con N=15, raggiolidar=1.5, -alpha_curr e +-5 x rilassamento vincoli, passi indietro 10, W=0.5, itermax=50, terget update=+20, spostamento<0.01 ==> successi =23, timout =0, fallimenti =2
+# sui primi 6 targets
+# con N=10 vede troppi errori e entra in loop e non avanza, anche con time recovery troppo alti ex 60
+# con N=15, raggiolidar=1.5, -alpha_curr e +-10 x rilassamento vincoli, passi indietro 3, W=0.5, itermax=50, terget update=+20, spostamento<0.01, sim time=40, time recovery =20 ==> successi =3, timout =1, fallimenti =2
+# aumento passi indietro e riduco recovery time, stringo rilassamento velocità
+# con N=15, raggiolidar=1.5, -alpha_curr e +-5 x rilassamento vincoli, passi indietro 10, W=0.5, itermax=50, terget update=+20, spostamento<0.01, sim time=40, time recovery =40 ==> successi =3, timout =1, fallimenti =2
+# riduco raggio lidar
+# con N=15, raggiolidar=1.0, -alpha_curr e +-5 x rilassamento vincoli, passi indietro 10, W=0.5, itermax=50, terget update=+20, spostamento<0.01, sim time=40, time recovery =40 ==> successi =4, timout =0, fallimenti =2
+# aumento peso allungamento box W
+# con N=15, raggiolidar=1.0, -alpha_curr e +-5 x rilassamento vincoli, passi indietro 10, W=15.0, itermax=50, terget update=+20, spostamento<0.01, sim time=40, time recovery =40 ==> successi =4, timout =0, fallimenti =2
+# non cambia niente, lo lascio alto e aumento range velocità (con W alto fallisce nei punti al centro)
+# con N=15, raggiolidar=1.0, -alpha_curr e +-10 x rilassamento vincoli, passi indietro 10, W=15.0, itermax=50, terget update=+20, spostamento<0.01, sim time=40, time recovery =40 ==> successi =4, timout =0, fallimenti =2
+# non cambia niente, rimetto range velocità stringente e aumento passi indietro
+# con N=15, raggiolidar=1.0, -alpha_curr e +-5 x rilassamento vincoli, passi indietro 20, W=15.0, itermax=50, terget update=+20, spostamento<0.01, sim time=40, time recovery =40 ==> successi =4, timout =0, fallimenti =2
+# non cambia niente, rimetto passi indietro a 10 e allargo time recovery
+# con N=15, raggiolidar=1.0, -alpha_curr e +-5 x rilassamento vincoli, passi indietro 10, W=15.0, itermax=50, terget update=+20, spostamento<0.01, sim time=40, time recovery =60 ==> successi =4, timout =0, fallimenti =2
+# non cambia proprio niente, rimetto time recovery come prima e allargo orizzonte
+# con N=20, raggiolidar=1.0, -alpha_curr e +-5 x rilassamento vincoli, passi indietro 10, W=15.0, itermax=50, terget update=+20, spostamento<0.01, sim time=40, time recovery =40 ==> successi =6, timout =0, fallimenti =0
+# sta andando meglio, provo a riallargare raggio lidar
+# con N=20, raggiolidar=1.5, -alpha_curr e +-5 x rilassamento vincoli, passi indietro 10, W=15.0, itermax=50, terget update=+20, spostamento<0.01, sim time=40, time recovery =40 ==> successi =6, timout =0, fallimenti =0
+# va anche così, provo con tutti i target
+
+# su tutti i targets
+# con N=20, raggiolidar=1.5, -alpha_curr e +-5 x rilassamento vincoli, passi indietro 10, W=15.0, itermax=50, terget update=+20, spostamento<0.01, sim time=40, time recovery =40 ==> successi =9, timout =4, fallimenti =0
+
+# RISULTATI PER STATISTICA (13 targets)
+# N=10 e raggio 1.5 con NN: successi = 8, timeout = 2, schianti = 3 (recovery totali 120)
+# N=15 e raggio 1.5 con NN: successi = 7, timeout = 3, schianti = 3 (recovery totali 59)
+# N=20 e raggio 1.5 con NN: successi = 9, timeout = 4, schianti = 0 (recovery totali 73)
+# N=20 e raggio 1.0 con NN: successi = 10, timeout = 3, schianti = 0 (recovery totali 12)
+# N=20 e raggio 2.0 con NN: successi = 5, timeout = 2, schianti = 6 (recovery totali 34)
+# N=20 e raggio 2.5 con NN: successi = 3, timeout = 3, schianti = 7 (recovery totali 68)
+# N=20 e raggio 3.0 con NN: successi = 3, timeout = 4, schianti = 6 (recovery totali 74)
+# N=30 e raggio 1.5 con NN: successi = 6, timeout = 7, schianti = 0 (recovery totali 119)
+
+
+
+# N=10 e raggio 1.5 senza NN: successi = 1, timeout = 0, schianti = 12 (recovery totali 16)
+# N=15 e raggio 1.5 senza NN: successi = 5 (3), timeout = 0, schianti = 8 (10) (recovery totali 9 )
+# N=20 e raggio 1.5 senza NN: successi = 7 (4), timeout = 2, schianti = 4 (7) (recovery totali 6)
+# N=20 e raggio 1.0 senza NN: successi = 8 (5), timeout = 4, schianti = 1 (4) (recovery totali 1 )
+# N=20 e raggio 2.0 senza NN: successi = 6 (2), timeout = 0, schianti = 7 (11) (recovery totali 12)
+# N=20 e raggio 2.5 senza NN: successi = 5 (2), timeout = 0, schianti = 8 (11) (recovery  totali 12)
+# N=20 e raggio 3.0 senza NN: successi = 5 (2), timeout = 0, schianti = 8 (11) (recovery totali 13)
+# N=30 e raggio 1.5 senza NN: successi = 4, timeout = 9, schianti = 0 (recovery totali 0) #non passa più attraverso con orizzonti più lunghi
+
+
+
+
+# Impostazioni globali per le dimensioni del font
+plt.rcParams.update({
+    'axes.titlesize': 28,     # Dimensione titolo
+    'axes.labelsize': 24,     # Dimensione etichette assi (X e Y)
+    'xtick.labelsize': 12,    # Dimensione numeri asse X
+    'ytick.labelsize': 12,    # Dimensione numeri asse Y
+    'legend.fontsize': 22,    # Dimensione legenda
+    'font.size': 22           # Dimensione base per tutto il resto
+})
+
 
 def genera_ambiente_2d_test():
     """Nuova mappa basata sullo schizzo con ostacoli blu e target verdi."""
@@ -47,13 +104,13 @@ def genera_ambiente_2d_test():
         np.array([10.2,-2.1, 0.0, 0.0, 0.0, 0.0]),
         np.array([11.0, 0.7, 0.0, 0.0, 0.0, 0.0]),
         np.array([11.2, 4.0, 0.0, 0.0, 0.0, 0.0]),
-        # np.array([15.1, 3.8, 0.0, 0.0, 0.0, 0.0]),
-        # np.array([14.8, 0.8, 0.0, 0.0, 0.0, 0.0]),
-        # np.array([15.5,-2.6, 0.0, 0.0, 0.0, 0.0]),
-        # np.array([18.2, 1.4, 0.0, 0.0, 0.0, 0.0]),
-        # np.array([19.6,-2.3, 0.0, 0.0, 0.0, 0.0]),
-        # np.array([20.1, 3.4, 0.0, 0.0, 0.0, 0.0]),
-        # np.array([22.5, 0.4, 0.0, 0.0, 0.0, 0.0])
+        np.array([15.1, 3.8, 0.0, 0.0, 0.0, 0.0]),
+        np.array([14.8, 0.8, 0.0, 0.0, 0.0, 0.0]),
+        np.array([15.5,-2.6, 0.0, 0.0, 0.0, 0.0]),
+        np.array([18.2, 1.4, 0.0, 0.0, 0.0, 0.0]),
+        np.array([19.6,-2.3, 0.0, 0.0, 0.0, 0.0]),
+        np.array([20.1, 3.4, 0.0, 0.0, 0.0, 0.0]),
+        np.array([22.5, 0.4, 0.0, 0.0, 0.0, 0.0])
     ]
     
     
@@ -153,14 +210,15 @@ def main_statistico():
                     controller.ocp_solver.constraints_set(controller.N, "lbx", lbx_e_curr)
                     controller.ocp_solver.constraints_set(controller.N, "ubx", ubx_e_curr)
                     
-                    x_ref_attuale = target_base.copy()
+                    current_target = target_base.copy() 
+                    x_ref_attuale = current_target.copy()
             else:
                 # Ripristina target base se è stato perturbato dallo stallo in precedenza
                 if contatore_stallo == 0:
                     x_ref_attuale = current_target.copy()
 
             # 1. LiDAR e Safe-Box
-            hits, radii = get_lidar_hits_2d_qualsiasi(current_x[0], current_x[1], segmenti, num_rays=360, max_range=1.0)
+            hits, radii = get_lidar_hits_2d_qualsiasi(current_x[0], current_x[1], segmenti, num_rays=360, max_range=1.5)
             
             Q_rel = hits.copy()
             if len(hits) > 0:
@@ -170,9 +228,18 @@ def main_statistico():
             target_rel_x = x_ref_attuale[0] - current_x[0]
             target_rel_z = x_ref_attuale[1] - current_x[1]
 
+
+            # --- NUOVA LOGICA: Calcolo Direzione (Velocità o Target se fermo) ---
+            # Se la velocità è rilevante, segue la velocità. Se è fermo, guarda al target.
+            dx = current_x[2] if abs(current_x[2]) > 0.1 else target_rel_x
+            dz = current_x[3] if abs(current_x[3]) > 0.1 else target_rel_z
+
+
             xMin_r, xMax_r, zMin_r, zMax_r, _ = min_cube_select_2d(
                 Q_rel, radii, target_rel_x, target_rel_z, drone_radius=0.1
             )
+
+            
             
             box_abs = np.array([
                 xMin_r + current_x[0], xMax_r + current_x[0], 
@@ -240,15 +307,15 @@ def main_statistico():
                     x_ref_attuale = target_recovery
                     
                     in_recovery = True
-                    timer_recovery = 60 
+                    timer_recovery = 40 
                     
                     # Rilassamento Modificato come richiesto
                     controller.ocp_solver.constraints_set(controller.N, "lh", np.full(4, -alpha_curr))
                    
                     lbx_e_curr = controller.ocp_solver.constraints_get(controller.N, "lbx")
                     ubx_e_curr = controller.ocp_solver.constraints_get(controller.N, "ubx")
-                    lbx_e_curr[3:] = [-10.0, -10.0, -10.0]
-                    ubx_e_curr[3:] = [ 10.0,  10.0,  10.0]
+                    lbx_e_curr[3:] = [-5.0, -5.0, -5.0]
+                    ubx_e_curr[3:] = [ 5.0,  5.0,  5.0]
                     controller.ocp_solver.constraints_set(controller.N, "lbx", lbx_e_curr)
                     controller.ocp_solver.constraints_set(controller.N, "ubx", ubx_e_curr)
                     
@@ -396,7 +463,7 @@ def main_statistico():
     print(f"Successi: {risultati['Successi']} | Timeout: {risultati['Timeout']} | Schianti: {risultati['Schianti']}")
     print(f"Recovery totali innescate: {totale_recovery_attivate}")
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 8))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 6))
 
     # 1. GRAFICO A TORTA
     labels = list(risultati.keys())
@@ -405,7 +472,7 @@ def main_statistico():
     explode = (0.1, 0, 0) 
 
     ax1.pie(sizes, explode=explode, labels=labels, colors=colors, autopct='%1.1f%%', shadow=True, startangle=140)
-    ax1.set_title('Tasso di Successo (20 Target)')
+    ax1.set_title('Success Rate')
 
     # 2. REACHABILITY MAP (Mappa di Copertura)
     for poli in poligoni:
@@ -427,8 +494,8 @@ def main_statistico():
 
     ax2.set_xlim(-2, 25)
     ax2.set_ylim(-6, 6)
-    ax2.set_title('Reachability Map (Copertura Spaziale)')
-    ax2.legend(loc='upper right', fontsize=12)
+    ax2.set_title('Reachability Map')
+    #ax2.legend(loc='upper right', fontsize=12)
     ax2.grid(True, linestyle='--', alpha=0.6)
 
     plt.tight_layout()

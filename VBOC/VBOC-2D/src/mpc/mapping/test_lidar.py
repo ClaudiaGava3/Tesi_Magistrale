@@ -197,6 +197,10 @@ def min_cube_select_2d(Q, R, target_rel_x, target_rel_z, drone_radius=0.1):
     exitflag = 1 if not np.any(_spheres_intersect_box_2d(Q, R, box)) else 0
     return box[0], box[1], box[2], box[3], exitflag
 
+
+
+
+
 def _spheres_intersect_box_2d(Q, R, box, tol=1e-6):
     cx = np.clip(Q[:, 0], box[0], box[1])
     cz = np.clip(Q[:, 1], box[2], box[3])
@@ -285,7 +289,7 @@ def _push_faces_2d(box, Qi, Ri, drone_radius, target_rel_x, target_rel_z):
         # Se 0.0 -> Torna ad essere l'algoritmo originale di Max.
         # Se troppo alto -> Ignora l'area e fa box strettissimi lunghi verso il target.
         # 15.0 o 20.0 di solito è un buon compromesso.
-        W = 0.5 
+        W = 15.0
 
         for face_idx, val in candidates:
             # Creiamo un box fittizio per calcolare come sarebbe l'area
@@ -331,6 +335,77 @@ def _push_faces_2d(box, Qi, Ri, drone_radius, target_rel_x, target_rel_z):
             box = new_box
             moved = True
         
+
+    return box, moved
+
+
+def _push_faces_directional(box, Qi, Ri, drone_radius, dx, dz):
+    xMin, xMax, zMin, zMax = box
+    moved = False
+
+    LIMIT = 1.0
+
+    for i in range(len(Qi)):
+        cx, cz = Qi[i]
+        r = Ri[i]
+        candidates = []
+
+        # Valuta di spingere i 4 bordi
+        new_xMin = cx + r + 1e-4
+        if -LIMIT <= new_xMin <= 0:
+            candidates.append((0, new_xMin))
+
+        new_xMax = cx - r - 1e-4
+        if 0 <= new_xMax <= LIMIT:
+            candidates.append((1, new_xMax))
+
+        new_zMin = cz + r + 1e-4
+        if -LIMIT <= new_zMin <= 0:
+            candidates.append((2, new_zMin))
+
+        new_zMax = cz - r - 1e-4
+        if 0 <= new_zMax <= LIMIT:
+            candidates.append((3, new_zMax))
+
+        if not candidates:
+            continue
+
+        best_score = -float('inf')
+        best_face_idx = -1
+        best_val = 0
+
+        # Peso enorme per difendere la faccia anteriore
+        WEIGHT = 50.0 
+
+        for face_idx, val in candidates:
+            test_box = box.copy()
+            test_box[face_idx] = val
+            
+            # Area rimanente
+            area = (test_box[1] - test_box[0]) * (test_box[3] - test_box[2])
+
+            # PENALITÀ DIREZIONALE: Se stiamo andando a destra (dx > 0) e il candidato 
+            # sceglie di tagliare la faccia destra (face_idx == 1), diamo un malus fortissimo.
+            penalty = 0.0
+            if face_idx == 1 and dx > 0.1: penalty = -WEIGHT * (box[1] - val)
+            if face_idx == 0 and dx < -0.1: penalty = -WEIGHT * (val - box[0])
+            if face_idx == 3 and dz > 0.1: penalty = -WEIGHT * (box[3] - val)
+            if face_idx == 2 and dz < -0.1: penalty = -WEIGHT * (val - box[2])
+
+            score = area + penalty
+
+            if score > best_score:
+                best_score = score
+                best_face_idx = face_idx
+                best_val = val
+
+        new_box = box.copy()
+        new_box[best_face_idx] = best_val
+
+        if not (new_box[0] > -drone_radius or new_box[1] < drone_radius or 
+                new_box[2] > -drone_radius or new_box[3] < drone_radius):
+            box = new_box
+            moved = True
 
     return box, moved
 
