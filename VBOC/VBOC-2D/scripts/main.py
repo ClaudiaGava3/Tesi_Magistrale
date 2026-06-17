@@ -25,14 +25,14 @@ from src.vboc.controller import ViabilityController
 from src.vboc.learning import NeuralNetwork, NovelNeuralNetwork, RegressionNN, plot_brs
 from src.vboc.parser import Parameters, parse_args
 
-# Impostazioni globali per le dimensioni del font
+# Global font size settings
 plt.rcParams.update({
-    'axes.titlesize': 28,     # Dimensione titolo
-    'axes.labelsize': 24,     # Dimensione etichette assi (X e Y)
-    'xtick.labelsize': 12,    # Dimensione numeri asse X
-    'ytick.labelsize': 12,    # Dimensione numeri asse Y
-    'legend.fontsize': 22,    # Dimensione legenda
-    'font.size': 22           # Dimensione base per tutto il resto
+    'axes.titlesize': 28,     # Title size
+    'axes.labelsize': 24,     # Axis label size (X and Y)
+    'xtick.labelsize': 12,    # X-axis tick label size
+    'ytick.labelsize': 12,    # Y-axis tick label size
+    'legend.fontsize': 22,    # Legend font size
+    'font.size': 22           # Base font size for everything else
 }) 
 
 install()
@@ -124,7 +124,7 @@ def ensure_clean_dir(path: str) -> None:
         os.makedirs(path)
 
 def compute_data_on_border(
-    q_init: np.ndarray, # DEVE ESSERE COMPOSTO DA POS E VEL
+    q_init: np.ndarray, # MUST CONSIST OF POSITIONS AND VELOCITIES
     ref_box: np.ndarray,
     box_guess: float,
     N_guess: int,
@@ -181,30 +181,30 @@ def compute_data_on_border(
     # --- Initial guess: stationary at q_init with gravity compensation ---
     #in 2D
     x_guess = np.zeros((N_guess, model.nx))
-    # Manteniamo la posizione piatta e lo scaling costante per tutto il guess
+    # Keep the position flat and the scaling constant for the entire guess
     x_guess[:, :2] = q_init[:2]  
-    # Guess iniziale per i 4 lati (immaginiamo che partano quadrati a proporzione 1.0)
+    # Initial guess for the 4 sides (we imagine they start as 1.0 proportional squares)
     x_guess[:, 6:10] = 1.0
     x_guess[:, 10] = box_guess 
 
-    # MA al primissimo istante di tempo (nodo 0), diciamo ad Acados esattamente
-    # come parte il drone nella realtà (incluse le velocità e gli angoli veri)
+    # But at the very first time instant (node 0), we tell Acados exactly
+    # how the drone starts in reality (including the true velocities and angles)
     x_guess[0, :6] = q_init
 
 
-    # 1. Definiamo uno stato orizzontale per il guess iniziale
+    # 1. Define a flat initial-state guess
     x_flat = np.zeros(11)
-    x_flat[:2] = q_init[:2]  # Copia solo le posizioni (X, Z)
-    x_flat[10] = box_guess    # Copia lo scaling (Indice 6 in 2D)
+    x_flat[:2] = q_init[:2]  # Copy only the positions (X, Z)
+    x_flat[10] = box_guess    # Copy the scaling (Index 6 in 2D)
 
-    # 2. Costruiamo la matrice di allocazione per il 2D: Matrice 6x2.
+    # 2. Build the allocation matrix for 2D: a 6x2 matrix.
     allocation_matrix = np.vstack((model.F, model.M))
 
-    # 3. Obiettivo fisico: [Fx, Fy, Fz, Mx, My, Mz]
-    # Bilanciamo la gravità su Z e annulliamo le coppie
+    # 3. Physical objective: [Fx, Fy, Fz, Mx, My, Mz]
+    # Balance gravity on Z and cancel torques
     wrench_hover = np.array([0.0, 0.0, model.mass * model.g, 0.0, 0.0, 0.0])
     
-    # 4. Spinta bilanciata per i 2 motori
+    # 4. Balanced thrust for the 2 motors
     u_hover = np.linalg.pinv(allocation_matrix) @ wrench_hover
     u_guess = np.full((N_guess, model.nu), u_hover)
 
@@ -484,14 +484,14 @@ if __name__ == '__main__':
             orient_init = np.zeros((params.prob_num, model.nori))
             vel_init = np.zeros((params.prob_num, model.nv))
         else:
-            # Generiamo pitch casuale
-            #in 2D
+            # Generate a random pitch
+            # in 2D
             orient_init = np.random.uniform(-max_phi, max_phi, params.prob_num).reshape(-1, 1)
 
-            # Generiamo VELOCITÀ casuali (vx, vz, wy)
+            # Generate random VELOCITIES (vx, vz, wy)
             vel_init = np.random.uniform(-1.0, 1.0, (params.prob_num, model.nv))
 
-        # Creiamo il vettore di stato iniziale di 6 elementi: [x, z, theta, vx, vz, wy]
+        # Create the initial state vector of 6 elements: [x, z, theta, vx, vz, wy]
         q_init = np.hstack([pos_init, orient_init, vel_init])
 
         # --- Obstacle box bounds --- 
@@ -507,7 +507,7 @@ if __name__ == '__main__':
         #all_x_0, all_x_t, all_u_t, all_b_m, all_b_M, all_status, all_d_list = \
         #[],[],[],[],[],[],[]
         all_x_0, all_x_t, all_u_t, all_n_final, all_status = [], [], [], [], []
-        all_failed_q_init = [] # <--- NUOVA LISTA PER I FALLIMENTI
+        all_failed_q_init = [] # <--- NEW LIST FOR FAILURES
 
         # Split the problems into sub-batches to allow intermediate saves
         if params.check:
@@ -517,8 +517,8 @@ if __name__ == '__main__':
         n_batch = int(params.prob_num/sub_batch)
 
 
-        #in 2D
-        ref_box = np.array([1.0, 1.0, 1.0, 1.0]) # Box di riferimento 1:1
+        # in 2D
+        ref_box = np.array([1.0, 1.0, 1.0, 1.0]) # Reference box 1:1
 
 
         print('Start data generation')
@@ -530,7 +530,7 @@ if __name__ == '__main__':
                      for q0 in q_init[(nb*sub_batch):((nb+1)*sub_batch)]]
                 )
 
-            # --- Unpack parallel results (Ora sono 5, non più 7!) ---
+            # --- Unpack parallel results (Now 5 items, no longer 7!) ---
             x_0, x_t, u_t, n_final_list, status = zip(*res)
             all_x_0.extend(x_0)
             all_x_t.extend(x_t)
@@ -538,11 +538,11 @@ if __name__ == '__main__':
             all_n_final.extend(n_final_list)
             all_status.extend(status)
 
-            # === NUOVO CODICE: CATTURA I CASI FALLITI ===
+            # === NEW CODE: CAPTURE FAILED CASES ===
             q0_batch = q_init[(nb*sub_batch):((nb+1)*sub_batch)]
             for i in range(len(x_0)):
                 if x_0[i] is None:
-                    # Se ha fallito, salviamo la sua condizione iniziale
+                    # If it failed, save its initial condition
                     all_failed_q_init.append(q0_batch[i])
             # ============================================
 
@@ -558,17 +558,17 @@ if __name__ == '__main__':
             x_data = np.vstack([i for i in all_x_0 if i is not None])
             x_traj = [i for i in all_x_t if i is not None]
             u_traj = [i for i in all_u_t if i is not None]
-            n_data = np.array([all_n_final[i] for i in range(len(all_n_final)) if all_x_0[i] is not None])  # Filtriamo N_final usando la stessa esatta logica di x_data per mantenere l'allineamento
+            n_data = np.array([all_n_final[i] for i in range(len(all_n_final)) if all_x_0[i] is not None])  # Filter N_final using the same exact logic as x_data to keep alignment
             status_list = list(all_status)
             
-            # Il "box" ottimizzato è solo un fattore di scala!
+            # The optimized "box" is just a scaling factor!
             b_optimized = x_data[:, 10].reshape(-1, 1)
 
             np.save(f'{params.DATA_DIR}{robotic_system}_x_vboc', x_data)
             np.save(f'{params.DATA_DIR}{robotic_system}_b_vboc', b_optimized)
             np.save(f'{params.DATA_DIR}{robotic_system}_n_horizons_vboc', n_data)
             np.save(f'{params.DATA_DIR}{robotic_system}_status_vboc', status_list)
-            # === SALVATAGGIO DEI FALLIMENTI ===
+            # === SAVE FAILURES ===
             np.save(f'{params.DATA_DIR}{robotic_system}_failed_q_init_vboc', np.array(all_failed_q_init))
             
             solved = len(x_data)
@@ -615,7 +615,7 @@ if __name__ == '__main__':
                     colors = np.linspace(0, 1, horizon_)
                     t = np.linspace(0, horizon_ * params.dt, horizon_)
 
-                    # Estraiamo lo scaling e i lati liberi per ricostruire il box asimmetrico
+                    # Extract scaling and free sides to reconstruct the asymmetric box
                     scale = x_data[k, 10]
                     l_x_plus = x_data[k, 6]
                     l_z_plus = x_data[k, 7]
@@ -630,12 +630,12 @@ if __name__ == '__main__':
                         scale * l_z_minus
                     ])
 
-                    # Limiti spaziali per i plot (Pos_X_min, Pos_Z_min, Theta_min)
+                    # Spatial limits for the plots (Pos_X_min, Pos_Z_min, Theta_min)
                     traj_xlim_min = [-box[2], -box[3], -np.rad2deg(max_phi)]
                     traj_xlim_max = [ box[0],  box[1],  np.rad2deg(max_phi)]
 
                     # ---------------------------------------------------------
-                    # 1. Phase-plane plot: Posizione vs Velocità (Sanity Check)
+                    # 1. Phase-plane plot: Position vs Velocity (Sanity Check)
                     # ---------------------------------------------------------
                     fig, ax = plt.subplots(1, 3, figsize=(15, 5))
                     ax = ax.reshape(-1)
@@ -655,7 +655,7 @@ if __name__ == '__main__':
                     plt.close(fig)
 
                     # ---------------------------------------------------------
-                    # 2. Posizioni nel tempo con ingombro e limiti del BOX
+                    # 2. Positions over time with occupancy and BOX limits
                     # ---------------------------------------------------------
                     fig, ax = plt.subplots(3, 1, figsize=(8, 10))
                     for i in range(nq):
@@ -663,17 +663,17 @@ if __name__ == '__main__':
                         if i < model.npos:
                             line, = ax[i].plot(t, x_traj[k][:, i], label=f'{pose_label[i]}')
                             
-                            # Calcolo dell'ingombro ruotato del drone
+                            # Compute the rotated occupancy of the drone
                             ellips_r = []
                             for h in range(len(t)):
-                                # Lo stato in x_traj ha già esattamente 10 elementi (6 di cinematica + 4 di box)
+                                # The state in x_traj already has exactly 10 elements (6 kinematics + 4 box)
                                 full_x = x_traj[k][h, :]
                                 ellips_r.append(np.sqrt(normals[i].T @ model.Q(full_x).full() @ normals[i]))
                             
                             ax[i].plot(t, x_traj[k][:, i] + ellips_r, color=line.get_color(), linestyle='--', linewidth=0.8)
                             ax[i].plot(t, x_traj[k][:, i] - ellips_r, color=line.get_color(), linestyle='--', linewidth=0.8)
                             
-                            # Limiti orizzontali del BOX
+                            # Horizontal BOX limits
                             ax[i].axhline(traj_xlim_max[i], color='r', linestyle=':', linewidth=1.5, label='Box Max')
                             ax[i].axhline(traj_xlim_min[i], color='r', linestyle=':', linewidth=1.5, label='Box Min')
                         else:
@@ -691,7 +691,7 @@ if __name__ == '__main__':
                     plt.close(fig)
 
                     # ---------------------------------------------------------
-                    # 3. Velocità nel tempo
+                    # 3. Velocities over time
                     # ---------------------------------------------------------
                     fig, ax = plt.subplots(3, 1, figsize=(8, 10))
                     for i in range(nq):
@@ -709,7 +709,7 @@ if __name__ == '__main__':
                     plt.close(fig)
 
                     # ---------------------------------------------------------
-                    # 4. Input di controllo (Motori)
+                    # 4. Control inputs (Motors)
                     # ---------------------------------------------------------
                     offset = 200
                     fig, ax = plt.subplots(figsize=(8, 5))
@@ -727,30 +727,30 @@ if __name__ == '__main__':
                     plt.close(fig)
 
                     # ---------------------------------------------------------
-                    # 5. GRAFICO PLANARE 2D (Visualizzazione Fisica Reale)
+                    # 5. 2D PLANAR PLOT (Real-World Visualization)
                     # ---------------------------------------------------------
                     fig, ax = plt.subplots(figsize=(8, 8))
                     
-                    # Disegna la stanza (Box) ottimizzata in rosso tratteggiato
+                    # Draw the optimized room (Box) in dashed red
                     rect = patches.Rectangle((-box[2], -box[3]), box[0] + box[2], box[1] + box[3], 
                                              linewidth=2, edgecolor='red', facecolor='none', linestyle='--', label='Viability Box')
                     ax.add_patch(rect)
                     
-                    # Traccia il volo del drone nel piano X-Z
+                    # Trace the drone flight in the X-Z plane
                     sc = ax.scatter(x_traj[k][:, 0], x_traj[k][:, 1], c=colors, cmap='coolwarm', s=10, label='Drone CM')
                     
-                    # Disegna l'inclinazione del drone lungo il percorso
+                    # Draw the drone tilt along the path
                     step = max(1, len(x_traj[k]) // 10)
                     for i in range(0, len(x_traj[k]), step):
                         x_pos, z_pos, theta = x_traj[k][i, 0], x_traj[k][i, 1], x_traj[k][i, 2]
                         
-                        # Vettori orientamento basati sulla rotazione Pitch
+                        # Orientation vectors based on Pitch rotation
                         dx_body = np.cos(theta) * (model.min_width/2)
                         dz_body = -np.sin(theta) * (model.min_width/2)
                         upx_body = np.sin(theta) * (model.min_height/2)
                         upz_body = np.cos(theta) * (model.min_height/2)
                         
-                        # Freccia blu: asse orizzontale del drone / Freccia verde: direzione spinta motori
+                        # Blue arrow: drone horizontal axis / Green arrow: motor thrust direction
                         ax.quiver(x_pos, z_pos, dx_body, dz_body, angles='xy', scale_units='xy', scale=1, color='b', width=0.005)
                         ax.quiver(x_pos, z_pos, upx_body, upz_body, angles='xy', scale_units='xy', scale=1, color='g', width=0.005)
 
@@ -788,7 +788,7 @@ if __name__ == '__main__':
             hist_dir = os.path.join(plots_dir, 'histograms')
             ensure_clean_dir(hist_dir)
             
-            # 1. Istogramma degli Input: theta, vx, vz, wy (Indici 2, 3, 4, 5 di x_data)
+            # 1. Histogram of Inputs: theta, vx, vz, wy (Indices 2, 3, 4, 5 of x_data)
             plot_histogram(
                 #in 2D
                 x_data[:, 2:6],
@@ -817,8 +817,8 @@ if __name__ == '__main__':
                 saving_dir=hist_dir,
                 xticks=[0, 2, 4]
             )
-            # 4. Istogramma degli Orizzonti di Convergenza (N)
-            # Carichiamo il file appena salvato
+            # 4. Histogram of convergence horizons (N)
+            # Load the file we just saved
             n_data = np.load(f'{params.DATA_DIR}{robotic_system}_n_horizons_vboc.npy')
         
             plot_histogram(
@@ -830,12 +830,12 @@ if __name__ == '__main__':
                 saving_dir=hist_dir,
                 xticks=np.arange(20, 33, 2)
             )
-            # 5. Istogramma dei casi FALLITI
+            # 5. Histogram of FAILED cases
             failed_file = f'{params.DATA_DIR}{robotic_system}_failed_q_init_vboc.npy'
             if os.path.exists(failed_file):
                 failed_data = np.load(failed_file)
                 if len(failed_data) > 0:
-                    # In 2D estraiamo theta, vx, vz, wy (indici da 2 a 5 compresi)
+                    # In 2D extract theta, vx, vz, wy (indices 2 through 5 inclusive)
                     plot_histogram(
                         failed_data[:, 2:6],
                         title="Failed_Cases_Initial_Conditions", 
@@ -850,8 +850,8 @@ if __name__ == '__main__':
         dataset = np.hstack(( x_data[:, 2:6], b_data))
         np.random.shuffle(dataset)
 
-        # Dividiamo in Input (x_data) e Target (y_data)
-        #in 2D
+        # Split into Input (x_data) and Target (y_data)
+        # in 2D
         x_data = dataset[:, :4]
         y_data = dataset[:, 4:]
 
@@ -988,12 +988,12 @@ if __name__ == '__main__':
         brs_dir = os.path.join(plots_dir, 'brs')
         ensure_clean_dir(brs_dir)
 
-        # Ricarichiamo i dati simulati per i puntini nel grafico
+        # Reload the simulated data for the scatter plot
         x_data_raw = np.load(f'{params.DATA_DIR}{robotic_system}_x_vboc.npy')
-        # Estraiamo solo i 4 input [theta, vx, vz, wy] per il plot BRS
+        # Extract only the 4 inputs [theta, vx, vz, wy] for the BRS plot
         x_data_plot = x_data_raw[:, 2:6]
 
-        # Chiamata pulita
+        # Clean call
         plot_brs(
             params, 
             model, 
@@ -1005,11 +1005,11 @@ if __name__ == '__main__':
         )
     
     # =========================================================================
-        # 2. PLOT DELL'ANALISI DI SENSIBILITA' (Velocità vs Dimensione Stanza)
+        # 2. SENSITIVITY ANALYSIS PLOT (Speed vs Room Size)
     # =========================================================================
         fig, ax = plt.subplots(1, 2, figsize=(12, 5))
         
-        # Nel 2D, gli indici in x_data_raw sono: vx=3, vz=4, scale=6
+        # In 2D, the indices in x_data_raw are: vx=3, vz=4, scale=6
         v_x = x_data_raw[:, 3]
         v_z = x_data_raw[:, 4]
         scale = x_data_raw[:, 10]

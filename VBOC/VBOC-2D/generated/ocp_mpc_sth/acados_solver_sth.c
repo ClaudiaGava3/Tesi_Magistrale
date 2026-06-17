@@ -407,6 +407,12 @@ void sth_acados_create_setup_functions(sth_solver_capsule* capsule)
 
         
     } // N > 0
+    MAP_CASADI_FNC(nl_constr_h_e_fun_jac, sth_constr_h_e_fun_jac_uxt_zt);
+    MAP_CASADI_FNC(nl_constr_h_e_fun, sth_constr_h_e_fun);
+    MAP_CASADI_FNC(nl_constr_h_e_fun_jac_hess, sth_constr_h_e_fun_jac_uxt_zt_hess);
+    
+    
+    
     // external cost - function
     MAP_CASADI_FNC(ext_cost_e_fun, sth_cost_ext_cost_e_fun);
 
@@ -502,27 +508,7 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
         cost_scaling[17] = 0.02;
         cost_scaling[18] = 0.02;
         cost_scaling[19] = 0.02;
-        cost_scaling[20] = 0.02;
-        cost_scaling[21] = 0.02;
-        cost_scaling[22] = 0.02;
-        cost_scaling[23] = 0.02;
-        cost_scaling[24] = 0.02;
-        cost_scaling[25] = 0.02;
-        cost_scaling[26] = 0.02;
-        cost_scaling[27] = 0.02;
-        cost_scaling[28] = 0.02;
-        cost_scaling[29] = 0.02;
-        cost_scaling[30] = 0.02;
-        cost_scaling[31] = 0.02;
-        cost_scaling[32] = 0.02;
-        cost_scaling[33] = 0.02;
-        cost_scaling[34] = 0.02;
-        cost_scaling[35] = 0.02;
-        cost_scaling[36] = 0.02;
-        cost_scaling[37] = 0.02;
-        cost_scaling[38] = 0.02;
-        cost_scaling[39] = 0.02;
-        cost_scaling[40] = 1;
+        cost_scaling[20] = 1;
         for (int i = 0; i <= N; i++)
         {
             ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, i, "scaling", &cost_scaling[i]);
@@ -701,10 +687,59 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
 
     /* terminal constraints */
 
+    // set up bounds for last stage
+    // x
+    int* idxbx_e = malloc(NBXN * sizeof(int));
+    idxbx_e[0] = 0;
+    idxbx_e[1] = 1;
+    idxbx_e[2] = 2;
+    idxbx_e[3] = 3;
+    idxbx_e[4] = 4;
+    idxbx_e[5] = 5;
+    double* lubx_e = calloc(2*NBXN, sizeof(double));
+    double* lbx_e = lubx_e;
+    double* ubx_e = lubx_e + NBXN;
+    lbx_e[0] = -100;
+    ubx_e[0] = 100;
+    lbx_e[1] = -100;
+    ubx_e[1] = 100;
+    lbx_e[2] = -1.5707963267948966;
+    ubx_e[2] = 1.5707963267948966;
+    lbx_e[3] = -1;
+    ubx_e[3] = 1;
+    lbx_e[4] = -1;
+    ubx_e[4] = 1;
+    lbx_e[5] = -1;
+    ubx_e[5] = 1;
+    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "idxbx", idxbx_e);
+    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "lbx", lbx_e);
+    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "ubx", ubx_e);
+    free(idxbx_e);
+    free(lubx_e);
 
 
 
 
+    // set up nonlinear constraints for last stage
+    double* luh_e = calloc(2*NHN, sizeof(double));
+    double* lh_e = luh_e;
+    double* uh_e = luh_e + NHN;
+    uh_e[0] = 100000;
+    uh_e[1] = 100000;
+    uh_e[2] = 100000;
+    uh_e[3] = 100000;
+
+    ocp_nlp_constraints_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, N, "nl_constr_h_fun_jac", &capsule->nl_constr_h_e_fun_jac);
+    ocp_nlp_constraints_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, N, "nl_constr_h_fun", &capsule->nl_constr_h_e_fun);
+    
+    ocp_nlp_constraints_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, N, "nl_constr_h_fun_jac_hess",
+                                  &capsule->nl_constr_h_e_fun_jac_hess);
+    
+    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "lh", lh_e);
+    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "uh", uh_e);
+    
+    
+    free(luh_e);
 
 
 
@@ -811,7 +846,7 @@ static void sth_acados_create_set_opts(sth_solver_capsule* capsule)
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "levenberg_marquardt", &levenberg_marquardt);
 
     /* options QP solver */
-    int qp_solver_cond_N;const int qp_solver_cond_N_ori = 40;
+    int qp_solver_cond_N;const int qp_solver_cond_N_ori = 20;
     qp_solver_cond_N = N < qp_solver_cond_N_ori ? N : qp_solver_cond_N_ori; // use the minimum value here
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "qp_cond_N", &qp_solver_cond_N);
 
@@ -1222,6 +1257,9 @@ int sth_acados_free(sth_solver_capsule* capsule)
     free(capsule->nl_constr_h_fun_jac);
     free(capsule->nl_constr_h_fun);
     free(capsule->nl_constr_h_fun_jac_hess);
+    external_function_external_param_casadi_free(&capsule->nl_constr_h_e_fun_jac);
+    external_function_external_param_casadi_free(&capsule->nl_constr_h_e_fun);
+    external_function_external_param_casadi_free(&capsule->nl_constr_h_e_fun_jac_hess);
 
 
 

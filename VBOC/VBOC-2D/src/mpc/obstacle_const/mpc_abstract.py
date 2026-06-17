@@ -60,8 +60,8 @@ class Model:
         #nscale = 1  # FATTORE DI SCALA (Sostituisce nbox)
 
       # --- PARAMETRI MPC ---
-        #self.alpha_real = MX.sym('alpha_real', 1)   # Lo spazio letto dai sensori
-        self.obs_x = MX.sym('obs_x', 1)  # Posizione X assoluta del muro
+        #self.alpha_real = MX.sym('alpha_real', 1)   # Sensor-measured space
+        self.obs_x = MX.sym('obs_x', 1)  # Absolute X position of the wall
         self.x_ref = MX.sym('x_ref', nq+nv)       
         
         self.p = vertcat(self.obs_x, self.x_ref)
@@ -369,16 +369,16 @@ class AbstractController:
         self.ocp.model = self.model.amodel
 
         # --- Stage cost: minimize box size ---
-        # Costo allo stadio iniziale
-        from scipy.linalg import block_diag # Assicurati di importarlo all'inizio del file!
+        # Cost at the initial stage
+        from scipy.linalg import block_diag # Make sure to import it at the top of the file!
 
         # --- Stage cost: Target tracking ---
-        # --- Stage cost: Inseguimento Target (EXTERNAL) ---
+        # --- Stage cost: Target tracking (EXTERNAL) ---
         self.ocp.cost.cost_type = 'EXTERNAL'
         self.ocp.cost.cost_type_e = 'EXTERNAL'
         
-        # Pesi (Q_cost per lo stato, R_cost per i motori)
-        # Ordine stato: [x, z, theta, vx, vz, wy]
+        # Weights (Q_cost for state, R_cost for motors)
+        # State order: [x, z, theta, vx, vz, wy]
         Q_cost = diag(vertcat(100.0, 100.0, 20.0, 1.0, 1.0, 1.0))
         R_cost = diag(vertcat(0.0001, 0.0001))
         
@@ -390,7 +390,7 @@ class AbstractController:
         
 
         cost_step = err_x.T @ Q_cost @ err_x + err_u.T @ R_cost @ err_u
-        # Al nodo finale non uso i motori
+        # At the terminal node I do not penalize motor effort
         cost_terminal = err_x.T @ Q_cost @ err_x * 20
         
         # Assegno le espressioni ad Acados
@@ -398,25 +398,25 @@ class AbstractController:
         self.ocp.model.cost_expr_ext_cost_e = cost_terminal
 
         
-        # Inizializziamo i parametri con dei valori di default (1 per alpha, 0 per x_ref)
+        # Initialize parameters with default values (1 for alpha, 0 for x_ref)
         self.ocp.parameter_values = np.zeros(1 + self.model.nx)
         self.ocp.parameter_values[0] = 1.0
 
 
         # --- Initial shooting node: position and velocity fixed ---
-        # Fissiamo x, z, theta, vx, vz, wy (Primi 6 indici: 0,1,2,3,4,5)
+        # Fix x, z, theta, vx, vz, wy (first 6 indices: 0,1,2,3,4,5)
         self.ocp.constraints.idxbx_0 = np.arange(self.model.nq + self.model.nv) 
         self.ocp.constraints.lbx_0 = np.zeros(self.model.nq + self.model.nv)
         self.ocp.constraints.ubx_0 = np.zeros(self.model.nq + self.model.nv)
 
 
         # --- Path constraints ---
-        # VINCOLO SEMPLIFICATO SOLO PER X
-        # Aggiungiamo il vincolo fisico: il drone non deve superare il muro
-        # obs_x è self.model.p[0], x del drone è self.model.x[0]
+        # Simplified constraint only for X
+        # Add the physical constraint: the drone must not cross the wall
+        # obs_x is self.model.p[0], drone x is self.model.x[0]
         self.ocp.model.con_h_expr = self.model.p[0] - self.model.x[0]
-        self.ocp.constraints.lh = np.array([0.0])   # Distanza dal muro >= 0
-        self.ocp.constraints.uh = np.array([1e5])   # Fino a infinito
+        self.ocp.constraints.lh = np.array([0.0])   # Distance to the wall >= 0
+        self.ocp.constraints.uh = np.array([1e5])   # Up to infinity
 
         # State box: theta (1), velocity (3), box (4)scale (1) = 9 elementi totali
         self.ocp.constraints.idxbx = np.arange(self.model.npos, self.model.nx) 

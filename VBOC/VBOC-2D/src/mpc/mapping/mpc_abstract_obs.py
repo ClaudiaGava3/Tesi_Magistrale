@@ -57,13 +57,13 @@ class Model:
         npos = 2    # Position sub-space dimension
         nori = 1    # Orientation sub-space dimension
         #nbox = 4    # Obstacle box constraint dimension
-        #nscale = 1  # FATTORE DI SCALA (Sostituisce nbox)
+        #nscale = 1  # SCALE FACTOR (replaces nbox)
 
-        # --- PARAMETRI MPC ---
+        # --- MPC PARAMETERS ---
         self.box_limits = MX.sym('box_limits', 4)  # [x_min, x_max, z_min, z_max]
         self.x_ref = MX.sym('x_ref', nq+nv)        # 6 elementi
         
-        # Il parametro p ha 10 elementi (4 per box + 6 target)
+        # The parameter p has 10 elements (4 for box + 6 for target)
         self.p = vertcat(self.box_limits, self.x_ref)
         
                
@@ -272,16 +272,16 @@ class AbstractController:
         self.ocp.model = self.model.amodel
 
         # --- Stage cost: minimize box size ---
-        # Costo allo stadio iniziale
-        from scipy.linalg import block_diag # Assicurati di importarlo all'inizio del file!
+        # Cost at the initial stage
+        from scipy.linalg import block_diag # Make sure to import it at the top of the file!
 
         # --- Stage cost: Target tracking ---
-        # --- Stage cost: Inseguimento Target (EXTERNAL) ---
+        # --- Stage cost: Target tracking (EXTERNAL) ---
         self.ocp.cost.cost_type = 'EXTERNAL'
         self.ocp.cost.cost_type_e = 'EXTERNAL'
         
-        # Definiamo i pesi (Q_cost per lo stato, R_cost per i motori)
-        # Ordine stato: [x, z, theta, vx, vz, wy]
+        # Define the weights (Q_cost for state, R_cost for motors)
+        # State order: [x, z, theta, vx, vz, wy]
         Q_cost = diag(vertcat(100.0, 100.0, 20.0, 1.0, 1.0, 1.0))
         R_cost = diag(vertcat(0.0001, 0.0001))
         
@@ -294,7 +294,7 @@ class AbstractController:
         
 
         cost_step = err_x.T @ Q_cost @ err_x + err_u.T @ R_cost @ err_u
-        # Al nodo finale non uso i motori
+        # At the terminal node, do not use the motors
         cost_terminal = err_x.T @ Q_cost @ err_x * 20
         
         # Assegno le espressioni ad Acados
@@ -304,7 +304,7 @@ class AbstractController:
         # #in 2D
         # self.ocp.model.cost_expr_ext_cost_0 = 1.0 * self.model.x[10] # Costo = Scaling
         
-        # # Inizializziamo i parametri con dei valori di default (1 per alpha, 0 per x_ref)
+        # # Initialize parameters to default values (1 for alpha, 0 for x_ref)
         self.ocp.parameter_values = np.zeros(self.model.p.size()[0])
         # self.ocp.parameter_values[0] = 1.0
 
@@ -318,7 +318,7 @@ class AbstractController:
 
 
         # --- Path constraints ---
-        # Partiamo da 0 per vincolare anche posizione X e Z
+        # Start from zero to constrain X and Z position as well
         self.ocp.constraints.idxbx = np.arange(0, self.model.nx) 
         self.ocp.constraints.lbx = np.hstack([
             np.array([-100.0, -100.0]), # Fittizi

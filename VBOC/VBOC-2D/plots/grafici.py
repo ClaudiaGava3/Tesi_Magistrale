@@ -21,16 +21,24 @@ plt.rcParams.update({
 # grafico5 = [34, 66]
 # grafico6 = [100, 0]
 
-grafico1 = [8/13, 5/13]
-grafico2 = [7/13, 5/13]
-grafico3 = [9/13, 4/13]
-grafico4 = [6/13, 7/13]
+# grafico1 = [8/13, 5/13]
+# grafico2 = [7/13, 5/13]
+# grafico3 = [9/13, 4/13]
+# grafico4 = [6/13, 7/13]
 
 
-grafico5 = [1/13, 12/13]
-grafico6 = [3/13, 10/13]
-grafico7 = [5/13, 8/13]
-grafico8 = [4/13, 9/13]
+# grafico5 = [1/13, 12/13]
+# grafico6 = [3/13, 10/13]
+# grafico7 = [5/13, 8/13]
+# grafico8 = [4/13, 9/13]
+
+grafico1 = [9/13, 4/13]
+grafico2 = [1/13, 12/13]
+grafico3 = [3/13, 10/13]
+grafico4 = [3/13, 10/13]
+grafico5 = [5/13, 8/13]
+grafico6 = [11/13, 2/13]
+
 
 # Etichette comuni
 # etichette = ['Success','Impact']
@@ -42,13 +50,14 @@ colori = [ '#66b3ff','#ff9999']
 
 # Titoli dei grafici
 # titoli = ['MPC-NN (N=15)', 'MPC naive (N=15)', 'MPC naive (N=30)', 'MPC-NN (N=15)', 'MPC naive (N=15)', 'MPC naive (N=30)']
-titoli = ['MPC-NN (N=10)', 'MPC-NN (N=15)', 'MPC-NN (N=20)', 'MPC-NN (N=30)', 'MPC naive (N=10)', 'MPC naive (N=15)', 'MPC naive (N=20)', 'MPC naive (N=30)']
+# titoli = ['MPC-NN (N=10)', 'MPC-NN (N=15)', 'MPC-NN (N=20)', 'MPC-NN (N=30)', 'MPC naive (N=10)', 'MPC naive (N=15)', 'MPC naive (N=20)', 'MPC naive (N=30)']
+titoli = ['Case 1', 'Case 2', 'Case 3', 'Case 4', 'Case 5', 'Case 6']
 
 # ===== CREAZIONE FIGURA =====
 # Aumentiamo l'altezza a 12 per dare respiro ai titoli
-fig, axs = plt.subplots(2, 4, figsize=(20, 10))
+fig, axs = plt.subplots(1, 6, figsize=(18, 8))
 
-dati = [grafico1, grafico2, grafico3, grafico4, grafico5, grafico6, grafico7, grafico8]
+dati = [grafico1, grafico2, grafico3, grafico4, grafico5, grafico6]
 
 # ===== CREAZIONE GRAFICI =====
 for i, ax in enumerate(axs.flat):
@@ -66,12 +75,12 @@ for i, ax in enumerate(axs.flat):
 # Usiamo 'y' più precisi e fontweight per la chiarezza
 # fig.text(0.5, 0.95, 'Null $x_0$', ha='center', fontsize=28)
 # fig.text(0.5, 0.49, 'Not Null $x_0$', ha='center', fontsize=28)
-fig.text(0.5, 0.95, 'MPC-NN (LiDAR ray = 1.5m)', ha='center', fontsize=28)
-fig.text(0.5, 0.49, 'MPC naive (LiDAR ray = 1.5m)', ha='center', fontsize=28)
+fig.text(0.5, 0.95, 'MPC-NN (N=20, LiDAR ray = 1.5m)', ha='center', fontsize=28)
+#fig.text(0.5, 0.49, 'MPC naive (LiDAR ray = 1.5m)', ha='center', fontsize=28)
 
 # ===== LEGENDA ESTERNA =====
 # La mettiamo in alto al centro o la spostiamo leggermente per non coprire i titoli
-fig.legend(etichette, loc='upper center', bbox_to_anchor=(0.78, 1.0), 
+fig.legend(etichette, loc='upper right', bbox_to_anchor=(0.9, 0.90), 
            ncol=2, fontsize=24, frameon=True)
 
 # ===== CONTROLLO LAYOUT =====

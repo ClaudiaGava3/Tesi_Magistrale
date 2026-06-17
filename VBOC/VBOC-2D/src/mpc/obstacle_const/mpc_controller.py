@@ -10,21 +10,21 @@ from learning import NeuralNetwork
 
 
 class MpcController(AbstractController):
-    """Controller MPC che usa una Rete Neurale come vincolo terminale"""
+    """MPC controller that uses a Neural Network as a terminal constraint."""
 
     def __init__(self, model) -> None:
         super().__init__(model)
         
-        # 2. CARICAMENTO RETE NEURALE
+        # 2. LOAD NEURAL NETWORK
         nn_filename = f"{self.params.NN_DIR}{self.params.robot_name}_{self.params.act}.pt"
-        print(f"--- Caricamento Rete Neurale da {nn_filename} ---")
+        print(f"--- Loading neural network from {nn_filename} ---")
         
         checkpoint = torch.load(nn_filename, map_location=torch.device('cpu'), weights_only=False)
         self.mean_X = checkpoint['mean']
         self.std_X = checkpoint['std']
         
-        # Inizializzazione rete neurale (Input 4D per il 2D: theta, vx, vz, wy)
-        # NOTA: assicurati di usare la stessa activation del training (es. GELU)
+        # Neural network initialization (4D input for 2D: theta, vx, vz, wy)
+        # NOTE: make sure to use the same activation used during training (e.g. GELU)
         net = NeuralNetwork(
             input_size=4, 
             hidden_size=self.params.hidden_size, 
@@ -36,29 +36,29 @@ class MpcController(AbstractController):
         net.load_state_dict(checkpoint['model'])
         net.eval()
         
-        # 3. L4CASADI E VINCOLO TERMINALE
-        # Nello stato dell'MPC [x, z, theta, vx, vz, wy], la rete usa gli indici [2, 3, 4, 5]
+        # 3. L4CASADI AND TERMINAL CONSTRAINT
+        # In the MPC state [x, z, theta, vx, vz, wy], the network uses indices [2, 3, 4, 5]
         theta_sym = self.model.x[2]
         vx_sym = self.model.x[3]
         vz_sym = self.model.x[4]
         wy_sym = self.model.x[5]
         x_nn_sym = cs.vertcat(theta_sym, vx_sym, vz_sym, wy_sym)
         
-        # Normalizzazione input per la rete
+        # Normalize the network input
         x_norm = (x_nn_sym - cs.DM(self.mean_X)) / cs.DM(self.std_X)
         
-        # Funzione L4CasADi
+        # L4CasADi function
         self.l4c_model = l4c.L4CasADi(net, name="drone_viability_net")
         
-        # Output della rete: spazio di frenata predetto (Alpha)
+        # Network output: predicted braking margin (Alpha)
         alpha_pred = self.l4c_model(x_norm.T)
      
         
         
-        # --- 2. VINCOLO TERMINALE ---
-        # La distanza dal muro (p[0] - x[0]) deve essere maggiore o uguale ad alpha_pred
+        # --- 2. TERMINAL CONSTRAINT ---
+        # The distance to the wall (p[0] - x[0]) must be greater than or equal to alpha_pred
         self.ocp.model.con_h_expr_e = self.model.p[0] - self.model.x[0] - alpha_pred
-        self.ocp.constraints.lh_e = np.array([0.0])   # Deve essere >= 0
+        self.ocp.constraints.lh_e = np.array([0.0])   # Must be >= 0
         self.ocp.constraints.uh_e = np.array([1e5])
         
         # COMPILAZIONE DEL SOLVER
@@ -78,16 +78,16 @@ class MpcController(AbstractController):
         obs_x: float
     ) -> tuple[np.ndarray, np.ndarray, float, int]:
         """
-        Esegue un singolo step di ottimizzazione MPC.
-        Restituisce: (traiettoria_stati, traiettoria_input, alpha_predetto, status)
+        Execute a single MPC optimization step.
+        Returns: (state_trajectory, input_trajectory, predicted_alpha, status)
         """
         self.ocp_solver.reset()
 
-        # Stato iniziale ai valori correnti misurati dai sensori
+        # Initial state set to current sensor measurements
         self.ocp_solver.constraints_set(0, "lbx", current_x)
         self.ocp_solver.constraints_set(0, "ubx", current_x)
 
-        # Vettore dei parametri per questo step: [alpha_real, x_ref(6)]
+        # Parameter vector for this step: [alpha_real, x_ref(6)]
         p_val = np.hstack([obs_x, x_ref])
         
         for i in range(self.N):
@@ -115,21 +115,21 @@ class MpcController(AbstractController):
                 u_sol[i] = self.ocp_solver.get(i, 'u')
             x_sol[self.N] = self.ocp_solver.get(self.N, 'x')
             
-          # --- CALCOLO DI ALPHA CORRENTE ---
-            # Considero stato finale della previsione (nodo N)
+          # --- CURRENT ALPHA COMPUTATION ---
+            # Use the predicted final state at node N
             x_terminal = x_sol[self.N]
-            # Estraggo theta, vx, vz, wy (indici 2, 3, 4, 5)
+            # Extract theta, vx, vz, wy (indices 2, 3, 4, 5)
             x_nn_input = x_terminal[2:6]
-            # Normalizzo
+            # Normalize
             x_norm = (x_nn_input - self.mean_X) / self.std_X
 
-            # Interrogo NN per avere alpha da plottare
+            # Query the NN to obtain alpha for plotting
             with torch.no_grad():
                 alpha_val = self.l4c_model.model(torch.tensor(x_norm, dtype=torch.float32).unsqueeze(0)).item()
 
 
 
-            # Aggiorno warm-start
+            # Update warm start
             new_x_guess = np.vstack([x_sol[1:], x_sol[-1]])
             new_u_guess = np.vstack([u_sol[1:], u_sol[-1]])
             self.setGuess(new_x_guess, new_u_guess)
