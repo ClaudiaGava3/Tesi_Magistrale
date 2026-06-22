@@ -269,7 +269,7 @@ def min_cube_select_directional(Q, R, target_rel_x, target_rel_z, drone_radius=0
 
 
     # 2 MODES FOR BOX EXPANSION
-    #box = _expand_faces_(box, Q, R, LIMIT=1.0)
+    #box = _expand_faces(box, Q, R, LIMIT=1.0)
     box = _expand_faces_directional(box, Q, R, target_rel_x, target_rel_z, LIMIT=1.0)
 
 
@@ -373,7 +373,7 @@ def _push_faces_bonus(box, Qi, Ri, drone_radius, target_rel_x, target_rel_z):
         # If 0.0 -> revert to the original Max algorithm.
         # If too high -> ignore area and create very narrow boxes biased toward the target.
         # 15.0 or 20.0 is usually a good compromise.
-        W = 15.0 #15.0 #50
+        W = 50.0 #15.0 #50
 
         for face_idx, val in candidates:
             # Create a temporary box to evaluate its area
@@ -570,7 +570,7 @@ def _push_faces_notblocked(box, Qi, Ri, drone_radius, dx, dz, locked_faces):
     return box, moved
 
 
-def _expand_faces_greedy(box, Q, R, LIMIT=1.0):
+def _expand_faces(box, Q, R, LIMIT=1.0):
     """
     Algoritmo di espansione avida. Prende un box e ne spinge le facce 
     verso l'esterno finché non sbattono contro un ostacolo o raggiungono LIMIT.

@@ -21,36 +21,36 @@ plt.rcParams.update({
 # grafico5 = [34, 66]
 # grafico6 = [100, 0]
 
-# grafico1 = [8/13, 5/13]
-# grafico2 = [7/13, 5/13]
-# grafico3 = [9/13, 4/13]
-# grafico4 = [6/13, 7/13]
+# grafico1 = [8/13, 2/3, 3/13]
+# grafico2 = [7/13, 3/13,3/13]
+# grafico3 = [9/13, 4/13, 0/13]
+# grafico4 = [6/13, 7/13, 0/13]
 
 
-# grafico5 = [1/13, 12/13]
-# grafico6 = [3/13, 10/13]
-# grafico7 = [5/13, 8/13]
-# grafico8 = [4/13, 9/13]
+# grafico5 = [1/13, 0/13, 12/13]
+# grafico6 = [3/13, 0/13, 10/13]
+# grafico7 = [4/13, 2/13, 7/13]
+# grafico8 = [4/13, 9/13, 0/13]
 
-grafico1 = [9/13, 4/13]
-grafico2 = [1/13, 12/13]
-grafico3 = [3/13, 10/13]
-grafico4 = [3/13, 10/13]
-grafico5 = [5/13, 8/13]
-grafico6 = [11/13, 2/13]
+grafico1 = [9/13, 4/13, 0/13]
+grafico2 = [1/13, 0/13, 12/13]
+grafico3 = [3/13, 0/13, 10/13]
+grafico4 = [3/13, 0/13, 10/13]
+grafico5 = [5/13, 1/13, 7/13]
+grafico6 = [11/13, 2/13, 0/13]
 
-
+# con N 30 e case 6 successi 6 timeout 6 schianti 1
 # Etichette comuni
 # etichette = ['Success','Impact']
-etichette = ['Success','Failure']
+etichette = ['Success','Timeout', 'Failure']
 
 
 # Colori uguali per tutti i grafici
-colori = [ '#66b3ff','#ff9999']
+colori = [ '#66b3ff', '#f4b12a','#ff9999']
 
 # Titoli dei grafici
 # titoli = ['MPC-NN (N=15)', 'MPC naive (N=15)', 'MPC naive (N=30)', 'MPC-NN (N=15)', 'MPC naive (N=15)', 'MPC naive (N=30)']
-# titoli = ['MPC-NN (N=10)', 'MPC-NN (N=15)', 'MPC-NN (N=20)', 'MPC-NN (N=30)', 'MPC naive (N=10)', 'MPC naive (N=15)', 'MPC naive (N=20)', 'MPC naive (N=30)']
+#titoli = ['MPC-NN (N=10)', 'MPC-NN (N=15)', 'MPC-NN (N=20)', 'MPC-NN (N=30)', 'MPC naive (N=10)', 'MPC naive (N=15)', 'MPC naive (N=20)', 'MPC naive (N=30)']
 titoli = ['Case 1', 'Case 2', 'Case 3', 'Case 4', 'Case 5', 'Case 6']
 
 # ===== CREAZIONE FIGURA =====
@@ -67,7 +67,7 @@ for i, ax in enumerate(axs.flat):
            colors=colori,
            autopct='%1.1f%%',
            startangle=90,
-           textprops={'fontsize': 20, 'weight': 'bold', 'color': 'white'})
+           textprops={'fontsize': 17, 'weight': 'bold', 'color': 'white'})
     
     ax.set_title(titoli[i], fontsize=22, pad=20) # 'pad' distanzia il titolo dal cerchio
 
@@ -80,8 +80,8 @@ fig.text(0.5, 0.95, 'MPC-NN (N=20, LiDAR ray = 1.5m)', ha='center', fontsize=28)
 
 # ===== LEGENDA ESTERNA =====
 # La mettiamo in alto al centro o la spostiamo leggermente per non coprire i titoli
-fig.legend(etichette, loc='upper right', bbox_to_anchor=(0.9, 0.90), 
-           ncol=2, fontsize=24, frameon=True)
+fig.legend(etichette, loc='upper right', bbox_to_anchor=(0.90, 0.90), 
+           ncol=3, fontsize=24, frameon=True)
 
 # ===== CONTROLLO LAYOUT =====
 # 1. Applichiamo tight_layout per organizzare gli elementi base
