@@ -171,7 +171,7 @@ def get_lidar_hits_3d_qualsiasi(drone_pos, facce_ostacoli, num_rays=2000, max_ra
 # =============================================================================
 # 2. ALGORITMO DI MAX (Adattato al 3D)
 # =============================================================================
-def min_cube_select_3d(Q, R, target_rel_x, target_rel_y, target_rel_z, drone_radius=0.1):
+def min_cube_select_3d(Q, R, target_rel_x, target_rel_y, target_rel_z, drone_radius=0.1, W=0, rel=0.1):
     """
     Q: array Nx3 dei punti di intersezione
     R: array N dei raggi delle sfere
@@ -195,9 +195,48 @@ def min_cube_select_3d(Q, R, target_rel_x, target_rel_y, target_rel_z, drone_rad
         if not np.any(intersecting):
             break
 
-        box, moved = _push_faces_3d(box, Q[intersecting], R[intersecting], drone_radius, target_rel_x, target_rel_y, target_rel_z)
+        box, moved = _push_faces_3d(box, Q[intersecting], R[intersecting], drone_radius, target_rel_x, target_rel_y, target_rel_z, W, rel)
         if not moved:
             break
+
+    exitflag = 1 if not np.any(_spheres_intersect_box_3d(Q, R, box)) else 0
+    return box[0], box[1], box[2], box[3], box[4], box[5], exitflag
+
+def min_cube_warm_start_3d(Q, R, target_rel_x, target_rel_y, target_rel_z, targetx, targety, targetz, drone_radius=0.1, box_prev=None, expand_mode='general', W=0, rel=0.1):
+    
+    LIMIT = 2.12
+    
+    if box_prev is None:
+        box = np.array([-LIMIT, LIMIT, -LIMIT, LIMIT, -LIMIT, LIMIT], dtype=float)
+    else:
+        box = np.array([
+            max(-LIMIT, box_prev[0]), min( LIMIT, box_prev[1]), 
+            max(-LIMIT, box_prev[2]), min( LIMIT, box_prev[3]),
+            max(-LIMIT, box_prev[4]), min( LIMIT, box_prev[5])
+        ], dtype=float)
+
+    box[0] = min(box[0], -drone_radius); box[1] = max(box[1],  drone_radius)
+    box[2] = min(box[2], -drone_radius); box[3] = max(box[3],  drone_radius)
+    box[4] = min(box[4], -drone_radius); box[5] = max(box[5],  drone_radius)
+
+    if len(Q) == 0:
+        return -LIMIT, LIMIT, -LIMIT, LIMIT, -LIMIT, LIMIT, 1
+
+    for _ in range(100):
+        intersecting = _spheres_intersect_box_3d(Q, R, box)
+        if not np.any(intersecting):
+            break
+        box, moved = _push_faces_3d(box, Q[intersecting], R[intersecting], drone_radius, target_rel_x, target_rel_y, target_rel_z, W, rel)
+        if not moved:
+            break
+
+    if expand_mode == 'directional':
+        box = _expand_faces_directional_3d(box, Q, R, target_rel_x, target_rel_y, target_rel_z, targetx, targety, targetz, LIMIT=LIMIT)
+    # Aggiungi qui gli altri expand_mode se vuoi testarli (general, score)
+
+    intersecting = _spheres_intersect_box_3d(Q, R, box)
+    if np.any(intersecting):
+        box, _ = _push_faces_3d(box, Q[intersecting], R[intersecting], drone_radius, target_rel_x, target_rel_y, target_rel_z, W, rel)
 
     exitflag = 1 if not np.any(_spheres_intersect_box_3d(Q, R, box)) else 0
     return box[0], box[1], box[2], box[3], box[4], box[5], exitflag
@@ -209,15 +248,16 @@ def _spheres_intersect_box_3d(Q, R, box, tol=1e-6):
     dist2 = (Q[:, 0] - cx)**2 + (Q[:, 1] - cy)**2 + (Q[:, 2] - cz)**2
     return dist2 < (R**2 - tol)
 
-def _push_faces_3d(box, Qi, Ri, drone_radius, target_rel_x, target_rel_y, target_rel_z):
+def _push_faces_3d(box, Qi, Ri, drone_radius, target_rel_x, target_rel_y, target_rel_z, W=0, rel=0.1):
     moved = False
+
+    LIMIT = 2.12
 
     for i in range(len(Qi)):
         cx, cy, cz = Qi[i]
         r = Ri[i]
         candidates = []
 
-        LIMIT = 1.0
 
         # Valuta di spingere i 6 bordi
         new_xMin = cx + r + 1e-4
@@ -240,7 +280,7 @@ def _push_faces_3d(box, Qi, Ri, drone_radius, target_rel_x, target_rel_y, target
         best_score = -float('inf')
         best_face_idx = -1
         best_val = 0
-        W = 20 #20 per ostacoli paralleli, 0.2 per ostacoli obliqui
+        # W = 20 #20 per ostacoli paralleli, 0.2 per ostacoli obliqui
 
         for face_idx, val in candidates:
             test_box = box.copy()
@@ -250,21 +290,22 @@ def _push_faces_3d(box, Qi, Ri, drone_radius, target_rel_x, target_rel_y, target
             volume = (test_box[1] - test_box[0]) * (test_box[3] - test_box[2]) * (test_box[5] - test_box[4])
             
             # Bonus direzionale 3D
-            if target_rel_x > 0.4:
+            # rel ora a 0.1 come 2D prima era 0.4
+            if target_rel_x > rel:
                 bonus_x = test_box[1]
-            elif target_rel_x < -0.4:
+            elif target_rel_x < -rel:
                 bonus_x = - test_box[0]
             else:
                 bonus_x = 0.0
-            if target_rel_y > 0.4:
+            if target_rel_y > rel:
                 bonus_y = test_box[3]
-            elif target_rel_y < -0.4:
+            elif target_rel_y < -rel:
                 bonus_y = -test_box[2]
             else:
                 bonus_y = 0.0                
-            if target_rel_z > 0.4:
+            if target_rel_z > rel:
                 bonus_z = test_box[5]
-            elif target_rel_z < -0.4:
+            elif target_rel_z < -rel:
                 bonus_z = -test_box[4]
             else:
                 bonus_z = 0.0
@@ -288,3 +329,93 @@ def _push_faces_3d(box, Qi, Ri, drone_radius, target_rel_x, target_rel_y, target
             moved = True
 
     return box, moved
+
+def _expand_faces_directional_3d(box, Q, R, dx, dy, dz, targetx, targety, targetz, LIMIT=1.0):
+    """
+    Espansione direzionale 3D: Coerente col 2D. Usa dx, dy, dz per il verso,
+    e targetx, targety, targetz per le priorità di espansione.
+    """
+    new_box = box.copy()
+
+    if len(Q) == 0:
+        return np.array([-LIMIT, LIMIT, -LIMIT, LIMIT, -LIMIT, LIMIT], dtype=float)
+
+    # 1. Determina il verso in base al vettore predittivo
+    x_first = 1 if dx >= 0 else 0; x_last = 0 if dx >= 0 else 1
+    y_first = 3 if dy >= 0 else 2; y_last = 2 if dy >= 0 else 3
+    z_first = 5 if dz >= 0 else 4; z_last = 4 if dz >= 0 else 5
+
+    # 2. Ordina gli assi in base al target assoluto (come abs(targetx) >= abs(targetz) nel 2D)
+    priorities = [
+        (abs(targetx), x_first, x_last),
+        (abs(targety), y_first, y_last),
+        (abs(targetz), z_first, z_last)
+    ]
+    priorities.sort(key=lambda item: item[0], reverse=True) # Dal più grande al più piccolo
+
+    # 3. L'array definisce l'ordine: prima le facce frontali prioritarie, poi le opposte
+    ordine_facce = [
+        priorities[0][1], priorities[1][1], priorities[2][1],
+        priorities[0][2], priorities[1][2], priorities[2][2]
+    ]
+    
+    # INTRODUZIONE DELLA TOLLERANZA (come nel 2D)
+    TOL = 0.01
+
+    # 4. Esegui l'espansione seguendo l'ordine
+    for faccia in ordine_facce:
+        if faccia == 1: # ESPANDI A DESTRA (+X)
+            mask = (Q[:, 0] > new_box[1]) & \
+                   (Q[:, 1] + R > new_box[2]+TOL) & (Q[:, 1] - R < new_box[3]-TOL) & \
+                   (Q[:, 2] + R > new_box[4]+TOL) & (Q[:, 2] - R < new_box[5]-TOL)
+            if np.any(mask):
+                new_box[1] = min(LIMIT, np.min(Q[mask, 0] - R[mask]) - 1e-4)
+            else:
+                new_box[1] = LIMIT
+                
+        elif faccia == 0: # ESPANDI A SINISTRA (-X)
+            mask = (Q[:, 0] < new_box[0]) & \
+                   (Q[:, 1] + R > new_box[2]+TOL) & (Q[:, 1] - R < new_box[3]-TOL) & \
+                   (Q[:, 2] + R > new_box[4]+TOL) & (Q[:, 2] - R < new_box[5]-TOL)
+            if np.any(mask):
+                new_box[0] = max(-LIMIT, np.max(Q[mask, 0] + R[mask]) + 1e-4)
+            else:
+                new_box[0] = -LIMIT
+                
+        elif faccia == 3: # ESPANDI IN AVANTI (+Y)
+            mask = (Q[:, 1] > new_box[3]) & \
+                   (Q[:, 0] + R > new_box[0]+TOL) & (Q[:, 0] - R < new_box[1]-TOL) & \
+                   (Q[:, 2] + R > new_box[4]+TOL) & (Q[:, 2] - R < new_box[5]-TOL)
+            if np.any(mask):
+                new_box[3] = min(LIMIT, np.min(Q[mask, 1] - R[mask]) - 1e-4)
+            else:
+                new_box[3] = LIMIT
+
+        elif faccia == 2: # ESPANDI INDIETRO (-Y)
+            mask = (Q[:, 1] < new_box[2]) & \
+                   (Q[:, 0] + R > new_box[0]+TOL) & (Q[:, 0] - R < new_box[1]-TOL) & \
+                   (Q[:, 2] + R > new_box[4]+TOL) & (Q[:, 2] - R < new_box[5]-TOL)
+            if np.any(mask):
+                new_box[2] = max(-LIMIT, np.max(Q[mask, 1] + R[mask]) + 1e-4)
+            else:
+                new_box[2] = -LIMIT
+                
+        elif faccia == 5: # ESPANDI IN ALTO (+Z)
+            mask = (Q[:, 2] > new_box[5]) & \
+                   (Q[:, 0] + R > new_box[0]+TOL) & (Q[:, 0] - R < new_box[1]-TOL) & \
+                   (Q[:, 1] + R > new_box[2]+TOL) & (Q[:, 1] - R < new_box[3]-TOL)
+            if np.any(mask):
+                new_box[5] = min(LIMIT, np.min(Q[mask, 2] - R[mask]) - 1e-4)
+            else:
+                new_box[5] = LIMIT
+                
+        elif faccia == 4: # ESPANDI IN BASSO (-Z)
+            mask = (Q[:, 2] < new_box[4]) & \
+                   (Q[:, 0] + R > new_box[0]+TOL) & (Q[:, 0] - R < new_box[1]-TOL) & \
+                   (Q[:, 1] + R > new_box[2]+TOL) & (Q[:, 1] - R < new_box[3]-TOL)
+            if np.any(mask):
+                new_box[4] = max(-LIMIT, np.max(Q[mask, 2] + R[mask]) + 1e-4)
+            else:
+                new_box[4] = -LIMIT
+
+    return new_box

@@ -5,7 +5,7 @@ cpu_num: 26
 #Con N=38 posso lasciare angoli casuali tra +-pi/2 e ho una convergenza di 996/1000 e tutti di status 0, di 1996/2000, di 19850/20000
 
 
-N: 18 #18 #16 per labirinto, 18 per ostacoli obliqui #38                  # horizon in number of samples
+N: 20 #18 #16 per labirinto, 18 per ostacoli obliqui #38                  # horizon in number of samples
 N_naive: 20
 N_increment: 0   #0         # increment of the horizon
 dt: 20e-3                 # time step

@@ -164,7 +164,7 @@ def main():
         for t in range(N_SIM):
             
             # 1. Simula LIDAR e crea i raggi tangenti
-            hits, radii = get_lidar_hits_3d(current_x[0], current_x[1],  current_x[2], obstacles, num_rays=360)
+            hits, radii = get_lidar_hits_3d(current_x[0], current_x[1],  current_x[2], obstacles, num_rays=1000)
             
             # 2. Algoritmo di Max
             Q_rel = hits.copy()

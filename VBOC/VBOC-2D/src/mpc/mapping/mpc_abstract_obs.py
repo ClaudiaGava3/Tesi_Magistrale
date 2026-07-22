@@ -331,6 +331,8 @@ class AbstractController:
             np.full(self.model.nv, 1e1)
         ])
 
+        
+
 
 
         # --- Terminal constraints ---

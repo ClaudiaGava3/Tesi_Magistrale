@@ -32,12 +32,20 @@ plt.rcParams.update({
 # grafico7 = [4/13, 2/13, 7/13]
 # grafico8 = [4/13, 9/13, 0/13]
 
-grafico1 = [9/13, 4/13, 0/13]
-grafico2 = [1/13, 0/13, 12/13]
-grafico3 = [3/13, 0/13, 10/13]
-grafico4 = [3/13, 0/13, 10/13]
-grafico5 = [5/13, 1/13, 7/13]
-grafico6 = [11/13, 2/13, 0/13]
+# grafico1 = [9/13, 4/13, 0/13]
+# grafico2 = [1/13, 0/13, 12/13]
+# grafico3 = [6/13, 1/13, 6/13]
+# grafico4 = [3/13, 7/13, 3/13]
+# grafico5 = [5/13, 1/13, 7/13]
+# grafico6 = [11/13, 2/13, 0/13]
+
+
+grafico1 = [6/13, 1/13, 6/13]
+grafico2 = [3/13, 10/13, 0/13]
+
+grafico3 = [3/13, 7/13, 3/13]
+grafico4 = [3/13, 10/13, 0/13]
+
 
 # con N 30 e case 6 successi 6 timeout 6 schianti 1
 # Etichette comuni
@@ -51,13 +59,14 @@ colori = [ '#66b3ff', '#f4b12a','#ff9999']
 # Titoli dei grafici
 # titoli = ['MPC-NN (N=15)', 'MPC naive (N=15)', 'MPC naive (N=30)', 'MPC-NN (N=15)', 'MPC naive (N=15)', 'MPC naive (N=30)']
 #titoli = ['MPC-NN (N=10)', 'MPC-NN (N=15)', 'MPC-NN (N=20)', 'MPC-NN (N=30)', 'MPC naive (N=10)', 'MPC naive (N=15)', 'MPC naive (N=20)', 'MPC naive (N=30)']
-titoli = ['Case 1', 'Case 2', 'Case 3', 'Case 4', 'Case 5', 'Case 6']
+# titoli = ['Case 1', 'Case 2', 'Case 3', 'Case 4', 'Case 5', 'Case 6']
+titoli = ['With partial pred_traj', 'With all pred_traj (Warm Start)', 'With partial pred_traj', 'With all pred_traj (Warm Start)']
 
 # ===== CREAZIONE FIGURA =====
 # Aumentiamo l'altezza a 12 per dare respiro ai titoli
-fig, axs = plt.subplots(1, 6, figsize=(18, 8))
+fig, axs = plt.subplots(2, 2, figsize=(15, 8.5))#20 6.5
 
-dati = [grafico1, grafico2, grafico3, grafico4, grafico5, grafico6]
+dati = [grafico1, grafico2, grafico3, grafico4]
 
 # ===== CREAZIONE GRAFICI =====
 for i, ax in enumerate(axs.flat):
@@ -76,20 +85,22 @@ for i, ax in enumerate(axs.flat):
 # fig.text(0.5, 0.95, 'Null $x_0$', ha='center', fontsize=28)
 # fig.text(0.5, 0.49, 'Not Null $x_0$', ha='center', fontsize=28)
 fig.text(0.5, 0.95, 'MPC-NN (N=20, LiDAR ray = 1.5m)', ha='center', fontsize=28)
+fig.text(0.5, 0.86, 'Comparison with different initializations for Case 3 (general expansion)', ha='center', fontsize=24)
+fig.text(0.5, 0.44, 'Comparison with different initializations for Case 4 (directional expansion)', ha='center', fontsize=24)
 #fig.text(0.5, 0.49, 'MPC naive (LiDAR ray = 1.5m)', ha='center', fontsize=28)
 
 # ===== LEGENDA ESTERNA =====
 # La mettiamo in alto al centro o la spostiamo leggermente per non coprire i titoli
-fig.legend(etichette, loc='upper right', bbox_to_anchor=(0.90, 0.90), 
-           ncol=3, fontsize=24, frameon=True)
+fig.legend(etichette, loc='lower center', bbox_to_anchor=(0.50, 0.0), 
+           ncol=3, fontsize=22, frameon=True)
 
 # ===== CONTROLLO LAYOUT =====
 # 1. Applichiamo tight_layout per organizzare gli elementi base
 # rect=[sinistra, basso, destra, alto] lascia spazio in alto per il titolo
-plt.tight_layout(rect=[0, 0.03, 1, 0.93]) 
+plt.tight_layout(rect=[0, 0.03, 1, 0.88]) 
 
 # 2. Usiamo hspace per distanziare le righe (0.5 è un buon punto di partenza, aumenta se serve)
-plt.subplots_adjust(hspace=0.6) 
+plt.subplots_adjust(hspace=0.5) 
 
 # Se vuoi che il titolo "Not Null x0" sia esattamente al centro dello spazio creato:
 # fig.text(0.5, 0.48, ...) va bene, ma se sposti hspace potresti doverlo regolare a 0.50

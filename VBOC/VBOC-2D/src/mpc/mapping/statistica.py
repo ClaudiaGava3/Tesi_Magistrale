@@ -2,11 +2,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import time
+import os
+import matplotlib.animation as animation
 
 from parser import Parameters
 from mpc_abstract_obs import Model
 from mpc_controller_obs import MpcController
-from lidar import min_cube_select_base, get_lidar_hits_2d_qualsiasi, min_cube_select_directional
+from lidar import min_cube_select_base, get_lidar_hits_2d_qualsiasi, min_cube_select_directional, force_trajectory_in_box, min_cube_warm_start
 
 
 # sui primi 6 targets
@@ -106,6 +108,8 @@ def genera_ambiente_2d_test():
         [[16.3, 4.1], [19.3, 4.2], [19.3, 2.5], [16.3, 2.5]],     # Upper right rectangle
         [[15.0, -1.0], [18.0, -2.0], [19.0, 0.0], [16.0, 1.0]],   # Lower right rectangle
     ]
+
+    roof = 5.0
     
     # Final right wall
     segments = []
@@ -115,16 +119,19 @@ def genera_ambiente_2d_test():
             segments.append([poli[i], poli[(i + 1) % n]])
     segments.append([[21.0, -4.0], [21.0, -2.0]])
             
+
+    
+
     # targets
     targets = [
-        np.array([4.8, -2.0, 0.0, 0.0, 0.0, 0.0]),
-        np.array([6.2,  3.8, 0.0, 0.0, 0.0, 0.0]),
-        np.array([7.6,  0.5, 0.0, 0.0, 0.0, 0.0]),
-        np.array([10.2,-2.1, 0.0, 0.0, 0.0, 0.0]),
-        np.array([11.0, 0.7, 0.0, 0.0, 0.0, 0.0]),
-        np.array([11.2, 4.0, 0.0, 0.0, 0.0, 0.0]),
-        np.array([15.1, 3.8, 0.0, 0.0, 0.0, 0.0]),
-        np.array([14.8, 0.8, 0.0, 0.0, 0.0, 0.0]),
+        # np.array([4.8, -2.0, 0.0, 0.0, 0.0, 0.0]),
+        # np.array([6.2,  3.8, 0.0, 0.0, 0.0, 0.0]),
+        # np.array([7.6,  0.5, 0.0, 0.0, 0.0, 0.0]),
+        # np.array([10.2,-2.1, 0.0, 0.0, 0.0, 0.0]),
+        # np.array([11.0, 0.7, 0.0, 0.0, 0.0, 0.0]),
+        # np.array([11.2, 4.0, 0.0, 0.0, 0.0, 0.0]),
+        # np.array([15.1, 3.8, 0.0, 0.0, 0.0, 0.0]),
+        # np.array([14.8, 0.8, 0.0, 0.0, 0.0, 0.0]),
         np.array([15.5,-2.6, 0.0, 0.0, 0.0, 0.0]),
         np.array([18.2, 1.4, 0.0, 0.0, 0.0, 0.0]),
         np.array([19.6,-2.3, 0.0, 0.0, 0.0, 0.0]),
@@ -133,7 +140,11 @@ def genera_ambiente_2d_test():
     ]
     
     
-    return poligoni, segments, targets
+    return poligoni, segments, targets, roof
+
+
+
+
 
 def main_statistico():
     
@@ -157,13 +168,13 @@ def main_statistico():
     SIM_TIME = 40.0 # Extended time to cover all targets
     N_SIM = int(SIM_TIME / DT)
     
-    poligoni, segmenti, targets = genera_ambiente_2d_test()
+    poligoni, segmenti, targets, roof = genera_ambiente_2d_test()
     N_TESTS = len(targets)
 
     print(f"--- AVVIO TEST DI COPERTURA: {N_TESTS} TARGET ---")
     
     for test_idx, target_base in enumerate(targets):
-        # Punto di partenza fisso (il pallino blu nello schizzo)
+        # Punto di partenza fisso
         current_x = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         
         x_history = [current_x.copy()]
@@ -189,33 +200,35 @@ def main_statistico():
 
 
         x_sol_prev = None
+        box_abs_prev = None
         
 
-        # # ==========================================
-        # # SETUP VIDEO REAL-TIME (Da mettere PRIMA del for t)
-        # # ==========================================
-        # plt.ion() # Attiva la modalità video in tempo reale
-        # fig_anim, ax_anim = plt.subplots(figsize=(12, 7))
+        # ==========================================
+        # SETUP VIDEO REAL-TIME & SALVATAGGIO
+        # ==========================================
+        plt.ion() # Enable real-time video mode
+        fig_anim, ax_anim = plt.subplots(figsize=(12, 7))
         
-        # # Disegna l'ambiente fisso una volta sola per non rallentare il video
-        # for poli in poligoni:
-        #     ax_anim.add_patch(patches.Polygon(poli, closed=True, facecolor='gray', edgecolor='black', alpha=0.5))
-        # ax_anim.scatter(target_base[0], target_base[1], color='red', marker='X', s=200, zorder=8)
-        # ax_anim.scatter(0.0, 0.0, color='blue', s=150, zorder=8)
+        # Draw the fixed environment only once
+        for poli in poligoni:
+            ax_anim.add_patch(patches.Polygon(poli, closed=True, facecolor='gray', edgecolor='black', alpha=0.5))
+        ax_anim.scatter(target_base[0], target_base[1], color='red', marker='X', s=200, zorder=8)
+        ax_anim.scatter(0.0, 0.0, color='blue', s=150, zorder=8)
         
-        # # Crea gli "attori" vuoti che muoveremo nel ciclo
-        # linea_traj, = ax_anim.plot([], [], color='black', linewidth=2, zorder=6)
-        # linea_pred, = ax_anim.plot([], [], color='orange', linewidth=2, zorder=5)
-        # punto_drone = ax_anim.scatter([], [], color='green', s=150, zorder=7)
-        # box_corrente = patches.Rectangle((0, 0), 0, 0, edgecolor='lime', facecolor='lime', linewidth=3, alpha=0.3, zorder=4)
-        # ax_anim.add_patch(box_corrente)
+        linea_traj, = ax_anim.plot([], [], color='black', linewidth=2, zorder=6)
+        linea_pred, = ax_anim.plot([], [], color='orange', linewidth=2, zorder=5)
+        punto_drone = ax_anim.scatter([], [], color='green', s=150, zorder=7)
+        box_corrente = patches.Rectangle((0, 0), 0, 0, edgecolor='lime', facecolor='lime', linewidth=3, alpha=0.3, zorder=4)
+        ax_anim.add_patch(box_corrente)
         
-        # ax_anim.set_xlim(-2, 25)
-        # ax_anim.set_ylim(-6, 6)
-        # ax_anim.grid(True, linestyle='--', alpha=0.5)
-        # # ==========================================
+        ax_anim.set_xlim(-2, 25)
+        ax_anim.set_ylim(-6, 6)
+        ax_anim.grid(True, linestyle='--', alpha=0.5)
 
-        # --- NUOVO DEBUG: Lista delle iterazioni in cui si perde feasibility ---
+        # AGGIUNGI QUESTA LISTA QUI: conterrà i fotogrammi del video
+        frames_animazione = []
+        # ==========================================
+
         iterazioni_violazione_box = []
 
 
@@ -263,7 +276,9 @@ def main_statistico():
             dz = target_rel_z
 
 
-            # CHOOSE BETWEEN CASE 5 AND CASE 6 FOR DIRECTION CALCULATION
+            # CHOOSE BETWEEN DIFFERENT TARGETS FOR DIRECTION CALCULATION
+            # !!! If you comment both you will use the final target (Case 1)!!!
+            # !!! The selection is ininfluent for Cases (2,3,4), have W=0 !!!
 
             # # --- Direction calculation: use current velocity (Case 5) ---
             # # If velocity is relevant, follow velocity; if stopped, aim at the target.
@@ -276,18 +291,148 @@ def main_statistico():
                 dx = x_sol_prev[5][0] - current_x[0]
                 dz = x_sol_prev[5][1] - current_x[1]
                 
-                # If vectors are too small (e.g. perfect hovering), direct movement toward the target
-                if abs(dx) < 0.05 and abs(dz) < 0.05:
-                    dx, dz = target_rel_x, target_rel_z
+
+                # # If vectors are too small (e.g. perfect hovering), direct movement toward the target
+                # if abs(dx) < 0.05 and abs(dz) < 0.05:#0.01
+                #     dx, dz = target_rel_x, target_rel_z
+
             else:
                 # Al primissimo passo (t=0)
                 dx = target_rel_x
                 dz = target_rel_z
 
-            xMin_r, xMax_r, zMin_r, zMax_r, _ = min_cube_select_base(
-                Q_rel, radii, dx, dz, drone_radius=0.1
+
+        
+
+            # # WARM START SAFE BOX
+            # if box_abs_prev is not None:
+            #     box_prev_rel = [
+            #         box_abs_prev[0] - current_x[0],
+            #         box_abs_prev[1] - current_x[0],
+            #         box_abs_prev[2] - current_x[1],
+            #         box_abs_prev[3] - current_x[1]
+            #     ]
+            # else:
+            #     box_prev_rel = None
+
+            # ==========================================
+            # WARM START SAFE BOX (MODIFICATO)
+            # ==========================================
+            if x_sol_prev is not None:
+                # 1. Calcola il bounding box (min e max) dell'INTERA traiettoria predetta al passo precedente
+                traj_xmin = np.min(x_sol_prev[:, 0])
+                traj_xmax = np.max(x_sol_prev[:, 0])
+                traj_zmin = np.min(x_sol_prev[:, 1])
+                traj_zmax = np.max(x_sol_prev[:, 1])
+                
+                # 2. Converti questo Bounding Box in coordinate RELATIVE rispetto al drone attuale (current_x)
+                box_prev_rel = [
+                    traj_xmin - current_x[0]-0.15,
+                    traj_xmax - current_x[0]+0.15,
+                    traj_zmin - current_x[1]-0.15,
+                    traj_zmax - current_x[1]+0.15
+                ]
+            else:
+                box_prev_rel = None
+            # ==========================================
+
+
+
+            # CHOOSE BETWEEN WARM START METHOD (EXPANSION), DIRECTIONAL (EXPANSION) case 2-3-4 OR CLASSICAL METHOD case 1-5-6
+            # warm start
+            xMin_r, xMax_r, zMin_r, zMax_r, _ = min_cube_warm_start(
+                Q_rel, radii, dx, dz, target_rel_x, target_rel_z, drone_radius=0.1, box_prev=box_prev_rel, 
+                expand_mode='directional',  # 'general', 'directional or 'score'
+                W=50, rel=0.1
             )
 
+            # # directional
+            # xMin_r, xMax_r, zMin_r, zMax_r, _ = min_cube_select_directional(
+            #      Q_rel, radii, dx, dz, drone_radius=0.1,
+            # expand_mode='score',   # 'general', 'directional' or 'score'
+            # W=50, rel=0.1)
+
+
+#             ####################################################################################################################################################################################################################################################################################################################################
+# # provare con 0.01-0.05 nei due parametri anche espansione score e direzionale del mode diractional poi vedere se case 6 e ws restano buoni, W=50
+# # con 0.01 in entrambi, il case 3 (general) da 6 succ 7 fall, il case 3 (score) da 6 succ 6 fall 1 time, il case 4 (directional) da 4 succ 6 time 3 fall???
+
+# # togliendo check vett piccoli e usando 0.1 nel lidar con W=50, il case 3 (general) da 6 succ 7 fall, il case 3 (score) da 6 succ 1 time 6 fall, il case 4 (directional) da 3 succ 7 time e 3 fall 
+# # case 6 da 11 succ e 2 time, case ws score da 3 succ 10 time, case ws con directional da 2 succ 11 time
+# 
+# con W=0: score da 6 succ e 7 fall, general da 5 succ 8 fall
+# con W=100: score da 7 succ 1 time 5 fall, general da 6 succ e 7 fall *******
+# con W200: score da 6 succ 1 time 6 fall
+
+##########################
+# CASO MIGLIORE SAREBBE SCORE CON REL=0.1, NO ELSIF, W=100 CON 7SUCC 1TIME 5FALL, IN QUESTA MODALITà HO RISULTATI GENERAL 6SUCC 7FALL MA NON DIRECTIONAL (DA AGGIUNGERE EVENTUALMENTE); SE MANTENGO W=50 CASE GENERAL è UGUALE E SCORE DA 6SUCC 1TIME E 6FALL, DIRECTIONAL DA 3SUCC 7TIME 3FALL
+##########################
+# 
+# resto con W=50 , rel=0.1 e senza elsif, provo best case con orizzonti diversi e raggio lidar = 1.5
+#
+# su 13 targets:
+# con lidar 1.5
+# case 6 NN con N=10: 4  succ 6 time 3 fall
+# case 6 NN con N=15: 5  succ 2 time 6 fall
+# case 6 NN con N=20: 11 succ 2 time 0 fall (anche con rel=0.01)
+# case 6 NN con N=25: 10 succ 3 time 0 fall
+# case 6 NN con N=30: 7  succ 6 time 0 fall (DA FINIRE, mancano 4 video)
+
+# con lidar 2.0
+# case 6 NN con N=10: 4  succ 5 time 4 fall
+# case 6 NN con N=20: 11 succ 2 time 0 fall
+# case 6 NN con N=30: 6  succ 5 time 2 fall
+
+# con lidar 3.0
+# case 6 NN con N=10: 4 succ 7 time 2 fall
+# case 6 NN con N=15: 4 succ 1 time 8 fall
+# case 6 NN con N=20: 5 succ 3 time 5 fall*** (5,1,7 con vett piccoli)
+# case 6 NN con N=25: 3 succ 4 time 6 fall
+# case 6 NN con N=30: 3 succ 9 time 1 fall
+
+# con lidar 4.5
+# case 6 NN con N=10: 3 succ 7 time 3 fall, 3,4,2 to add + 0,3,1???, 2,6,4 prima
+# case 6 NN con N=15: 3 succ 9 time 1 fall
+# case 6 NN con N=20: 6 succ 4 time 3 fall
+# case 6 NN con N=25: 6 succ 1 time 6 fall
+# case 6 NN con N=30: 6 succ 4 time 3 fall
+
+# **** ---> BEST CASE: N=20 LD=1.5
+# NAIVE: case 6 naive con N=20 e lidar 1.5: 3 succ 10 fall 0 tim
+# NN 100 test: case 6 NN con N=20 e lidar 1.5: DA FARE ***
+
+##############################################################################################################################################################################################
+# ws modificato (DA PROVARE)  (aggiunta tolleranza E AGGIUNTA LOGICA PER ESPENSIONE X Z!!!)
+
+
+# espansione directional DA RIFARE PER LOGICA X Z (non sembra cambi niente con raggio lidar 1.5 per ora ho provato con N10 e è uguale)
+#LD 1.5
+#N10: 12 succ 1 time 0 fall RIFATTO, new da 12,1,0
+#N15:                              , new da 8,0,0
+#N20: 9  succ 4 time 0 fall RIFATTO, new da 11,2,0
+#N30: 8  succ 5 time 0 fall RIFATTO, new da 7,6,0
+
+#LD 3.0
+#N10: 11 succ 1 time 1 fall  RIFATTO, new da 13,0,0
+#N20: 9 succ 0 time 4 fall  RIFATTO, new da 11,2,0
+#N30: 9 succ 4 time 0 fall RIFATTO, new da 8,4,1 (7 fallisce ma è colpa dell'angolo, facciamo finta di niente! ---> 9,4,0)
+# SOSTITUIRE VIDEO DEL 7
+# HO PROVATO A AUMENTARE E ABBASSARE RISOLUZIONE PER EVITARE GLITCH, NON CAMBIA UN CAZZO!
+
+#LD 4.5
+#N10: 7 succ 4 time 2 fall rifatto, new da 10, 3, 0
+#N15: 1 succ 0 time 12 fall rifatto ????
+#N20: 5 succ 0 time 8 fall rifatto, new da 10,2,1 
+#N25: 
+#N30: 7 succ 4 time 2 fall RIFATTO, new da 7,4,2
+
+#*****************************************
+
+# ######################################################################################################################################
+
+            # # classical
+            # xMin_r, xMax_r, zMin_r, zMax_r, _ = min_cube_select_base(
+            #      Q_rel, radii, dx, dz, drone_radius=0.1, W=50, rel=0.1)
             
             
             box_abs = np.array([
@@ -297,19 +442,28 @@ def main_statistico():
             box_history.append(box_abs.copy())
             
 
+
             # ==========================================
-            # CHECK RECURSIVE FEASIBILITY (Prof's Request)
-            # Controlla se la traiettoria al passo K (x_sol_prev) 
-            # è dentro al box appena generato al passo K+1 (box_abs)
+            # FORZATURA DEL BOX (Test)
+            # Allarga artificialmente il safe-box per inglobare la traiettoria K
+            # ==========================================
+            # if x_sol_prev is not None:
+            #     box_abs = force_trajectory_in_box(box_abs, x_sol_prev)
+            # ==========================================
+
+
+
+            # ==========================================
+            # CHECK RECURSIVE FEASIBILITY
+            # Check if the trajectory at step K (x_sol_prev) is inside the box just generated at step K+1 (box_abs)
             # ==========================================
             if x_sol_prev is not None:
                 is_outside = False
                 for p in x_sol_prev:
-                    # Se anche solo un punto della vecchia traiettoria è fuori dal nuovo box
                     if (p[0] < box_abs[0]-1e-3 or p[0] > box_abs[1]+1e-3 or 
                         p[1] < box_abs[2]-1e-3 or p[1] > box_abs[3]+1e-3):
                         is_outside = True
-                        break # Inutile controllare gli altri, la feasibility è già persa
+                        break
                 
                 if is_outside:
                     iterazioni_violazione_box.append(t)
@@ -318,6 +472,7 @@ def main_statistico():
 
             # 2. MPC Solve
             x_sol, u_sol, alpha_curr, status = controller.solve_step(current_x, x_ref_attuale, box_abs)
+
 
             # ==========================================
             # DIAGNOSTIC BLOCK (MPC DEBUGGER)
@@ -409,15 +564,13 @@ def main_statistico():
                     esito = "Crashes"
                     in_recovery = False
 
-                    # --- INIZIO CHECK AUTOPSIA CRASH ---
+                    # --- CHECK POINTS OF PRED_TRAJ OUTSIDE ON THE SAFE BOX ---
                     if x_sol_prev is not None:
                         punti_fuori = sum(1 for p in x_sol_prev if (p[0] < box_abs[0]-1e-3 or p[0] > box_abs[1]+1e-3 or p[1] < box_abs[2]-1e-3 or p[1] > box_abs[3]+1e-3))
                         print(f"💀 AUTOPSIA CRASH (Step {t}): {punti_fuori}/{len(x_sol_prev)} punti della traiettoria precedente erano finiti FUORI dal box fatale!")
 
                         if punti_fuori > 0:
                                 crashes_per_feasibility += 1
-                    # --- FINE CHECK ---
-
                     break
 
             if u_sol is not None:
@@ -427,49 +580,56 @@ def main_statistico():
             x_history.append(current_x.copy())
 
             x_sol_prev = x_sol.copy()
+            box_abs_prev = box_abs.copy()
 
 
-            # # ==========================================
-            # # AGGIORNAMENTO FRAME VIDEO (Dentro il for t)
-            # # ==========================================
-            # # Aggiorna la linea della traiettoria
-            # traj_attuale = np.array(x_history)
-            # linea_traj.set_data(traj_attuale[:, 0], traj_attuale[:, 1])
+            # ==========================================
+            # VIDEO FRAME UPDATE
+            # ==========================================
+            # Aggiorna la linea della traiettoria
+            traj_attuale = np.array(x_history)
+            linea_traj.set_data(traj_attuale[:, 0], traj_attuale[:, 1])
 
-            # if x_sol is not None:
-            #     traj_pred_array = np.array(x_sol)
-            #     linea_pred.set_data(traj_pred_array[:, 0], traj_pred_array[:, 1])
+            if x_sol is not None:
+                traj_pred_array = np.array(x_sol)
+                linea_pred.set_data(traj_pred_array[:, 0], traj_pred_array[:, 1])
             
-            # # Aggiorna la posizione del drone
-            # punto_drone.set_offsets([[current_x[0], current_x[1]]])
+            # Update the drone's position
+            punto_drone.set_offsets([[current_x[0], current_x[1]]])
             
-            # # Aggiorna le coordinate e dimensioni del safe-box verde
-            # box_w = box_abs[1] - box_abs[0]
-            # box_h = box_abs[3] - box_abs[2]
-            # box_corrente.set_xy((box_abs[0], box_abs[2]))
-            # box_corrente.set_width(box_w)
-            # box_corrente.set_height(box_h)
+            # Update the coordinates and dimensions of the green safe-box
+            box_w = box_abs[1] - box_abs[0]
+            box_h = box_abs[3] - box_abs[2]
+            box_corrente.set_xy((box_abs[0], box_abs[2]))
+            box_corrente.set_width(box_w)
+            box_corrente.set_height(box_h)
             
-            # # Cambia il colore in rosso se il solver va in Status 4 (Crash/Infeasibility)
-            # if status in [3, 4]:
-            #     box_corrente.set_edgecolor('red')
-            #     box_corrente.set_facecolor('red')
-            # else:
-            #     box_corrente.set_edgecolor('lime')
-            #     box_corrente.set_facecolor('lime')
+            # Change the color to red if the solver goes into Status 4 (Crash/Infeasibility)
+            if status in [3, 4]:
+                box_corrente.set_edgecolor('red')
+                box_corrente.set_facecolor('red')
+            else:
+                box_corrente.set_edgecolor('lime')
+                box_corrente.set_facecolor('lime')
             
-            # ax_anim.set_title(f"Target {test_idx+1} | Step: {t} | Status MPC: {status}")
+            ax_anim.set_title(f"Target {test_idx +9} | Step: {t} | Status MPC: {status}")
             
-            # # Disegna il frame sullo schermo
-            # fig_anim.canvas.draw()
-            # fig_anim.canvas.flush_events()
+            # Draw the frame on the screen
+            fig_anim.canvas.draw()
+            fig_anim.canvas.flush_events()
             
-            # # EFFETTO RALLENTATORE: 
-            # # 0.1 è veloce. Metti 0.5 per vederlo a rallentatore.
-            # plt.pause(0.1) 
-            # # ==========================================
+            plt.pause(0.1) 
+
+            # AGGIUNGI QUESTE RIGHE QUI PER CATTURARE IL FRAME:
+            # Converte il disegno corrente a schermo in un'immagine da salvare nel video
+            image = np.frombuffer(fig_anim.canvas.tostring_rgb(), dtype='uint8')
+            image = image.reshape(fig_anim.canvas.get_width_height()[::-1] + (3,))
+            frames_animazione.append(image)
+            # ==========================================
+            # ==========================================
 
 
+            # TWO WAYS TO MANAGE THE STALL WITH ARRIVAL AT THE RAISED OR THE ORIGINAL TARGET
 
             # # ==========================================
             # # STALL HANDLING
@@ -489,10 +649,10 @@ def main_statistico():
             #         x_ref_attuale = current_target.copy()
             #         contatore_stallo = 0 
             
+
             # ==========================================
             # STALL HANDLING AND RETURN TO BASE TARGET
             # ==========================================
-            
             # 1. ABSOLUTE SUCCESS CHECK (end test with Success)
             dist_target_reale = np.linalg.norm(current_x[:2] - target_base[:2])
             if dist_target_reale < 0.3:
@@ -510,7 +670,8 @@ def main_statistico():
                 if contatore_stallo >= MAX_STALLO_ITER:
                     print(f"\n⚠️ STALL DETECTED (Step {t})! Perturb the target upward.")
                     
-                    current_target[1] += 0.20
+                    Z_MAX_SICURA = roof - 0.2  # Margine di sicurezza sotto il soffitto
+                    current_target[1] = min(current_target[1] + 0.20, Z_MAX_SICURA)
                     x_ref_attuale = current_target.copy()
                     contatore_stallo = 0
 
@@ -541,7 +702,7 @@ def main_statistico():
 
 
         # ==========================================
-        # REPORT FINALE DEL SINGOLO TARGET
+        # FINAL REPORT OF THE SINGLE TARGET
         # ==========================================
         print(f"\n[{'='*40}]")
         print(f"🎯 REPORT TARGET {test_idx+1}/{N_TESTS}")
@@ -552,7 +713,7 @@ def main_statistico():
             print(f"⚠️ PROBLEMA: La traiettoria k è uscita dal box k+1 per {len(iterazioni_violazione_box)} volte.")
             print(f"Iterazioni esatte in cui è successo: {iterazioni_violazione_box}")
             
-            # Analisi della correlazione:
+            # Correlation Analysis:
             if esito == "Crashes":
                 if iterazioni_violazione_box[-1] >= t - 5:
                     print("--> 🔴 FORTE CORRELAZIONE: L'ultima uscita dal box è avvenuta a ridosso dello schianto!")
@@ -563,7 +724,7 @@ def main_statistico():
         print(f"[{'='*40}]\n")
 
 
-        # --- SALVATAGGIO NEL REGISTRO GLOBALE ---
+        # --- Rescue in global register ---
         tipo_correlazione = "Nessuna"
         if len(iterazioni_violazione_box) > 0:
             if esito == "Crashes":
@@ -583,13 +744,55 @@ def main_statistico():
         })
         # ----------------------------------------
 
-        # # ==========================================
-        # # FINE VIDEO (Fuori dal for t)
-        # # ==========================================
-        # plt.ioff() # Disattiva il tempo reale
-        # # Lasciamo la finestra aperta per farti analizzare l'ultimo frame fatale/vincente
-        # plt.show() 
-        # # ==========================================
+
+
+
+
+        # ==========================================
+        # END OF VIDEO
+        # ==========================================
+        # ==========================================
+        # ESPORTAZIONE E SALVATAGGIO DEL VIDEO
+        # ==========================================
+        plt.ioff()
+        plt.close(fig_anim) # Chiude la finestra video real-time per liberare memoria
+
+        if len(frames_animazione) > 0:
+            cartella_video = "video_traiettorie"
+            os.makedirs(cartella_video, exist_ok=True)
+            
+            print(f"Generazione del video per il Target {test_idx+1} in corso...")
+            fig_movie = plt.figure(figsize=(12, 7))
+            ax_movie = fig_movie.add_subplot(111)
+            ax_movie.axis('off')
+            
+            # Mostra il primo frame
+            im = ax_movie.imshow(frames_animazione[0])
+            
+            def update_frame(i):
+                im.set_data(frames_animazione[i])
+                return [im]
+            
+            # Crea l'animazione dalle immagini salvate
+            ani = animation.FuncAnimation(fig_movie, update_frame, frames=len(frames_animazione), blit=True)
+            
+            # Configura il nome del file video
+            nome_video = os.path.join(cartella_video, f"Video_Target_N15_{test_idx+9:02d}_{esito}.mp4")
+            
+            # Salva come MP4 (richiede ffmpeg installato sul PC)
+            # Se ffmpeg dà problemi, puoi cambiare l'estensione in '.gif' e usare il writer 'pillow'
+            try:
+                ani.save(nome_video, writer='ffmpeg', fps=10)
+                print(f"🎬 Video salvato con successo: {nome_video}")
+            except Exception as e:
+                print("Nota: 'ffmpeg' non trovato, provo a salvare in formato .gif...")
+                nome_video_gif = nome_video.replace(".mp4", ".gif")
+                ani.save(nome_video_gif, writer='pillow', fps=10)
+                print(f"🎬 Video (GIF) salvato con successo: {nome_video_gif}")
+                
+            plt.close(fig_movie)
+        # ==========================================
+        # ==========================================
 
     # ==========================================
     # STATISTICAL PLOT
@@ -650,52 +853,6 @@ def main_statistico():
 
 
 
-# risultati case 4:
-#--- RISULTATI FINALI ---
-# Successes: 3 | Timeout: 0 | Crashes: 10
-
-# ======================================================================
-# 📊 RESOCONTO GLOBALE RECURSIVE FEASIBILITY (Traiettoria k in Box k+1)
-# ======================================================================
-# Target 01 | Esito: Successes | Step Stop: 101  | Uscite dal box: 0   | Correlazione: Nessuna
-# Target 02 | Esito: Successes | Step Stop: 135  | Uscite dal box: 0   | Correlazione: Nessuna
-# Target 03 | Esito: Crashes   | Step Stop: 760  | Uscite dal box: 4   | Correlazione: FORTE (a ridosso dello schianto)
-# Target 04 | Esito: Successes | Step Stop: 784  | Uscite dal box: 30  | Correlazione: ININFLUENTE (Test finito in Successes)
-# Target 05 | Esito: Crashes   | Step Stop: 605  | Uscite dal box: 5   | Correlazione: FORTE (a ridosso dello schianto)
-# Target 06 | Esito: Crashes   | Step Stop: 221  | Uscite dal box: 7   | Correlazione: FORTE (a ridosso dello schianto)
-# Target 07 | Esito: Crashes   | Step Stop: 333  | Uscite dal box: 16  | Correlazione: FORTE (a ridosso dello schianto)
-# Target 08 | Esito: Crashes   | Step Stop: 611  | Uscite dal box: 15  | Correlazione: FORTE (a ridosso dello schianto)
-# Target 09 | Esito: Crashes   | Step Stop: 1695 | Uscite dal box: 39  | Correlazione: FORTE (a ridosso dello schianto)
-# Target 10 | Esito: Crashes   | Step Stop: 111  | Uscite dal box: 1   | Correlazione: FORTE (a ridosso dello schianto)
-# Target 11 | Esito: Crashes   | Step Stop: 681  | Uscite dal box: 10  | Correlazione: FORTE (a ridosso dello schianto)
-# Target 12 | Esito: Crashes   | Step Stop: 549  | Uscite dal box: 51  | Correlazione: FORTE (a ridosso dello schianto)
-# Target 13 | Esito: Crashes   | Step Stop: 746  | Uscite dal box: 14  | Correlazione: FORTE (a ridosso dello schianto)
-# ======================================================================
-
-
-#
-## risultati case 6:
-# --- RISULTATI FINALI ---
-# Successes: 11 | Timeout: 2 | Crashes: 0
-
-# ======================================================================
-# 📊 RESOCONTO GLOBALE RECURSIVE FEASIBILITY (Traiettoria k in Box k+1)
-# ======================================================================
-# Target 01 | Esito: Successes | Step Stop: 101  | Uscite dal box: 0   | Correlazione: Nessuna
-# Target 02 | Esito: Successes | Step Stop: 130  | Uscite dal box: 0   | Correlazione: Nessuna
-# Target 03 | Esito: Successes | Step Stop: 650  | Uscite dal box: 1   | Correlazione: ININFLUENTE (Test finito in Successes)
-# Target 04 | Esito: Successes | Step Stop: 689  | Uscite dal box: 0   | Correlazione: Nessuna
-# Target 05 | Esito: Successes | Step Stop: 650  | Uscite dal box: 0   | Correlazione: Nessuna
-# Target 06 | Esito: Successes | Step Stop: 233  | Uscite dal box: 0   | Correlazione: Nessuna
-# Target 07 | Esito: Successes | Step Stop: 334  | Uscite dal box: 0   | Correlazione: Nessuna
-# Target 08 | Esito: Successes | Step Stop: 657  | Uscite dal box: 0   | Correlazione: Nessuna
-# Target 09 | Esito: Timeout   | Step Stop: 1999 | Uscite dal box: 9   | Correlazione: ININFLUENTE (Test finito in Timeout)
-# Target 10 | Esito: Timeout   | Step Stop: 1999 | Uscite dal box: 3   | Correlazione: ININFLUENTE (Test finito in Timeout)
-# Target 11 | Esito: Successes | Step Stop: 1133 | Uscite dal box: 0   | Correlazione: Nessuna
-# Target 12 | Esito: Successes | Step Stop: 702  | Uscite dal box: 2   | Correlazione: ININFLUENTE (Test finito in Successes)
-# Target 13 | Esito: Successes | Step Stop: 1005 | Uscite dal box: 1   | Correlazione: ININFLUENTE (Test finito in Successes)
-# ======================================================================
-
 
 # ==========================================
 # FINAL STATISTICAL PLOT (REACHABILITY MAP)
@@ -703,7 +860,7 @@ def main_statistico():
     print(f"\n--- RISULTATI FINALI ---")
     print(f"Successes: {risultati['Successes']} | Timeout: {risultati['Timeout']} | Crashes: {risultati['Crashes']}")
     
-    # --- STAMPA DEL TABELLONE GLOBALE FEASIBILITY ---
+    # --- GLOBAL FEASIBILITY SCOREBOARD PRINT ---
     print("\n" + "="*70)
     print("📊 RESOCONTO GLOBALE RECURSIVE FEASIBILITY (Traiettoria k in Box k+1)")
     print("="*70)
@@ -733,27 +890,29 @@ def main_statistico():
     for poli in poligoni:
         ax2.add_patch(patches.Polygon(poli, closed=True, facecolor='gray', edgecolor='black', alpha=0.5))
 
-    # for bh in all_box:
-    #     if len(bh) > 0:
-    #         # 1. Disegna i box intermedi normali (uno ogni 10 o 5, escludendo l'ultimo)
-    #         for box in bh[:-1:10]: 
-    #             box_w = box[1] - box[0]
-    #             box_h = box[3] - box[2]
-    #             ax2.add_patch(patches.Rectangle((box[0], box[2]), box_w, box_h, 
-    #                                             edgecolor='lime', facecolor='none', 
-    #                                             linewidth=0.8, alpha=0.3))
+    # box plots
+    for bh in all_box:
+        if len(bh) > 0:
+            # 1. Disegna i box intermedi normali (uno ogni 10 o 5, escludendo l'ultimo)
+            for box in bh[:-1:10]: 
+                box_w = box[1] - box[0]
+                box_h = box[3] - box[2]
+                ax2.add_patch(patches.Rectangle((box[0], box[2]), box_w, box_h, 
+                                                edgecolor='lime', facecolor='none', 
+                                                linewidth=0.8, alpha=0.3))
             
-    #         # 2. Disegna L'ULTIMISSIMO BOX in modo speciale (es. Magenta)
-    #         ultimo_box = bh[-1]
-    #         box_w = ultimo_box[1] - ultimo_box[0]
-    #         box_h = ultimo_box[3] - ultimo_box[2]
-    #         ax2.add_patch(patches.Rectangle((ultimo_box[0], ultimo_box[2]), box_w, box_h, 
-    #                                         edgecolor='magenta', facecolor='magenta', 
-    #                                         linewidth=2.5, alpha=0.4, zorder=4))
+            # 2. Disegna L'ULTIMISSIMO BOX in modo speciale (es. Magenta)
+            ultimo_box = bh[-1]
+            box_w = ultimo_box[1] - ultimo_box[0]
+            box_h = ultimo_box[3] - ultimo_box[2]
+            ax2.add_patch(patches.Rectangle((ultimo_box[0], ultimo_box[2]), box_w, box_h, 
+                                            edgecolor='magenta', facecolor='magenta', 
+                                            linewidth=2.5, alpha=0.4, zorder=4))
 
     for i, traj in enumerate(traiettorie_riuscita):
         ax2.plot(traj[:, 0], traj[:, 1], color='cyan', linewidth=1.5, alpha=0.7)
 
+    #trajectories plots
     # for traj, esito_traj in tutte_le_traiettorie:
     #     if esito_traj == "Successes":
     #         colore = 'cyan'
