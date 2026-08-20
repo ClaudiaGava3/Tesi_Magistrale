@@ -5,8 +5,8 @@ import casadi as cs
 import l4casadi as l4c
 from acados_template import AcadosOcpSolver
 
-from mpc_abstract_obs import AbstractController
-from learning import NeuralNetwork
+from src.MPC.mapping.mpc_abstract_obs import AbstractController
+from src.MPC.mapping.learning import NeuralNetwork
 
 
 class MpcController(AbstractController):
@@ -76,8 +76,8 @@ class MpcController(AbstractController):
         self.ocp.constraints.uh = np.array([1e5, 1e5, 1e5, 1e5])
 
 
-        # --- TERMINAL CONSTRAINT (4 ASYMMETRIC SIDES) ---
-        # All 4 distances to the walls minus the predicted alpha must be >= 0
+        # # --- TERMINAL CONSTRAINT (4 ASYMMETRIC SIDES) ---
+        # # All 4 distances to the walls minus the predicted alpha must be >= 0
         h_expr_terminal = cs.vertcat(
             x_drone - x_min_box - alpha_pred,  # Left wall
             x_max_box - x_drone - alpha_pred,  # Right wall
@@ -188,7 +188,7 @@ class MpcController(AbstractController):
         dist_z_max = box_abs[3] - x_terminal[1]
         min_dist_to_wall = min(dist_x_min, dist_x_max, dist_z_min, dist_z_max)
         
-        print(f" --> (Status {status}, alpha_pred {alpha_pred_val:.2f}, min_dist_muro {min_dist_to_wall:.2f})")
+        # print(f" --> (Status {status}, alpha_pred {alpha_pred_val:.2f}, min_dist_muro {min_dist_to_wall:.2f})")
         # ------------------------------------------
         
         if status in [0, 2]: # Success or acceptable suboptimal

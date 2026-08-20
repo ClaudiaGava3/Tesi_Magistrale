@@ -171,13 +171,13 @@ def get_lidar_hits_3d_qualsiasi(drone_pos, facce_ostacoli, num_rays=2000, max_ra
 # =============================================================================
 # 2. ALGORITMO DI MAX (Adattato al 3D)
 # =============================================================================
-def min_cube_select_3d(Q, R, target_rel_x, target_rel_y, target_rel_z, drone_radius=0.1, W=0, rel=0.1):
+def min_cube_select_3d(Q, R, target_rel_x, target_rel_y, target_rel_z, drone_radius=0.1, W=0, rel=0.1, lidar_ray=3.0):
     """
     Q: array Nx3 dei punti di intersezione
     R: array N dei raggi delle sfere
     """
 
-    LIMIT = 1.0
+    LIMIT = lidar_ray/np.sqrt(2)  
 
     if len(Q) == 0:
         return -LIMIT, LIMIT, -LIMIT, LIMIT, -LIMIT, LIMIT, 1
@@ -195,17 +195,17 @@ def min_cube_select_3d(Q, R, target_rel_x, target_rel_y, target_rel_z, drone_rad
         if not np.any(intersecting):
             break
 
-        box, moved = _push_faces_3d(box, Q[intersecting], R[intersecting], drone_radius, target_rel_x, target_rel_y, target_rel_z, W, rel)
+        box, moved = _push_faces_3d(box, Q[intersecting], R[intersecting], drone_radius, target_rel_x, target_rel_y, target_rel_z, W, rel, lidar_ray)
         if not moved:
             break
 
     exitflag = 1 if not np.any(_spheres_intersect_box_3d(Q, R, box)) else 0
     return box[0], box[1], box[2], box[3], box[4], box[5], exitflag
 
-def min_cube_warm_start_3d(Q, R, target_rel_x, target_rel_y, target_rel_z, targetx, targety, targetz, drone_radius=0.1, box_prev=None, expand_mode='general', W=0, rel=0.1):
+def min_cube_warm_start_3d(Q, R, target_rel_x, target_rel_y, target_rel_z, targetx, targety, targetz, drone_radius=0.1, box_prev=None, expand_mode='general', W=0, rel=0.1, lidar_ray=3.0):
     
-    LIMIT = 2.12
-    
+    LIMIT = lidar_ray/np.sqrt(2) 
+
     if box_prev is None:
         box = np.array([-LIMIT, LIMIT, -LIMIT, LIMIT, -LIMIT, LIMIT], dtype=float)
     else:
@@ -226,7 +226,7 @@ def min_cube_warm_start_3d(Q, R, target_rel_x, target_rel_y, target_rel_z, targe
         intersecting = _spheres_intersect_box_3d(Q, R, box)
         if not np.any(intersecting):
             break
-        box, moved = _push_faces_3d(box, Q[intersecting], R[intersecting], drone_radius, target_rel_x, target_rel_y, target_rel_z, W, rel)
+        box, moved = _push_faces_3d(box, Q[intersecting], R[intersecting], drone_radius, target_rel_x, target_rel_y, target_rel_z, W, rel, lidar_ray)
         if not moved:
             break
 
@@ -236,7 +236,7 @@ def min_cube_warm_start_3d(Q, R, target_rel_x, target_rel_y, target_rel_z, targe
 
     intersecting = _spheres_intersect_box_3d(Q, R, box)
     if np.any(intersecting):
-        box, _ = _push_faces_3d(box, Q[intersecting], R[intersecting], drone_radius, target_rel_x, target_rel_y, target_rel_z, W, rel)
+        box, _ = _push_faces_3d(box, Q[intersecting], R[intersecting], drone_radius, target_rel_x, target_rel_y, target_rel_z, W, rel, lidar_ray)
 
     exitflag = 1 if not np.any(_spheres_intersect_box_3d(Q, R, box)) else 0
     return box[0], box[1], box[2], box[3], box[4], box[5], exitflag
@@ -248,10 +248,10 @@ def _spheres_intersect_box_3d(Q, R, box, tol=1e-6):
     dist2 = (Q[:, 0] - cx)**2 + (Q[:, 1] - cy)**2 + (Q[:, 2] - cz)**2
     return dist2 < (R**2 - tol)
 
-def _push_faces_3d(box, Qi, Ri, drone_radius, target_rel_x, target_rel_y, target_rel_z, W=0, rel=0.1):
+def _push_faces_3d(box, Qi, Ri, drone_radius, target_rel_x, target_rel_y, target_rel_z, W=0, rel=0.1, lidar_ray=3.0):
     moved = False
 
-    LIMIT = 2.12
+    LIMIT = lidar_ray/np.sqrt(2)
 
     for i in range(len(Qi)):
         cx, cy, cz = Qi[i]

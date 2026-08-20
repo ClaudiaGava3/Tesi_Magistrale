@@ -526,6 +526,10 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
     idxbx0[3] = 3;
     idxbx0[4] = 4;
     idxbx0[5] = 5;
+    idxbx0[6] = 6;
+    idxbx0[7] = 7;
+    idxbx0[8] = 8;
+    idxbx0[9] = 9;
 
     double* lubx0 = calloc(2*NBX0, sizeof(double));
     double* lbx0 = lubx0;
@@ -598,13 +602,13 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
     ubx[2] = 100;
     lbx[3] = -100;
     ubx[3] = 100;
-    lbx[4] = 0.1;
+    lbx[4] = 0.01;
     ubx[4] = 1;
-    lbx[5] = 0.1;
+    lbx[5] = 0.01;
     ubx[5] = 1;
-    lbx[6] = 0.1;
+    lbx[6] = 0.01;
     ubx[6] = 1;
-    lbx[7] = 0.1;
+    lbx[7] = 0.01;
     ubx[7] = 1;
     ubx[8] = 100000;
 
@@ -671,13 +675,13 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
     double* lubx_e = calloc(2*NBXN, sizeof(double));
     double* lbx_e = lubx_e;
     double* ubx_e = lubx_e + NBXN;
-    lbx_e[4] = 0.1;
+    lbx_e[4] = 0.01;
     ubx_e[4] = 1;
-    lbx_e[5] = 0.1;
+    lbx_e[5] = 0.01;
     ubx_e[5] = 1;
-    lbx_e[6] = 0.1;
+    lbx_e[6] = 0.01;
     ubx_e[6] = 1;
-    lbx_e[7] = 0.1;
+    lbx_e[7] = 0.01;
     ubx_e[7] = 1;
     ubx_e[8] = 100000;
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "idxbx", idxbx_e);

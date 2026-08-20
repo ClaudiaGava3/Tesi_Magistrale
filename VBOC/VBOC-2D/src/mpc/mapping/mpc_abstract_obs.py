@@ -283,8 +283,8 @@ class AbstractController:
         # Define the weights (Q_cost for state, R_cost for motors)
         # State order: [x, z, theta, vx, vz, wy]
         Q_cost = diag(vertcat(100.0, 100.0, 20.0, 1.0, 1.0, 1.0))
-        #100.0, 100.0, 20.0, 1.0, 1.0, 1.0
-        #0.0001, 0.0001, 20.0, 100.0, 1.0, 1.0
+        #costi target di posizione: #100.0, 100.0, 20.0, 1.0, 1.0, 1.0
+        # cost target di velocità: #0.0001, 0.0001, 20.0, 100.0, 1.0, 1.0
         R_cost = diag(vertcat(0.0001, 0.0001))
         
         # Calcoliamo l'errore tra dove siamo (x) e dove vogliamo andare (x_ref)

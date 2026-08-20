@@ -291,7 +291,7 @@ def min_cube_warm_start(Q, R, target_rel_x, target_rel_z, targetx, targetz, dron
     Initializes from the previous box, checks for obstacles, protects the drone, and expands.
     expand_mode can be: 'general' or 'directional' or 'score'
     """
-    LIMIT = 1.0
+    LIMIT = 2.12
     
     if box_prev is None:
         box = np.array([-LIMIT, LIMIT, -LIMIT, LIMIT], dtype=float)
@@ -391,7 +391,7 @@ def _push_faces_bonus(box, Qi, Ri, drone_radius, target_rel_x, target_rel_z, W=0
     xMin, xMax, zMin, zMax = box
     moved = False
 
-    LIMIT = 1.0
+    LIMIT = 2.12
 
     for i in range(len(Qi)):
         cx, cz = Qi[i]

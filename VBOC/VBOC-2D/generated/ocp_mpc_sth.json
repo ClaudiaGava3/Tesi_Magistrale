@@ -18,7 +18,7 @@
             "/home/claudia/.local/lib/python3.8/site-packages/numpy/core/include",
             "/usr/include/python3.8"
         ],
-        "json_file": "/home/claudia/TESI/VBOC-2D/src/mpc/mapping/../../../generated/ocp_mpc_sth.json",
+        "json_file": "/home/claudia/TESI/VBOC-2D/src/MPC/mapping/../../../generated/ocp_mpc_sth.json",
         "os": "unix",
         "shared_lib_ext": ".so"
     },
@@ -249,7 +249,7 @@
         "zu_e": []
     },
     "dims": {
-        "N": 25,
+        "N": 20,
         "n_global_data": 0,
         "nbu": 2,
         "nbx": 6,
@@ -314,7 +314,7 @@
         "sth_cost/sth_cost_ext_cost_e_fun_jac_hess.c",
         "sth_cost/sth_cost_ext_cost_e_fun_jac.c"
     ],
-    "hash": "e003427c5fa2ef242bcbb49814fe5653",
+    "hash": "d95513296e2ec8d0779e8d7972057218",
     "model": {
         "con_h_expr": "MX(@1=x[0], @2=x[1], vertcat((@1-box_limits[0]), (box_limits[1]-@1), (@2-box_limits[2]), (box_limits[3]-@2)))",
         "con_h_expr_0": [],
@@ -419,7 +419,7 @@
     "ros_opts": null,
     "simulink_opts": null,
     "solver_options": {
-        "N_horizon": 25,
+        "N_horizon": 20,
         "Tsim": 0.02,
         "adaptive_levenberg_marquardt_lam": 5.0,
         "adaptive_levenberg_marquardt_mu0": 0.001,
@@ -433,11 +433,6 @@
         "collocation_type": "GAUSS_LEGENDRE",
         "cost_discretization": "EULER",
         "cost_scaling": [
-            0.02,
-            0.02,
-            0.02,
-            0.02,
-            0.02,
             0.02,
             0.02,
             0.02,
@@ -517,7 +512,7 @@
         "nlp_solver_warm_start_first_qp_from_nlp": false,
         "print_level": 0,
         "qp_solver": "PARTIAL_CONDENSING_HPIPM",
-        "qp_solver_cond_N": 25,
+        "qp_solver_cond_N": 20,
         "qp_solver_cond_block_size": null,
         "qp_solver_cond_ric_alg": 1,
         "qp_solver_iter_max": 100,
@@ -563,19 +558,9 @@
             0.34,
             0.36000000000000004,
             0.38000000000000006,
-            0.4000000000000001,
-            0.4200000000000001,
-            0.4400000000000001,
-            0.46000000000000013,
-            0.48000000000000015,
-            0.5000000000000001
+            0.4000000000000001
         ],
         "sim_method_jac_reuse": [
-            0,
-            0,
-            0,
-            0,
-            0,
             0,
             0,
             0,
@@ -619,19 +604,9 @@
             4,
             4,
             4,
-            4,
-            4,
-            4,
-            4,
-            4,
             4
         ],
         "sim_method_num_steps": [
-            1,
-            1,
-            1,
-            1,
-            1,
             1,
             1,
             1,
@@ -656,13 +631,8 @@
         "solution_sens_qp_t_lam_min": 1e-09,
         "store_iterates": false,
         "tau_min": 0.0,
-        "tf": 0.5,
+        "tf": 0.4,
         "time_steps": [
-            0.02,
-            0.02,
-            0.02,
-            0.02,
-            0.02,
             0.02,
             0.02,
             0.02,

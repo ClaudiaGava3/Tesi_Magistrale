@@ -439,7 +439,7 @@ def main():
         target_rel_z = x_ref_attuale[2] - current_x[2]
 
         xMin_r, xMax_r, yMin_r, yMax_r, zMin_r, zMax_r, _ = min_cube_select_3d(
-            Q_rel, radii, target_rel_x, target_rel_y, target_rel_z, drone_radius=0.1
+            Q_rel, radii, target_rel_x, target_rel_y, target_rel_z, drone_radius=0.1, lidar_ray=1.5
         )
         box_abs = np.array([
             xMin_r + current_x[0], xMax_r + current_x[0], 

@@ -7,12 +7,17 @@ import meshcat
 import meshcat.geometry as g
 import meshcat.transformations as tf
 import time
+import matplotlib.animation as animation
 
 
 from test_lidar import get_lidar_hits_3d_qualsiasi, min_cube_warm_start_3d
 from parser import Parameters
 from mpc_abstract_obs import Model
 from mpc_controller_obs import MpcController
+
+
+
+
 
 
 def visualizza_su_meshcat(facce_ostacoli, target_pos):
@@ -46,7 +51,7 @@ def visualizza_su_meshcat(facce_ostacoli, target_pos):
     )
 
 
-    vis["drone"]["corpo"].set_transform(tf.scale_matrix(0.1))
+    vis["drone"]["corpo"].set_transform(tf.scale_matrix(0.05))
     # ellissoide_geom = g.Ellipsoid(radii=[0.15, 0.15, 0.08])
     # vis["drone"]["corpo"].set_object(ellissoide_geom, mat_drone)
 
@@ -61,101 +66,175 @@ def visualizza_su_meshcat(facce_ostacoli, target_pos):
     vis["target"]["barra2"].set_transform(tf.rotation_matrix(-np.pi/4, [1, -1, 0]))
 
     vis["target"].set_transform(tf.translation_matrix(target_pos[:3]))
-    
+
+    vis["/Cameras/default"].set_object(g.PerspectiveCamera(fov=60))
+
     time.sleep(1.0)
     return vis
 
-def aggiorna_drone_meshcat(vis, current_x):
-    """
-    Aggiorna la posizione e l'orientazione (rotazione sui 3 assi) del drone in tempo reale.
-    """
+def aggiorna_drone_meshcat(vis, current_x, box_abs=None):
     pos = current_x[0:3]
     roll, pitch, yaw = current_x[3], current_x[4], current_x[5]
     
-    # Crea la matrice di trasformazione 4x4 con rotazione e traslazione
+    # 1. Movimento fisico del drone
     rot_matrix = tf.euler_matrix(roll, pitch, yaw)
     transform = rot_matrix.copy()
     transform[0:3, 3] = pos
-    
     vis["drone"].set_transform(transform)
+    
+    # 2. TELECAMERA DI DEFAULT RIGIDA (Dietro e in alto)
+    # Calcolo offset fisso: posiziona la telecamera alle spalle del drone
+    offset = np.array([-3.0, -3.0, 0.4]) 
+    cam_pos = pos + offset
+    
+    # Calcolo della direzione (punta ESATTAENTE verso il drone)
+    fwd = -offset
+    fwd = fwd / np.linalg.norm(fwd)
+    up = np.array([0.0, 0.0, 1.0])
+    right = np.cross(fwd, up)
+    right = right / np.linalg.norm(right)
+    cam_up = np.cross(right, fwd)
+    
+    # Costruisce la matrice: Rotazione FISSA (non cambia mai), Traslazione DINAMICA
+    T_cam = np.eye(4)
+    T_cam[0:3, 0] = right
+    T_cam[0:3, 1] = cam_up
+    T_cam[0:3, 2] = -fwd
+    T_cam[0:3, 3] = cam_pos
+    
+    vis["/Cameras/default"].set_transform(T_cam)
+    
+    # 3. DISEGNA IL SAFE-BOX VERDE IN 3D
+    if box_abs is not None:
+        w = box_abs[1] - box_abs[0]
+        d = box_abs[3] - box_abs[2]
+        h = box_abs[5] - box_abs[4]
+        
+        cx = (box_abs[1] + box_abs[0]) / 2.0
+        cy = (box_abs[3] + box_abs[2]) / 2.0
+        cz = (box_abs[5] + box_abs[4]) / 2.0
+        
+        mat_box = g.MeshLambertMaterial(color=0x00FF00, opacity=0.15, transparent=True)
+        # vis["safe_box"].set_object(g.Box([w, d, h]), mat_box)
+        # vis["safe_box"].set_transform(tf.translation_matrix([cx, cy, cz]))
 
 
 def genera_ambiente_3d_test():
     facce_ostacoli = []
     
-    # 1. Stanza aperta: solo Pavimento (Z = 0) e Soffitto (Z = 5) [15x15 metri]
-    facce_ostacoli.append([[0, 0, 0], [15, 0, 0], [15, 15, 0], [0, 15, 0]]) # Pavimento
-    facce_ostacoli.append([[0, 0, 5], [15, 0, 5], [15, 15, 5], [0, 15, 5]]) # Soffitto
+    # Allarghiamo la stanza a 20x20x6 per far respirare il randomizzatore
+    ROOM_X, ROOM_Y, ROOF = 20.0, 20.0, 6.0
     
-    # Funzione geometricamente perfetta per creare un parallelepipedo solido SENZA BUCHI
-    def aggiungi_box_solido(xmin, xmax, ymin, ymax, zmin, zmax):
-        # I 8 vertici del cubo/parallelepipedo
-        p0 = [xmin, ymin, zmin]
-        p1 = [xmax, ymin, zmin]
-        p2 = [xmax, ymax, zmin]
-        p3 = [xmin, ymax, zmin]
-        
-        p4 = [xmin, ymin, zmax]
-        p5 = [xmax, ymin, zmax]
-        p6 = [xmax, ymax, zmax]
-        p7 = [xmin, ymax, zmax]
-        
-        # Le 6 faccie chiuse con orientamento coerente (antiorario/orario pulito)
-        f_bassa  = [p0, p3, p2, p1]
-        f_alta   = [p4, p5, p6, p7]
-        f_fronte = [p0, p1, p5, p4]
-        f_retro  = [p3, p7, p6, p2]
-        f_sx     = [p0, p4, p7, p3]
-        f_dx     = [p1, p2, p6, p5]
-        
-        facce_ostacoli.extend([f_bassa, f_alta, f_fronte, f_retro, f_sx, f_dx])
-
-    # --- OSTACOLO 1: Un box basso appoggiato a terra ---
-    aggiungi_box_solido(xmin=4.0, xmax=6.0, ymin=3.0, ymax=5.0, zmin=0.0, zmax=1.0)
-
-    # --- OSTACOLO 2: Un box completamente SOSPESO A MEZZ'ARIA (non a terra!) ---
-    aggiungi_box_solido(xmin=7.0, xmax=8.5, ymin=6.5, ymax=8.0, zmin=1.5, zmax=3.5)
-
-    # --- OSTACOLO 3: La piramide appoggiata a terra ---
-    bx_p, by_p = 4.5, 8.5
-    l_p = 1.8
-    v_base = [
-        [bx_p, by_p, 0.0], 
-        [bx_p + l_p, by_p, 0.0], 
-        [bx_p + l_p, by_p + l_p, 0.0], 
-        [bx_p, by_p + l_p, 0.0]
-    ]
-    apice = [bx_p + l_p/2.0, by_p + l_p/2.0, 2.2]
-    facce_ostacoli.append(v_base)
-    for i in range(4):
-        facce_ostacoli.append([v_base[i], v_base[(i+1)%4], apice])
-
-    # --- OSTACOLO 4: Un prisma esagonale SOLLEVATO da terra ---
-    cx, cy, r_hex = 11.0, 7.5, 1.2
-    z_min_h, z_max_h = 0.8, 2.8 # Anche questo fluttua/è staccato dal pavimento
-    base_h, top_h = [], []
-    for i in range(6):
-        ang = 2 * np.pi * i / 6
-        base_h.append([cx + r_hex * np.cos(ang), cy + r_hex * np.sin(ang), z_min_h])
-        top_h.append([cx + r_hex * np.cos(ang), cy + r_hex * np.sin(ang), z_max_h])
+    # 1. Pavimento e Soffitto
+    facce_ostacoli.append([[0, 0, 0], [ROOM_X, 0, 0], [ROOM_X, ROOM_Y, 0], [0, ROOM_Y, 0]])
+    facce_ostacoli.append([[0, 0, ROOF], [ROOM_X, 0, ROOF], [ROOM_X, ROOM_Y, ROOF], [0, ROOM_Y, ROOF]])
     
-    facce_ostacoli.append(base_h)
-    facce_ostacoli.append(top_h)
-    for i in range(6):
-        next_i = (i + 1) % 6
-        facce_ostacoli.append([base_h[i], base_h[next_i], top_h[next_i], top_h[i]])
+    # --- FUNZIONI GENERATRICI DEI SOLIDI (Facce perfettamente chiuse) ---
+    def create_box(xmin, xmax, ymin, ymax, zmin, zmax):
+        p0, p1, p2, p3 = [xmin, ymin, zmin], [xmax, ymin, zmin], [xmax, ymax, zmin], [xmin, ymax, zmin]
+        p4, p5, p6, p7 = [xmin, ymin, zmax], [xmax, ymin, zmax], [xmax, ymax, zmax], [xmin, ymax, zmax]
+        facce = [
+            [p0, p3, p2, p1], [p4, p5, p6, p7], [p0, p1, p5, p4],
+            [p3, p7, p6, p2], [p0, p4, p7, p3], [p1, p2, p6, p5]
+        ]
+        return facce, [xmin, xmax, ymin, ymax, zmin, zmax]
 
-    # Start in zona libera
-    start = np.array([1.5, 1.5, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    def create_pyramid(cx, cy, zmin, l, h):
+        v_base = [[cx-l/2, cy-l/2, zmin], [cx+l/2, cy-l/2, zmin], [cx+l/2, cy+l/2, zmin], [cx-l/2, cy+l/2, zmin]]
+        apice = [cx, cy, zmin + h]
+        facce = [v_base]
+        for i in range(4):
+            facce.append([v_base[i], v_base[(i+1)%4], apice])
+        return facce, [cx-l/2, cx+l/2, cy-l/2, cy+l/2, zmin, zmin+h]
+
+    def create_hex_prism(cx, cy, zmin, zmax, r):
+        base, top = [], []
+        for i in range(6):
+            ang = 2 * np.pi * i / 6
+            base.append([cx + r * np.cos(ang), cy + r * np.sin(ang), zmin])
+            top.append([cx + r * np.cos(ang), cy + r * np.sin(ang), zmax])
+        facce = [base, top]
+        for i in range(6):
+            facce.append([base[i], base[(i+1)%6], top[(i+1)%6], top[i]])
+        return facce, [cx-r, cx+r, cy-r, cy+r, zmin, zmax]
+
+    # --- SETUP POSIZIONI ---
+    start = np.array([2.0, 2.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    # Target randomico: lo forziamo a nascere nella metà opposta della stanza (X e Y tra 12 e 18)
+    # e ad un'altezza variabile tra 1.0 e 4.5 metri.
+    t_x = np.random.uniform(12.0, 18.0)
+    t_y = np.random.uniform(12.0, 18.0)
+    t_z = np.random.uniform(1.0, 4.5)
+    targets = [np.array([t_x, t_y, t_z, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])]
     
-    # Target in fondo
-    targets = [
-        np.array([13.0, 13.0, 2.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    # "Safe Zones": AABB di partenza e arrivo, qui dentro non può spawnare nulla!
+    occupied_aabbs = [
+        [0.0, 4.5, 0.0, 4.5, 0.0, ROOF], 
+        
+        # 2. Colonna sicura attorno al target random 
+        [t_x - 1.5, t_x + 1.5, t_y - 1.5, t_y + 1.5, 0.0, ROOF]
     ]
     
-    roof = 5.0
+    def check_collision(new_aabb):
+        margin = 0.5 # Mantiene almeno mezzo metro di distanza vuota tra ogni ostacolo
+        nx_min, nx_max, ny_min, ny_max, nz_min, nz_max = new_aabb
+        for ab in occupied_aabbs:
+            x_overlap = not (nx_max + margin < ab[0] or nx_min - margin > ab[1])
+            y_overlap = not (ny_max + margin < ab[2] or ny_min - margin > ab[3])
+            z_overlap = not (nz_max + margin < ab[4] or nz_min - margin > ab[5])
+            if x_overlap and y_overlap and z_overlap:
+                return True # C'è collisione!
+        return False
+
+    # --- RICETTARIO OSTACOLI ---
+    # Grandi (Appoggiati a terra: tipo, [dimensioni chiave])
+    specs = [
+        ('box', [3.0, 2.5, 4.0]),      # dx, dy, dz
+        ('box', [2.5, 4.0, 3.0]),
+        ('pyramid', [3.0, 3.5]),       # lato base, altezza
+        ('hex', [2.0, 3.5]),           # raggio, altezza
+    ]
+    # Piccoli (Fluttuanti in aria per far fare lo slalom in verticale al drone)
+    for _ in range(7):
+        specs.append(('small_box', [1.0, 1.0, 1.0]))
+
+    # --- GENERATORE RANDOM ---
+    # np.random.seed(42) # Scommenta questa riga se vuoi che il labirinto sia sempre uguale a ogni lancio
     
-    return facce_ostacoli, start, targets, roof
+    for tipo, params in specs:
+        for _ in range(150): # Prova fino a 150 volte a trovare un "buco" libero per l'ostacolo
+            cx = np.random.uniform(3, ROOM_X - 3)
+            cy = np.random.uniform(3, ROOM_Y - 3)
+            
+            if tipo == 'box':
+                dx, dy, dz = params
+                xmin, xmax = cx - dx/2, cx + dx/2
+                ymin, ymax = cy - dy/2, cy + dy/2
+                faces, aabb = create_box(xmin, xmax, ymin, ymax, 0.0, dz)
+                
+            elif tipo == 'small_box':
+                dx, dy, dz = params
+                xmin, xmax = cx - dx/2, cx + dx/2
+                ymin, ymax = cy - dy/2, cy + dy/2
+                # Fluttuano tra 1.5m e 4.5m di altezza, non toccano né terra né soffitto
+                zmin = np.random.uniform(2.5, ROOF - dz - 0.5) 
+                faces, aabb = create_box(xmin, xmax, ymin, ymax, zmin, zmin + dz)
+                
+            elif tipo == 'pyramid':
+                l, h = params
+                faces, aabb = create_pyramid(cx, cy, 0.0, l, h)
+                
+            elif tipo == 'hex':
+                r, h = params
+                faces, aabb = create_hex_prism(cx, cy, 0.0, h, r)
+            
+            # Controlla se la posizione è valida e non sbatte
+            if not check_collision(aabb):
+                facce_ostacoli.extend(faces)
+                occupied_aabbs.append(aabb)
+                break # Posto trovato! Passa al prossimo ostacolo
+    
+    return facce_ostacoli, start, targets, ROOF
 
 
 def disegna_scia_drone(vis, x_history):
@@ -213,7 +292,7 @@ def main_statistico():
 
     vis = visualizza_su_meshcat(facce, targets[0])
 
-    print(f"--- AVVIO TEST DI COPERTURA: {N_TESTS} TARGET ---")
+    
     
     for test_idx, target_base in enumerate(targets):
         # Punto di partenza fisso
@@ -246,7 +325,7 @@ def main_statistico():
 
 
         iterazioni_violazione_box = []
-
+        frames_animazione = []
 
         for t in range(N_SIM):
 
@@ -324,13 +403,14 @@ def main_statistico():
                 traj_zmax = np.max(x_sol_prev[:, 2])
 
                 # 2. Converti questo Bounding Box in coordinate RELATIVE rispetto al drone attuale (current_x)
+                margin = 0.35
                 box_prev_rel = [
-                    traj_xmin - current_x[0]-0.15,
-                    traj_xmax - current_x[0]+0.15,
-                    traj_ymin - current_x[1]-0.15,
-                    traj_ymax - current_x[1]+0.15,
-                    traj_zmin - current_x[2]-0.15,
-                    traj_zmax - current_x[2]+0.15
+                    traj_xmin - current_x[0] - margin,
+                    traj_xmax - current_x[0] + margin,
+                    traj_ymin - current_x[1] - margin,
+                    traj_ymax - current_x[1] + margin,
+                    traj_zmin - current_x[2] - margin,
+                    traj_zmax - current_x[2] + margin
                 ]
             else:
                 box_prev_rel = None
@@ -341,7 +421,7 @@ def main_statistico():
             xMin_r, xMax_r, yMin_r, yMax_r, zMin_r, zMax_r, _ = min_cube_warm_start_3d(
                 Q_rel, radii, dx, dy, dz, target_rel_x, target_rel_y, target_rel_z, drone_radius=0.1, box_prev=box_prev_rel, 
                 expand_mode='directional',  # 'general', 'directional or 'score'
-                W=50, rel=0.1
+                W=50, rel=0.1, lidar_ray=3.0
             )
 
             
@@ -481,8 +561,13 @@ def main_statistico():
             current_x = x_sol[1]
             x_history.append(current_x.copy())
 
-            aggiorna_drone_meshcat(vis, current_x)
+            aggiorna_drone_meshcat(vis, current_x, box_abs)
             time.sleep(0.03) # Rallenta leggermente per godersi l'animazione nel browser
+
+            # Cattura il frame dal browser (rallenterà leggermente la simulazione)
+            frame = vis.get_image()
+            if frame is not None:
+                frames_animazione.append(np.asarray(frame))
 
             x_sol_prev = x_sol.copy()
             box_abs_prev = box_abs.copy()
@@ -601,6 +686,51 @@ def main_statistico():
               f"Uscite dal box: {row['num_violazioni']:<3} | Correlazione: {row['correlazione']}")
     print("="*70 + "\n")
 
+
+    # ==========================================
+    # END OF VIDEO
+    # ==========================================
+    # ==========================================
+    # ESPORTAZIONE E SALVATAGGIO DEL VIDEO
+    # ==========================================
+        
+
+    if len(frames_animazione) > 0:
+        cartella_video = "video_traiettorie_tempi"
+        os.makedirs(cartella_video, exist_ok=True)
+            
+        print(f"Generazione del video per il Target {test_idx+1} in corso...")
+        fig_movie = plt.figure(figsize=(12, 7))
+        ax_movie = fig_movie.add_subplot(111)
+        ax_movie.axis('off')
+            
+        # Mostra il primo frame
+        im = ax_movie.imshow(frames_animazione[0])
+            
+        def update_frame(i):
+            im.set_data(frames_animazione[i])
+            return [im]
+            
+        # Crea l'animazione dalle immagini salvate
+        ani = animation.FuncAnimation(fig_movie, update_frame, frames=len(frames_animazione), blit=True)
+            
+        # Configura il nome del file video
+        nome_video = os.path.join(cartella_video, f"Video_Target_N10_{test_idx+1:02d}_{esito}.mp4")
+            
+        # Salva come MP4 (richiede ffmpeg installato sul PC)
+        # Se ffmpeg dà problemi, puoi cambiare l'estensione in '.gif' e usare il writer 'pillow'
+        try:
+            ani.save(nome_video, writer='ffmpeg', fps=10)
+            print(f"🎬 Video salvato con successo: {nome_video}")
+        except Exception as e:
+            print("Nota: 'ffmpeg' non trovato, provo a salvare in formato .gif...")
+            nome_video_gif = nome_video.replace(".mp4", ".gif")
+            ani.save(nome_video_gif, writer='pillow', fps=10)
+            print(f"🎬 Video (GIF) salvato con successo: {nome_video_gif}")
+                
+
+        # ==========================================
+        # ==========================================
 
     return facce, tutte_le_traiettorie, vis
 

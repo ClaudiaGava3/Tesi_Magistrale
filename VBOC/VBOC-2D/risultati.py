@@ -106,4 +106,37 @@
 
 
 
-# RISULTATI TEST CON MPC-NN APF E MPC NAIVE
+# RISULTATI TEST con tempi computazionali
+
+
+# ======================================================================
+# ⏱  STATISTICHE TEMPI COMPUTAZIONALI (N=10, LiDAR=3.0m)
+# ======================================================================
+# Tempo Medio:     0.27739 secondi
+# 99-Percentile:   0.71477 secondi
+# Tempo Massimo:   1.87601 secondi
+# ======================================================================
+# ⏱  STATISTICHE TEMPI COMPUTAZIONALI (N=15, LiDAR=3.0m)
+# ======================================================================
+# Tempo Medio:     0.57418 secondi
+# 99-Percentile:   0.81368 secondi
+# Tempo Massimo:   1.75915 secondi
+# ======================================================================
+# ⏱  STATISTICHE TEMPI COMPUTAZIONALI (N=20, LiDAR=3.0m)
+# ======================================================================
+# Tempo Medio:     0.68461 secondi
+# 99-Percentile:   1.25167 secondi
+# Tempo Massimo:   4.31679 secondi
+# ======================================================================
+# ⏱  STATISTICHE TEMPI COMPUTAZIONALI (N=25, LiDAR=3.0m)
+# ======================================================================
+# Tempo Medio:     
+# 99-Percentile:   
+# Tempo Massimo:   
+# ======================================================================
+# ⏱  STATISTICHE TEMPI COMPUTAZIONALI (N=30, LiDAR=3.0m)
+# ======================================================================
+# Tempo Medio:     
+# 99-Percentile:   
+# Tempo Massimo:   
+# ======================================================================

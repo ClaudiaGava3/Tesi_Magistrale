@@ -164,7 +164,7 @@ def main():
         for t in range(N_SIM):
             
             # 1. Simula LIDAR e crea i raggi tangenti
-            hits, radii = get_lidar_hits_3d(current_x[0], current_x[1],  current_x[2], obstacles, num_rays=1000)
+            hits, radii = get_lidar_hits_3d(current_x[0], current_x[1],  current_x[2], obstacles, num_rays=1000, max_range=1.5)
             
             # 2. Algoritmo di Max
             Q_rel = hits.copy()
@@ -185,7 +185,8 @@ def main():
                 target_rel_x,
                 target_rel_y, 
                 target_rel_z, 
-                drone_radius=0.1
+                drone_radius=0.1,
+                lidar_ray=1.5
             )
             
             # 3. Trasforma il box in coordinate assolute
