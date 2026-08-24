@@ -22,7 +22,7 @@ from urdf_parser_py.urdf import URDF
 # Local
 from src.VBOC.abstract_copy import Model
 from src.VBOC.controller_copy import ViabilityController
-from src.VBOC.learning import NeuralNetwork, NovelNeuralNetwork, RegressionNN, plot_brs
+from src.VBOC.learning_copy import NeuralNetwork, NovelNeuralNetwork, RegressionNN, plot_brs
 from src.VBOC.parser import Parameters, parse_args
 
 # Global font size settings
@@ -521,6 +521,7 @@ if __name__ == '__main__':
         #[],[],[],[],[],[],[]
         all_x_0, all_x_t, all_u_t, all_n_final, all_status = [], [], [], [], []
         all_failed_q_init = [] # <--- NEW LIST FOR FAILURES
+        all_test_dataset = []
 
         # Split the problems into sub-batches to allow intermediate saves
         if params.check:
@@ -552,6 +553,19 @@ if __name__ == '__main__':
             all_n_final.extend(n_final_list)
             all_status.extend(status)
 
+            # --- NUOVO BLOCCO PER IL SET DI TEST COMPLETO ---
+            q0_batch = q_init[(nb*sub_batch):((nb+1)*sub_batch)]
+            b0_batch = b_init[(nb*sub_batch):((nb+1)*sub_batch)]
+            
+            for i in range(len(x_0)):
+                # Se ha successo prendiamo lo scale (indice 10), se fallisce mettiamo -1.0
+                scale_val = x_0[i][10] if x_0[i] is not None else -1000.0
+                
+                # q0_batch[i][2:6] salta x e z, prendendo solo theta, vx, vz, wy
+                row = np.hstack([q0_batch[i][2:6], b0_batch[i], status[i], scale_val])
+                all_test_dataset.append(row)
+            # ------------------------------------------------
+
             # === NEW CODE: CAPTURE FAILED CASES ===
             q0_batch = q_init[(nb*sub_batch):((nb+1)*sub_batch)]
             for i in range(len(x_0)):
@@ -582,16 +596,18 @@ if __name__ == '__main__':
 
             traj_kinematics = np.vstack([traj[:, 2:6] for traj in x_traj])
 
-            np.save(f'{params.DATA_DIR}{robotic_system}_x_vboc_randB2000', x_data)
-            np.save(f'{params.DATA_DIR}{robotic_system}_b_vboc_randB2000', b_optimized)
-            np.save(f'{params.DATA_DIR}{robotic_system}_n_horizons_vboc_randB2000', n_data)
-            np.save(f'{params.DATA_DIR}{robotic_system}_status_vboc_randB2000', status_list)
+            np.save(f'{params.DATA_DIR}{robotic_system}_x_vboc_randB', x_data)
+            np.save(f'{params.DATA_DIR}{robotic_system}_b_vboc_randB', b_optimized)
+            np.save(f'{params.DATA_DIR}{robotic_system}_n_horizons_vboc_randB', n_data)
+            np.save(f'{params.DATA_DIR}{robotic_system}_status_vboc_randB', status_list)
             # === SAVE FAILURES ===
-            np.save(f'{params.DATA_DIR}{robotic_system}_failed_q_init_vboc_randB2000', np.array(all_failed_q_init))
+            np.save(f'{params.DATA_DIR}{robotic_system}_failed_q_init_vboc_randB', np.array(all_failed_q_init))
 
-            np.save(f'{params.DATA_DIR}{robotic_system}_actual_boxes_randB2000', actual_boxes)
-            np.save(f'{params.DATA_DIR}{robotic_system}_traj_kinematics_randB2000', traj_kinematics)
-            np.save(f'{params.DATA_DIR}{robotic_system}_u_traj_randB2000', np.vstack(u_traj))
+            np.save(f'{params.DATA_DIR}{robotic_system}_actual_boxes_vboc_randB', actual_boxes)
+            np.save(f'{params.DATA_DIR}{robotic_system}_traj_kinematics_vboc_randB', traj_kinematics)
+            np.save(f'{params.DATA_DIR}{robotic_system}_u_traj_vboc_randB', np.vstack(u_traj))
+
+            np.save(f'{params.DATA_DIR}{robotic_system}_TEST_dataset_classification', np.array(all_test_dataset))
             
             solved = len(x_data)
             print(f'Batch {nb}: Total number of points saved until now: {solved}')

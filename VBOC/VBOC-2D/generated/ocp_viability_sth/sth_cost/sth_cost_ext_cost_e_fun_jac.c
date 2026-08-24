@@ -35,6 +35,7 @@ extern "C" {
 #define casadi_s0 CASADI_PREFIX(s0)
 #define casadi_s1 CASADI_PREFIX(s1)
 #define casadi_s2 CASADI_PREFIX(s2)
+#define casadi_s3 CASADI_PREFIX(s3)
 
 /* Symbol visibility in DLLs */
 #ifndef CASADI_SYMBOL_EXPORT
@@ -51,6 +52,13 @@ extern "C" {
   #endif
 #endif
 
+void casadi_clear(casadi_real* x, casadi_int n) {
+  casadi_int i;
+  if (x) {
+    for (i=0; i<n; ++i) *x++ = 0;
+  }
+}
+
 void casadi_copy(const casadi_real* x, casadi_int n, casadi_real* y) {
   casadi_int i;
   if (y) {
@@ -62,53 +70,22 @@ void casadi_copy(const casadi_real* x, casadi_int n, casadi_real* y) {
   }
 }
 
-void casadi_clear(casadi_real* x, casadi_int n) {
-  casadi_int i;
-  if (x) {
-    for (i=0; i<n; ++i) *x++ = 0;
-  }
-}
-
-static const casadi_int casadi_s0[14] = {10, 1, 0, 10, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+static const casadi_int casadi_s0[15] = {11, 1, 0, 11, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 static const casadi_int casadi_s1[4] = {0, 1, 0, 0};
-static const casadi_int casadi_s2[5] = {1, 1, 0, 1, 0};
+static const casadi_int casadi_s2[8] = {4, 1, 0, 4, 0, 1, 2, 3};
+static const casadi_int casadi_s3[5] = {1, 1, 0, 1, 0};
 
-/* sth_cost_ext_cost_e_fun_jac:(i0[10],i1[0],i2[0],i3[0])->(o0,o1[10]) */
+/* sth_cost_ext_cost_e_fun_jac:(i0[11],i1[0],i2[0],i3[4])->(o0,o1[11]) */
 static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem) {
-  casadi_real *rr, *ss;
-  casadi_real *w0=w+0, w1, w2;
-  /* #0: @0 = input[0][0] */
-  casadi_copy(arg[0], 10, w0);
-  /* #1: @1 = @0[6] */
-  for (rr=(&w1), ss=w0+6; ss!=w0+7; ss+=1) *rr++ = *ss;
-  /* #2: @2 = @0[7] */
-  for (rr=(&w2), ss=w0+7; ss!=w0+8; ss+=1) *rr++ = *ss;
-  /* #3: @1 = (@1+@2) */
-  w1 += w2;
-  /* #4: @2 = @0[8] */
-  for (rr=(&w2), ss=w0+8; ss!=w0+9; ss+=1) *rr++ = *ss;
-  /* #5: @1 = (@1+@2) */
-  w1 += w2;
-  /* #6: @2 = @0[9] */
-  for (rr=(&w2), ss=w0+9; ss!=w0+10; ss+=1) *rr++ = *ss;
-  /* #7: @1 = (@1+@2) */
-  w1 += w2;
-  /* #8: output[0][0] = @1 */
-  if (res[0]) res[0][0] = w1;
-  /* #9: @0 = zeros(10x1) */
-  casadi_clear(w0, 10);
-  /* #10: @1 = 1 */
-  w1 = 1.;
-  /* #11: (@0[9] += @1) */
-  for (rr=w0+9, ss=(&w1); rr!=w0+10; rr+=1) *rr += *ss++;
-  /* #12: (@0[8] += @1) */
-  for (rr=w0+8, ss=(&w1); rr!=w0+9; rr+=1) *rr += *ss++;
-  /* #13: (@0[7] += @1) */
-  for (rr=w0+7, ss=(&w1); rr!=w0+8; rr+=1) *rr += *ss++;
-  /* #14: (@0[6] += @1) */
-  for (rr=w0+6, ss=(&w1); rr!=w0+7; rr+=1) *rr += *ss++;
-  /* #15: output[1][0] = @0 */
-  casadi_copy(w0, 10, res[1]);
+  casadi_real w0, *w1=w+1;
+  /* #0: @0 = 0 */
+  w0 = 0.;
+  /* #1: output[0][0] = @0 */
+  if (res[0]) res[0][0] = w0;
+  /* #2: @1 = zeros(11x1) */
+  casadi_clear(w1, 11);
+  /* #3: output[1][0] = @1 */
+  casadi_copy(w1, 11, res[1]);
   return 0;
 }
 
@@ -173,21 +150,21 @@ CASADI_SYMBOL_EXPORT const casadi_int* sth_cost_ext_cost_e_fun_jac_sparsity_in(c
     case 0: return casadi_s0;
     case 1: return casadi_s1;
     case 2: return casadi_s1;
-    case 3: return casadi_s1;
+    case 3: return casadi_s2;
     default: return 0;
   }
 }
 
 CASADI_SYMBOL_EXPORT const casadi_int* sth_cost_ext_cost_e_fun_jac_sparsity_out(casadi_int i) {
   switch (i) {
-    case 0: return casadi_s2;
+    case 0: return casadi_s3;
     case 1: return casadi_s0;
     default: return 0;
   }
 }
 
 CASADI_SYMBOL_EXPORT int sth_cost_ext_cost_e_fun_jac_work(casadi_int *sz_arg, casadi_int* sz_res, casadi_int *sz_iw, casadi_int *sz_w) {
-  if (sz_arg) *sz_arg = 6;
+  if (sz_arg) *sz_arg = 4;
   if (sz_res) *sz_res = 3;
   if (sz_iw) *sz_iw = 0;
   if (sz_w) *sz_w = 12;
@@ -195,7 +172,7 @@ CASADI_SYMBOL_EXPORT int sth_cost_ext_cost_e_fun_jac_work(casadi_int *sz_arg, ca
 }
 
 CASADI_SYMBOL_EXPORT int sth_cost_ext_cost_e_fun_jac_work_bytes(casadi_int *sz_arg, casadi_int* sz_res, casadi_int *sz_iw, casadi_int *sz_w) {
-  if (sz_arg) *sz_arg = 6*sizeof(const casadi_real*);
+  if (sz_arg) *sz_arg = 4*sizeof(const casadi_real*);
   if (sz_res) *sz_res = 3*sizeof(casadi_real*);
   if (sz_iw) *sz_iw = 0*sizeof(casadi_int);
   if (sz_w) *sz_w = 12*sizeof(casadi_real);
