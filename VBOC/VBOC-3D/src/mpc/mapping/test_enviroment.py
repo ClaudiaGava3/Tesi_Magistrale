@@ -22,6 +22,12 @@ from mpc_controller_obs import MpcController
 
 def visualizza_su_meshcat(facce_ostacoli, target_pos):
     vis = meshcat.Visualizer()
+
+    # --- SPEGNI LA GRIGLIA E GLI ASSI DI DEFAULT ---
+    vis["/Grid"].set_property("visible", False)
+    vis["/Axes"].set_property("visible", False)
+    # ------------------------------------------------
+
     print("\n[Meshcat] Apri questo link nel browser:")
     print(vis.url())
     
@@ -39,21 +45,11 @@ def visualizza_su_meshcat(facce_ostacoli, target_pos):
             mesh_geom = g.TriangularMeshGeometry(vertices=verts, faces=faces)
             vis["ambiente"][f"obs_{idx}"].set_object(mesh_geom, mat_ostacolo)
 
-    # Drone a elissoide dimensionato sui bracci reali
-    mat_drone = g.MeshLambertMaterial(color=0x00FF00, opacity=0.8)
-
-
-    
-
-    # Carica l'oggetto geometrico e i materiali associati
+    # Drone
     vis["drone"]["corpo"].set_object(
       g.ObjMeshGeometry.from_file('drone_costum.obj')
     )
-
-
     vis["drone"]["corpo"].set_transform(tf.scale_matrix(0.05))
-    # ellissoide_geom = g.Ellipsoid(radii=[0.15, 0.15, 0.08])
-    # vis["drone"]["corpo"].set_object(ellissoide_geom, mat_drone)
 
     # Target a "X" rossa tridimensionale
     mat_target = g.MeshLambertMaterial(color=0xFF0000, opacity=1.0)
@@ -64,10 +60,9 @@ def visualizza_su_meshcat(facce_ostacoli, target_pos):
     c2 = g.Cylinder(height=0.4, radius=0.03)
     vis["target"]["barra2"].set_object(c2, mat_target)
     vis["target"]["barra2"].set_transform(tf.rotation_matrix(-np.pi/4, [1, -1, 0]))
-
     vis["target"].set_transform(tf.translation_matrix(target_pos[:3]))
 
-    vis["/Cameras/default"].set_object(g.PerspectiveCamera(fov=60))
+    # ELIMINATA: vis["/Cameras/default"].set_object(...) -> Creava il conflitto!
 
     time.sleep(1.0)
     return vis
@@ -76,33 +71,16 @@ def aggiorna_drone_meshcat(vis, current_x, box_abs=None):
     pos = current_x[0:3]
     roll, pitch, yaw = current_x[3], current_x[4], current_x[5]
     
-    # 1. Movimento fisico del drone
+    # 1. Movimento fisico del drone (Rotazione + Traslazione)
     rot_matrix = tf.euler_matrix(roll, pitch, yaw)
     transform = rot_matrix.copy()
     transform[0:3, 3] = pos
     vis["drone"].set_transform(transform)
     
-    # 2. TELECAMERA DI DEFAULT RIGIDA (Dietro e in alto)
-    # Calcolo offset fisso: posiziona la telecamera alle spalle del drone
-    offset = np.array([-3.0, -3.0, 0.4]) 
-    cam_pos = pos + offset
-    
-    # Calcolo della direzione (punta ESATTAENTE verso il drone)
-    fwd = -offset
-    fwd = fwd / np.linalg.norm(fwd)
-    up = np.array([0.0, 0.0, 1.0])
-    right = np.cross(fwd, up)
-    right = right / np.linalg.norm(right)
-    cam_up = np.cross(right, fwd)
-    
-    # Costruisce la matrice: Rotazione FISSA (non cambia mai), Traslazione DINAMICA
-    T_cam = np.eye(4)
-    T_cam[0:3, 0] = right
-    T_cam[0:3, 1] = cam_up
-    T_cam[0:3, 2] = -fwd
-    T_cam[0:3, 3] = cam_pos
-    
-    vis["/Cameras/default"].set_transform(T_cam)
+    # 2. TELECAMERA FOLLOW (Trasla col drone ma non ruota)
+    # Spostando il nodo /Cameras/default, stiamo spostando il BERSAGLIO della telecamera.
+    # Meshcat manterrà l'angolazione 3D di default, seguendo il drone passo passo!
+    vis["/Cameras/default"].set_transform(tf.translation_matrix(pos))
     
     # 3. DISEGNA IL SAFE-BOX VERDE IN 3D
     if box_abs is not None:
@@ -115,6 +93,7 @@ def aggiorna_drone_meshcat(vis, current_x, box_abs=None):
         cz = (box_abs[5] + box_abs[4]) / 2.0
         
         mat_box = g.MeshLambertMaterial(color=0x00FF00, opacity=0.15, transparent=True)
+        # Scommentato: ora si vedrà nel video!
         # vis["safe_box"].set_object(g.Box([w, d, h]), mat_box)
         # vis["safe_box"].set_transform(tf.translation_matrix([cx, cy, cz]))
 
@@ -715,7 +694,7 @@ def main_statistico():
         ani = animation.FuncAnimation(fig_movie, update_frame, frames=len(frames_animazione), blit=True)
             
         # Configura il nome del file video
-        nome_video = os.path.join(cartella_video, f"Video_Target_N10_{test_idx+1:02d}_{esito}.mp4")
+        nome_video = os.path.join(cartella_video, f"Video_Target_N10_{test_idx+7:02d}_{esito}.mp4")
             
         # Salva come MP4 (richiede ffmpeg installato sul PC)
         # Se ffmpeg dà problemi, puoi cambiare l'estensione in '.gif' e usare il writer 'pillow'
