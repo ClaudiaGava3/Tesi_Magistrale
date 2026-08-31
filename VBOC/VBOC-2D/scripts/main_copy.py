@@ -814,22 +814,22 @@ if __name__ == '__main__':
     if params.training: 
 
         # --- Load data ---
-        x_data = np.load(f'{params.DATA_DIR}{robotic_system}_x_vboc_randB2000.npy')
-        b_data = np.load(f'{params.DATA_DIR}{robotic_system}_b_vboc_randB2000.npy')
+        x_data = np.load(f'{params.DATA_DIR}{robotic_system}_x_vboc_randB.npy')
+        b_data = np.load(f'{params.DATA_DIR}{robotic_system}_b_vboc_randB.npy')
         b_all_data = np.load(params.DATA_DIR + 'sth_b_all_vboc.npy')
         d_data = np.load(params.DATA_DIR + 'sth_d_vboc.npy')
-        status_data = np.load(params.DATA_DIR + 'sth_status_vboc_randB2000.npy')
+        status_data = np.load(params.DATA_DIR + 'sth_status_vboc_randB.npy')
 
-        actual_boxes = np.load(f'{params.DATA_DIR}{robotic_system}_actual_boxes_randB2000.npy')
-        traj_kinematics = np.load(f'{params.DATA_DIR}{robotic_system}_traj_kinematics_randB2000.npy')
-        u_traj = np.load(f'{params.DATA_DIR}{robotic_system}_u_traj_randB2000.npy')
-        n_data = np.load(f'{params.DATA_DIR}{robotic_system}_n_horizons_vboc_randB2000.npy')
+        actual_boxes = np.load(f'{params.DATA_DIR}{robotic_system}_actual_boxes_randB.npy')
+        traj_kinematics = np.load(f'{params.DATA_DIR}{robotic_system}_traj_kinematics_randB.npy')
+        u_traj = np.load(f'{params.DATA_DIR}{robotic_system}_u_traj_randB.npy')
+        n_data = np.load(f'{params.DATA_DIR}{robotic_system}_n_horizons_vboc_randB.npy')
         
           
 
         # --- Histograms of raw data distributions ---
         if params.plot:
-            hist_dir = os.path.join(plots_dir, 'histograms_rand2000')
+            hist_dir = os.path.join(plots_dir, 'histograms_rand')
             ensure_clean_dir(hist_dir)
             
             # 1. Histogram of Inputs: theta, vx, vz, wy (Indices 2, 3, 4, 5 of x_data)
@@ -897,7 +897,7 @@ if __name__ == '__main__':
             )
 
             # 5. Histogram of FAILED cases
-            failed_file = f'{params.DATA_DIR}{robotic_system}_failed_q_init_vboc_randB2000.npy'
+            failed_file = f'{params.DATA_DIR}{robotic_system}_failed_q_init_vboc_randB.npy'
             if os.path.exists(failed_file):
                 failed_data = np.load(failed_file)
                 if len(failed_data) > 0:

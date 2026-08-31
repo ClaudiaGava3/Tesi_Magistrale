@@ -396,13 +396,13 @@ class AbstractController:
         self.ocp.constraints.lbx = np.hstack([
             np.full(self.model.nori, -np.pi), 
             np.full(self.model.nv, -1e2),
-            np.full(self.model.nbox, 0.15),             # <--- Minimo per i lati (es. 10% della scala)     
+            np.full(self.model.nbox, 0.15), 
             np.array([1.0])                   # scale min
         ])
         self.ocp.constraints.ubx = np.hstack([
             np.full(self.model.nori, np.pi),  
             np.full(self.model.nv, 1e2),
-            np.full(self.model.nbox, 1.0),             # <--- MAX per i lati imposto a 1.0!      
+            np.full(self.model.nbox, 4.0),
             np.array([1.0])                    # scale max
         ])
 
@@ -411,13 +411,13 @@ class AbstractController:
         self.ocp.constraints.lbx_e = np.hstack([
             np.full(self.model.nori, -np.pi), 
             np.full(self.model.nv, -1e2),
-            np.full(self.model.nbox, 0.15),             # <--- Minimo per i lati (es. 10% della scala)     
+            np.full(self.model.nbox, 0.15),
                         np.array([1.0])                 
         ])
         self.ocp.constraints.ubx_e = np.hstack([
             np.full(self.model.nori, np.pi),  
             np.full(self.model.nv, 1e2),
-            np.full(self.model.nbox, 1.0),             # <--- MAX per i lati imposto a 1.0!      
+            np.full(self.model.nbox, 4.0),
             np.array([1.0])                    
         ])
 

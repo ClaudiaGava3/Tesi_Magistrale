@@ -647,13 +647,13 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
     lbx[3] = -100;
     ubx[3] = 100;
     lbx[4] = 0.15;
-    ubx[4] = 1;
+    ubx[4] = 4;
     lbx[5] = 0.15;
-    ubx[5] = 1;
+    ubx[5] = 4;
     lbx[6] = 0.15;
-    ubx[6] = 1;
+    ubx[6] = 4;
     lbx[7] = 0.15;
-    ubx[7] = 1;
+    ubx[7] = 4;
     lbx[8] = 1;
     ubx[8] = 1;
 
@@ -729,13 +729,13 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
     lbx_e[3] = -100;
     ubx_e[3] = 100;
     lbx_e[4] = 0.15;
-    ubx_e[4] = 1;
+    ubx_e[4] = 4;
     lbx_e[5] = 0.15;
-    ubx_e[5] = 1;
+    ubx_e[5] = 4;
     lbx_e[6] = 0.15;
-    ubx_e[6] = 1;
+    ubx_e[6] = 4;
     lbx_e[7] = 0.15;
-    ubx_e[7] = 1;
+    ubx_e[7] = 4;
     lbx_e[8] = 1;
     ubx_e[8] = 1;
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "idxbx", idxbx_e);

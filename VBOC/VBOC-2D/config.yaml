@@ -2,14 +2,55 @@
 prob_num: 20000          # number of OCP to create dataset
 cpu_num: 26
 
-N: 25                   # horizon in number of samples
+N: 20                # horizon in number of samples
 N_increment: 0            # increment of the horizon
 dt: 20e-3                 # time step
 #alpha: 15                # safety margin 
 
+# con box max 1.0 m succ_ocp=17693/20000
+# --- RISULTATI TUA RETE NEURALE ---
+# Veri Positivi (VP): 1768
+# Falsi Positivi (FP): 133
+# Veri Negativi (VN): 17560
+# Falsi Negativi (FN): 539
+
+# --- RISULTATI DEEPREACH ---
+# Veri Positivi (VP): 229
+# Falsi Positivi (FP): 250
+# Veri Negativi (VN): 17443
+# Falsi Negativi (FN): 2078
+
+# con box max 2.5 m succ_ocp=19160/20000
+# --- RISULTATI TUA RETE NEURALE ---
+# Veri Positivi (VP): 609
+# Falsi Positivi (FP): 55
+# Veri Negativi (VN): 19105
+# Falsi Negativi (FN): 231
+
+# --- RISULTATI DEEPREACH ---
+# Veri Positivi (VP): 77
+# Falsi Positivi (FP): 199
+# Veri Negativi (VN): 18961
+# Falsi Negativi (FN): 763
+
+# con box max 4.0 m succ_ocp=19501/20000
+# --- RISULTATI TUA RETE NEURALE ---
+# Veri Positivi (VP): 278
+# Falsi Positivi (FP): 20
+# Veri Negativi (VN): 19481
+# Falsi Negativi (FN): 221
+
+# --- RISULTATI DEEPREACH ---
+# Veri Positivi (VP): 42
+# Falsi Positivi (FP): 155
+# Veri Negativi (VN): 19346
+# Falsi Negativi (FN): 457
+
+
+
 solver_mode: 'BALANCE'    # HPIPM mode, can be --> 'BALANCE', 'ROBUST', 'SPEED', 'SPEED_ABS'
-nlp_max_iter: 1000 #1000
-qp_max_iter: 200 #200
+nlp_max_iter: 5 #1000
+qp_max_iter: 100 #200
 alpha_reduction: 0.3
 alpha_min: 1e-2
 levenberg_marquardt: 1e-9

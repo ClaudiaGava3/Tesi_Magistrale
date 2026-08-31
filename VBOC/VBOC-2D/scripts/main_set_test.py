@@ -504,7 +504,7 @@ if __name__ == '__main__':
 
         # Create the initial state vector of 6 elements: [x, z, theta, vx, vz, wy]
         q_init = np.hstack([pos_init, orient_init, vel_init])
-        b_init = np.random.uniform(0.15, 1.0, (params.prob_num, model.nbox))
+        b_init = np.random.uniform(0.15, 4.0, (params.prob_num, model.nbox))
 
         # --- Obstacle box bounds --- 
         box_guess=1.0
@@ -561,7 +561,8 @@ if __name__ == '__main__':
                 scale_val = x_0[i][10] if x_0[i] is not None else -1000.0
 
                 # Deriviamo il successo in base allo status (0 o 2 = Successo -> 1.0)
-                is_success = 1.0 if status[i] in [0, 2] else 0.0
+                # Correzione: è un successo SOLO SE lo status è buono E abbiamo una soluzione reale
+                is_success = 1.0 if (status[i] in [0, 2] and x_0[i] is not None) else 0.0
                 
                 # q0_batch[i][2:6] salta x e z, prendendo solo theta, vx, vz, wy
                 row = np.hstack([q0_batch[i][2:6], b0_batch[i], status[i], scale_val, is_success])
@@ -598,18 +599,18 @@ if __name__ == '__main__':
 
             traj_kinematics = np.vstack([traj[:, 2:6] for traj in x_traj])
 
-            np.save(f'{params.DATA_DIR}{robotic_system}_x_vboc_dataset', x_data)
-            np.save(f'{params.DATA_DIR}{robotic_system}_b_vboc_dataset', b_optimized)
-            np.save(f'{params.DATA_DIR}{robotic_system}_n_horizons_vboc_dataset', n_data)
-            np.save(f'{params.DATA_DIR}{robotic_system}_status_vboc_dataset', status_list)
+            np.save(f'{params.DATA_DIR}{robotic_system}_x_vboc_dataset4m', x_data)
+            np.save(f'{params.DATA_DIR}{robotic_system}_b_vboc_dataset4m', b_optimized)
+            np.save(f'{params.DATA_DIR}{robotic_system}_n_horizons_vboc_dataset4m', n_data)
+            np.save(f'{params.DATA_DIR}{robotic_system}_status_vboc_dataset4m', status_list)
             # === SAVE FAILURES ===
-            np.save(f'{params.DATA_DIR}{robotic_system}_failed_q_init_vboc_dataset', np.array(all_failed_q_init))
+            np.save(f'{params.DATA_DIR}{robotic_system}_failed_q_init_vboc_dataset4m', np.array(all_failed_q_init))
 
-            np.save(f'{params.DATA_DIR}{robotic_system}_actual_boxes_vboc_dataset', actual_boxes)
-            np.save(f'{params.DATA_DIR}{robotic_system}_traj_kinematics_vboc_dataset', traj_kinematics)
-            np.save(f'{params.DATA_DIR}{robotic_system}_u_traj_vboc_dataset', np.vstack(u_traj))
+            np.save(f'{params.DATA_DIR}{robotic_system}_actual_boxes_vboc_dataset4m', actual_boxes)
+            np.save(f'{params.DATA_DIR}{robotic_system}_traj_kinematics_vboc_dataset4m', traj_kinematics)
+            np.save(f'{params.DATA_DIR}{robotic_system}_u_traj_vboc_dataset4m', np.vstack(u_traj))
 
-            np.save(f'{params.DATA_DIR}{robotic_system}_TEST_dataset_classification', np.array(all_test_dataset))
+            np.save(f'{params.DATA_DIR}{robotic_system}_TEST_dataset_classification4m', np.array(all_test_dataset))
             
             solved = len(x_data)
             print(f'Batch {nb}: Total number of points saved until now: {solved}')

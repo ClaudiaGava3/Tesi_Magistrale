@@ -85,10 +85,10 @@ def genera_ambienti_random(num_tests=10):
             z_max_locale = max(v[1] for v in forma_ruotata_zero)
             
             # 4. Assegnazione dell'altezza sicura
-            margin = 0.0
+            margin = 0.50
             if is_high:
                 limite_sup = 11.0 - margin - z_max_locale
-                limite_inf = max(7.0, 0.0 + margin - z_min_locale) 
+                limite_inf = max(6.0, 0.0 + margin - z_min_locale) 
                 cz = np.random.uniform(limite_inf, limite_sup) if limite_sup > limite_inf else limite_sup
             else:
                 limite_inf = 0.0 + margin - z_min_locale
@@ -233,8 +233,8 @@ def anteprima_ambiente(num_rombi=10):
 
 def main_statistico(N_TESTS):
 
-    np.random.seed(44)
-    random.seed(44)
+    np.random.seed(68)
+    random.seed(68)
     
     risultati = {"Successes": 0, "Timeout": 0, "Crashes": 0}
     traiettorie_riuscita = []

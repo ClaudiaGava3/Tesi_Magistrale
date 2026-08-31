@@ -78,7 +78,7 @@ class ViabilityController(AbstractController):
                           np.full(self.model.nori, -np.pi), 
                           np.full(self.model.nv, -1e2),
                           np.full(self.model.nbox, 0.15),
-                          np.array([1.0])    # Lower box limit
+                          np.array([1.0])
                      ])
                 )
                 self.ocp_solver.constraints_set(
@@ -87,8 +87,8 @@ class ViabilityController(AbstractController):
                      np.hstack([
                           np.full(self.model.nori, np.pi), 
                           np.full(self.model.nv, 1e2),
-                          np.full(self.model.nbox, 1.0),
-                          np.array([1.0])    # Upper box limit
+                          np.full(self.model.nbox, 4.0),
+                          np.array([1.0])
                     ])
                 )
 
@@ -100,27 +100,27 @@ class ViabilityController(AbstractController):
         zero_vel = np.zeros(self.model.nv)
         ori_0 = np.full(self.model.nori, 0.0) # changed terminal angle constraint from -np.pi to 0
         box_min = np.full(self.model.nbox, 0.15)
-        box_max = np.full(self.model.nbox, 1.0)
+        box_max = np.full(self.model.nbox, 4.0)
 
 
         # Zero-velocity and angles terminal constraint at stage N-1
         self.ocp_solver.constraints_set(
             self.N - 1, "lbx", np.hstack([np.full(self.model.nori, -np.pi), 
-                                      np.full(self.model.nv, -1e2), box_min,np.array([1.0])]) # <-- Added lower box limit
+                                      np.full(self.model.nv, -1e2), box_min,np.array([1.0])])
         )
         self.ocp_solver.constraints_set(
             self.N - 1, "ubx", np.hstack([np.full(self.model.nori, np.pi), 
-                                      np.full(self.model.nv, 1e2), box_max,np.array([1.0])]) # <-- Added upper box limit
+                                      np.full(self.model.nv, 1e2), box_max,np.array([1.0])])
         )
 
         # Zero-velocity terminal constraint at final stage N
         self.ocp_solver.constraints_set(
             self.N, "lbx", np.hstack([np.full(self.model.nori, -np.pi), 
-                                      np.full(self.model.nv, -1e2), box_min,np.array([1.0])]) # <-- Added lower box limit
+                                      np.full(self.model.nv, -1e2), box_min,np.array([1.0])])
         )
         self.ocp_solver.constraints_set(
             self.N, "ubx", np.hstack([np.full(self.model.nori, np.pi), 
-                                      np.full(self.model.nv, 1e2), box_max, np.array([1.0])]) # <-- Added upper box limit
+                                      np.full(self.model.nv, 1e2), box_max, np.array([1.0])])
         )
         # self.ocp_solver.constraints_set(
         #     self.N, "uh",

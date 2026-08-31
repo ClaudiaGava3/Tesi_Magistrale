@@ -4,9 +4,8 @@ import sys
 import os
 from pathlib import Path
 
-sys.path.append("/home/uav_mpc/Tesi_Claudia/src/DEEPREACH/deepreach")
-
-os.chdir("/home/uav_mpc/Tesi_Claudia/src/DEEPREACH/deepreach")
+sys.path.append("/home/claudia/TESI/VBOC-2D/src/DEEPREACH/deepreach")
+os.chdir("/home/claudia/TESI/VBOC-2D/src/DEEPREACH/deepreach")
 
 from try_bicopter_set import evaluate_V as evaluate_deep
 from try_bicopter_set import model as deep_model
@@ -14,7 +13,7 @@ from try_bicopter_set import dynamics_obj as deep_dynamics
 
 # 2. IMPORTIAMO LA TUA RETE NEURALE
 # Sostituisci "nome_del_tuo_file" con il file dove hai definito la classe NeuralNetwork
-os.chdir("/home/uav_mpc/Tesi_Claudia")
+os.chdir("/home/claudia/TESI/VBOC-2D/src/DEEPREACH")
 from learning import NeuralNetwork
 
 def main():

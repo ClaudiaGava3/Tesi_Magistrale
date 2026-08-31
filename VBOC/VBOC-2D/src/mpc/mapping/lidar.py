@@ -65,14 +65,28 @@ def get_lidar_hits_2d(drone_x, drone_z, obstacles, num_rays=360, max_range=1.5):
 def get_lidar_hits_2d_qualsiasi(drone_x, drone_z, segments, num_rays=360, max_range=1.5):
     hits = []
     distances = []
+    filtered_segments = []
+
+    # # filtraggio segmenti
+    # for seg in segments:
+    #     (x_A, z_A), (x_B, z_B) = seg
+        
+    #     # Bounding box del segmento vs Bounding box del drone
+    #     if (min(x_A, x_B) <= drone_x + max_range and max(x_A, x_B) >= drone_x - max_range and
+    #         min(z_A, z_B) <= drone_z + max_range and max(z_A, z_B) >= drone_z - max_range):
+            
+    #         filtered_segments.append((x_A, z_A, x_B, z_B))
     
     # Compute the angle between rays
     angle_step_rad = (2 * np.pi) / num_rays
-    angles = np.linspace(0, 2 * np.pi, num_rays, endpoint=False)
+    num_half_rays = num_rays // 2  # Solo 180 iterazioni
+    angles = np.linspace(0, np.pi, num_half_rays, endpoint=False)
+
     
     for angle in angles:
         dx, dz = np.cos(angle), np.sin(angle)
-        ray_min_dist = max_range
+        ray_min_dist_fwd = max_range
+        ray_min_dist_bwd = max_range
         
         for seg in segments:
             # Extract the wall endpoints A and B
@@ -101,18 +115,32 @@ def get_lidar_hits_2d_qualsiasi(drone_x, drone_z, segments, num_rays=360, max_ra
                 
                 # 3. Physical impact condition
                 # The ray moves forward (t > 0) and physically hits the wall segment (0 <= u <= 1)
-                if t > 0 and 0 <= u <= 1:
+                if 0<= u <= 1:
                     # 4. Find the nearest wall
-                    if t < ray_min_dist:
-                        ray_min_dist = t
+                    if t > 0:
+                        # Raggio in avanti (Fronte)
+                        if t < ray_min_dist_fwd:
+                            ray_min_dist_fwd = t
+                    elif t < 0:
+                        # Raggio all'indietro (Retro): la distanza è positiva (-t)
+                        dist_bwd = -t
+                        if dist_bwd < ray_min_dist_bwd:
+                            ray_min_dist_bwd = dist_bwd
 
             
         # If the ray hits something within max_range, compute the exact impact point
-        if ray_min_dist < max_range:
-            hit_x = drone_x + ray_min_dist * dx
-            hit_z = drone_z + ray_min_dist * dz
-            hits.append([hit_x, hit_z])
-            distances.append(ray_min_dist)
+        if ray_min_dist_fwd < max_range:
+            hit_x_fwd = drone_x + ray_min_dist_fwd * dx
+            hit_z_fwd = drone_z + ray_min_dist_fwd * dz
+            hits.append([hit_x_fwd, hit_z_fwd])
+            distances.append(ray_min_dist_fwd)
+
+        if ray_min_dist_bwd < max_range:
+            # Per il retro, la direzione spaziale è invertita (-dx, -dz)
+            hit_x_bwd = drone_x - ray_min_dist_bwd * dx
+            hit_z_bwd = drone_z - ray_min_dist_bwd * dz
+            hits.append([hit_x_bwd, hit_z_bwd])
+            distances.append(ray_min_dist_bwd)
             
     hits = np.array(hits)
     distances = np.array(distances)
@@ -122,6 +150,60 @@ def get_lidar_hits_2d_qualsiasi(drone_x, drone_z, segments, num_rays=360, max_ra
     if len(distances) > 0:
         radii = distances * np.tan(angle_step_rad / 2) * 1.05
     else:
+        radii = np.array([])
+        
+    return hits, radii
+
+def get_lidar_hits_2d_qualsiasi2_0(drone_x, drone_z, segments, num_rays=360, max_range=1.5):
+    # Compute the angle between rays
+    angle_step_rad = (2 * np.pi) / num_rays
+    angles = np.linspace(0, 2 * np.pi, num_rays, endpoint=False)
+    
+    # 1. Prepare ray matrices (Shape: 360 x 1)
+    dx = np.cos(angles).reshape(-1, 1)
+    dz = np.sin(angles).reshape(-1, 1)
+    
+    # 2. Prepare segment matrices (Shape: M muri)
+    seg_arr = np.array(segments)
+    x_A, z_A = seg_arr[:, 0, 0], seg_arr[:, 0, 1]
+    x_B, z_B = seg_arr[:, 1, 0], seg_arr[:, 1, 1]
+    
+    s_x = x_B - x_A
+    s_z = z_B - z_A
+    
+    # 3. Vectorized Math (Broadcasting 360x1 against 1xM -> Result is 360xM)
+    den = dx * s_z - dz * s_x
+    
+    # Ignora i warning temporanei per divisione per zero (li filtriamo dopo)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        diff_x = x_A - drone_x
+        diff_z = z_A - drone_z
+        
+        t = (diff_x * s_z - diff_z * s_x) / den
+        u = (diff_x * dz - diff_z * dx) / den
+        
+    # 4. Valid impact conditions mask
+    valid_hit = (den != 0) & (t > 0) & (u >= 0) & (u <= 1)
+    
+    # 5. Filter distances: Set invalid hits to infinity
+    t_valid = np.where(valid_hit, t, np.inf)
+    
+    # 6. Find the nearest wall for each ray (Min t across the walls axis)
+    ray_min_dist = np.min(t_valid, axis=1)
+    
+    # 7. Apply max_range filter
+    valid_rays_mask = ray_min_dist < max_range
+    final_dists = ray_min_dist[valid_rays_mask]
+    final_angles = angles[valid_rays_mask]
+    
+    # 8. Compute hits and radii
+    if len(final_dists) > 0:
+        hits_x = drone_x + final_dists * np.cos(final_angles)
+        hits_z = drone_z + final_dists * np.sin(final_angles)
+        hits = np.column_stack((hits_x, hits_z))
+        radii = final_dists * np.tan(angle_step_rad / 2) * 1.05
+    else:
+        hits = np.array([])
         radii = np.array([])
         
     return hits, radii
