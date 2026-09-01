@@ -675,7 +675,7 @@ def main_statistico():
         
 
     if len(frames_animazione) > 0:
-        cartella_video = "video_traiettorie_tempi"
+        cartella_video = "video_traiettorie_telecamera"
         os.makedirs(cartella_video, exist_ok=True)
             
         print(f"Generazione del video per il Target {test_idx+1} in corso...")
