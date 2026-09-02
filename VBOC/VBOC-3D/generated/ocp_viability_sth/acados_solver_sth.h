@@ -42,7 +42,7 @@
 #define STH_NP     6
 #define STH_NP_GLOBAL     0
 #define STH_NBX    16
-#define STH_NBX0   12
+#define STH_NBX0   18
 #define STH_NBU    4
 #define STH_NSBX   0
 #define STH_NSBU   0

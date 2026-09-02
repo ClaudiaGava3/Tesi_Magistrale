@@ -14,7 +14,7 @@ from itertools import product, combinations
 from parser import Parameters
 from mpc_abstract_obs import Model
 from mpc_controller_obs import MpcController
-from test_lidar import get_lidar_hits_3d, min_cube_select_3d
+from MPC.mapping.lidar import get_lidar_hits_3d, min_cube_select_3d
 
 
 def get_ambiente(id_stanza):

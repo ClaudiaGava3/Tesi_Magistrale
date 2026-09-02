@@ -544,6 +544,12 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
     idxbx0[9] = 9;
     idxbx0[10] = 10;
     idxbx0[11] = 11;
+    idxbx0[12] = 12;
+    idxbx0[13] = 13;
+    idxbx0[14] = 14;
+    idxbx0[15] = 15;
+    idxbx0[16] = 16;
+    idxbx0[17] = 17;
 
     double* lubx0 = calloc(2*NBX0, sizeof(double));
     double* lbx0 = lubx0;
@@ -637,17 +643,17 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
     ubx[7] = 100;
     lbx[8] = -100;
     ubx[8] = 100;
-    lbx[9] = 0.1;
+    lbx[9] = 0.01;
     ubx[9] = 1;
-    lbx[10] = 0.1;
+    lbx[10] = 0.01;
     ubx[10] = 1;
-    lbx[11] = 0.1;
+    lbx[11] = 0.01;
     ubx[11] = 1;
-    lbx[12] = 0.1;
+    lbx[12] = 0.01;
     ubx[12] = 1;
-    lbx[13] = 0.1;
+    lbx[13] = 0.01;
     ubx[13] = 1;
-    lbx[14] = 0.1;
+    lbx[14] = 0.01;
     ubx[14] = 1;
     ubx[15] = 100000;
 
@@ -723,17 +729,17 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
     double* lubx_e = calloc(2*NBXN, sizeof(double));
     double* lbx_e = lubx_e;
     double* ubx_e = lubx_e + NBXN;
-    lbx_e[9] = 0.1;
+    lbx_e[9] = 0.01;
     ubx_e[9] = 1;
-    lbx_e[10] = 0.1;
+    lbx_e[10] = 0.01;
     ubx_e[10] = 1;
-    lbx_e[11] = 0.1;
+    lbx_e[11] = 0.01;
     ubx_e[11] = 1;
-    lbx_e[12] = 0.1;
+    lbx_e[12] = 0.01;
     ubx_e[12] = 1;
-    lbx_e[13] = 0.1;
+    lbx_e[13] = 0.01;
     ubx_e[13] = 1;
-    lbx_e[14] = 0.1;
+    lbx_e[14] = 0.01;
     ubx_e[14] = 1;
     ubx_e[15] = 100000;
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "idxbx", idxbx_e);
@@ -914,7 +920,7 @@ static void sth_acados_create_set_opts(sth_solver_capsule* capsule)
     double nlp_solver_tol_comp = 0.00001;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "tol_comp", &nlp_solver_tol_comp);
 
-    int nlp_solver_max_iter = 100;
+    int nlp_solver_max_iter = 1000;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "max_iter", &nlp_solver_max_iter);
 
     // set options for adaptive Levenberg-Marquardt Update
@@ -977,7 +983,7 @@ static void sth_acados_create_set_opts(sth_solver_capsule* capsule)
     double anderson_activation_threshold = 10;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "anderson_activation_threshold", &anderson_activation_threshold);
 
-    int qp_solver_iter_max = 100;
+    int qp_solver_iter_max = 200;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "qp_iter_max", &qp_solver_iter_max);
 
 
@@ -1286,7 +1292,7 @@ void sth_acados_print_stats(sth_solver_capsule* capsule)
         printf("stat_n_max = %d is too small, increase it in the template!\n", stat_n_max);
         exit(1);
     }
-    double stat[1616];
+    double stat[16016];
     ocp_nlp_get(capsule->nlp_solver, "statistics", stat);
 
     int nrow = nlp_iter+1 < stat_m ? nlp_iter+1 : stat_m;

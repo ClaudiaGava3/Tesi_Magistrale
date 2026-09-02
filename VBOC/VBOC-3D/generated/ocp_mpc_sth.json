@@ -18,7 +18,7 @@
             "/home/claudia/.local/lib/python3.8/site-packages/numpy/core/include",
             "/usr/include/python3.8"
         ],
-        "json_file": "/home/claudia/TESI/VBOC-3D/src/mpc/mapping/../../../generated/ocp_mpc_sth.json",
+        "json_file": "/home/claudia/TESI/VBOC-3D/src/MPC/mapping/../../../generated/ocp_mpc_sth.json",
         "os": "unix",
         "shared_lib_ext": ".so"
     },
@@ -382,7 +382,7 @@
         "sth_cost/sth_cost_ext_cost_e_fun_jac_hess.c",
         "sth_cost/sth_cost_ext_cost_e_fun_jac.c"
     ],
-    "hash": "dc7f3a5d8dd8bd73d9f2e4f7b2574b89",
+    "hash": "e2c709e2c16b24c96fab684a0d7ffff1",
     "model": {
         "con_h_expr": "MX(@1=x[0], @2=x[1], @3=x[2], vertcat((@1-box_limits[0]), (box_limits[1]-@1), (@2-box_limits[2]), (box_limits[3]-@2), (@3-box_limits[4]), (box_limits[5]-@3)))",
         "con_h_expr_0": [],
