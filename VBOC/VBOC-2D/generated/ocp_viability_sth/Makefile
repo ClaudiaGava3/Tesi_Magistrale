@@ -56,12 +56,6 @@ OCP_SRC+= sth_constraints/sth_constr_h_e_fun.c
 OCP_SRC+= sth_cost/sth_cost_ext_cost_0_fun.c
 OCP_SRC+= sth_cost/sth_cost_ext_cost_0_fun_jac_hess.c
 OCP_SRC+= sth_cost/sth_cost_ext_cost_0_fun_jac.c
-OCP_SRC+= sth_cost/sth_cost_ext_cost_fun.c
-OCP_SRC+= sth_cost/sth_cost_ext_cost_fun_jac_hess.c
-OCP_SRC+= sth_cost/sth_cost_ext_cost_fun_jac.c
-OCP_SRC+= sth_cost/sth_cost_ext_cost_e_fun.c
-OCP_SRC+= sth_cost/sth_cost_ext_cost_e_fun_jac_hess.c
-OCP_SRC+= sth_cost/sth_cost_ext_cost_e_fun_jac.c
 
 OCP_SRC+= acados_solver_sth.c
 

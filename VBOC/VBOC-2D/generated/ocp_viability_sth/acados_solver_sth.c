@@ -159,9 +159,9 @@ void sth_acados_create_set_plan(ocp_nlp_plan_t* nlp_solver_plan, const int N)
     nlp_solver_plan->relaxed_ocp_qp_solver_plan.qp_solver = PARTIAL_CONDENSING_HPIPM;
     nlp_solver_plan->nlp_cost[0] = EXTERNAL;
     for (int i = 1; i < N; i++)
-        nlp_solver_plan->nlp_cost[i] = EXTERNAL;
+        nlp_solver_plan->nlp_cost[i] = LINEAR_LS;
 
-    nlp_solver_plan->nlp_cost[N] = EXTERNAL;
+    nlp_solver_plan->nlp_cost[N] = LINEAR_LS;
 
     for (int i = 0; i < N; i++)
     {
@@ -295,6 +295,8 @@ static ocp_nlp_dims* sth_acados_create_setup_dimensions(sth_solver_capsule* caps
         ocp_nlp_dims_set_constraints(nlp_config, nlp_dims, i, "nsg", &nsg[i]);
         ocp_nlp_dims_set_constraints(nlp_config, nlp_dims, i, "nbxe", &nbxe[i]);
     }
+    for (int i = 1; i < N; i++)
+        ocp_nlp_dims_set_cost(nlp_config, nlp_dims, i, "ny", &ny[i]);
     ocp_nlp_dims_set_constraints(nlp_config, nlp_dims, 0, "nh", &nh[0]);
     ocp_nlp_dims_set_constraints(nlp_config, nlp_dims, 0, "nsh", &nsh[0]);
 
@@ -305,6 +307,7 @@ static ocp_nlp_dims* sth_acados_create_setup_dimensions(sth_solver_capsule* caps
     }
     ocp_nlp_dims_set_constraints(nlp_config, nlp_dims, N, "nh", &nh[N]);
     ocp_nlp_dims_set_constraints(nlp_config, nlp_dims, N, "nsh", &nsh[N]);
+    ocp_nlp_dims_set_cost(nlp_config, nlp_dims, N, "ny", &ny[N]);
     free(intNp1mem);
 
     return nlp_dims;
@@ -384,47 +387,12 @@ void sth_acados_create_setup_functions(sth_solver_capsule* capsule)
         }
 
     
-        // external cost
-        capsule->ext_cost_fun = (external_function_external_param_casadi *) malloc(sizeof(external_function_external_param_casadi)*(N-1));
-        for (int i = 0; i < N-1; i++)
-        {
-            MAP_CASADI_FNC(ext_cost_fun[i], sth_cost_ext_cost_fun);
-        }
-
-        capsule->ext_cost_fun_jac = (external_function_external_param_casadi *) malloc(sizeof(external_function_external_param_casadi)*(N-1));
-        for (int i = 0; i < N-1; i++)
-        {
-            MAP_CASADI_FNC(ext_cost_fun_jac[i], sth_cost_ext_cost_fun_jac);
-        }
-
-        capsule->ext_cost_fun_jac_hess = (external_function_external_param_casadi *) malloc(sizeof(external_function_external_param_casadi)*(N-1));
-        for (int i = 0; i < N-1; i++)
-        {
-            MAP_CASADI_FNC(ext_cost_fun_jac_hess[i], sth_cost_ext_cost_fun_jac_hess);
-        }
-
-        
-
-        
     } // N > 0
     MAP_CASADI_FNC(nl_constr_h_e_fun_jac, sth_constr_h_e_fun_jac_uxt_zt);
     MAP_CASADI_FNC(nl_constr_h_e_fun, sth_constr_h_e_fun);
     MAP_CASADI_FNC(nl_constr_h_e_fun_jac_hess, sth_constr_h_e_fun_jac_uxt_zt_hess);
     
     
-    
-    // external cost - function
-    MAP_CASADI_FNC(ext_cost_e_fun, sth_cost_ext_cost_e_fun);
-
-    // external cost - jacobian
-    MAP_CASADI_FNC(ext_cost_e_fun_jac, sth_cost_ext_cost_e_fun_jac);
-
-    // external cost - hessian
-    MAP_CASADI_FNC(ext_cost_e_fun_jac_hess, sth_cost_ext_cost_e_fun_jac_hess);
-
-    // external cost - jacobian wrt params
-    
-
     
 
 #undef MAP_CASADI_FNC
@@ -508,12 +476,7 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
         cost_scaling[17] = 0.02;
         cost_scaling[18] = 0.02;
         cost_scaling[19] = 0.02;
-        cost_scaling[20] = 0.02;
-        cost_scaling[21] = 0.02;
-        cost_scaling[22] = 0.02;
-        cost_scaling[23] = 0.02;
-        cost_scaling[24] = 0.02;
-        cost_scaling[25] = 1;
+        cost_scaling[20] = 1;
         for (int i = 0; i <= N; i++)
         {
             ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, i, "scaling", &cost_scaling[i]);
@@ -537,19 +500,6 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
     ocp_nlp_cost_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, 0, "ext_cost_fun", &capsule->ext_cost_0_fun);
     ocp_nlp_cost_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, 0, "ext_cost_fun_jac", &capsule->ext_cost_0_fun_jac);
     ocp_nlp_cost_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, 0, "ext_cost_fun_jac_hess", &capsule->ext_cost_0_fun_jac_hess);
-    
-    
-    for (int i = 1; i < N; i++)
-    {
-        ocp_nlp_cost_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, i, "ext_cost_fun", &capsule->ext_cost_fun[i-1]);
-        ocp_nlp_cost_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, i, "ext_cost_fun_jac", &capsule->ext_cost_fun_jac[i-1]);
-        ocp_nlp_cost_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, i, "ext_cost_fun_jac_hess", &capsule->ext_cost_fun_jac_hess[i-1]);
-        
-        
-    }
-    ocp_nlp_cost_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, N, "ext_cost_fun", &capsule->ext_cost_e_fun);
-    ocp_nlp_cost_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, N, "ext_cost_fun_jac", &capsule->ext_cost_e_fun_jac);
-    ocp_nlp_cost_model_set_external_param_fun(nlp_config, nlp_dims, nlp_in, N, "ext_cost_fun_jac_hess", &capsule->ext_cost_e_fun_jac_hess);
     
     
 
@@ -646,16 +596,15 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
     ubx[2] = 100;
     lbx[3] = -100;
     ubx[3] = 100;
-    lbx[4] = 0.15;
-    ubx[4] = 4;
-    lbx[5] = 0.15;
-    ubx[5] = 4;
-    lbx[6] = 0.15;
-    ubx[6] = 4;
-    lbx[7] = 0.15;
-    ubx[7] = 4;
-    lbx[8] = 1;
-    ubx[8] = 1;
+    lbx[4] = 0.01;
+    ubx[4] = 1;
+    lbx[5] = 0.01;
+    ubx[5] = 1;
+    lbx[6] = 0.01;
+    ubx[6] = 1;
+    lbx[7] = 0.01;
+    ubx[7] = 1;
+    ubx[8] = 100000;
 
     for (int i = 1; i < N; i++)
     {
@@ -720,24 +669,15 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
     double* lubx_e = calloc(2*NBXN, sizeof(double));
     double* lbx_e = lubx_e;
     double* ubx_e = lubx_e + NBXN;
-    lbx_e[0] = -3.141592653589793;
-    ubx_e[0] = 3.141592653589793;
-    lbx_e[1] = -100;
-    ubx_e[1] = 100;
-    lbx_e[2] = -100;
-    ubx_e[2] = 100;
-    lbx_e[3] = -100;
-    ubx_e[3] = 100;
-    lbx_e[4] = 0.15;
-    ubx_e[4] = 4;
-    lbx_e[5] = 0.15;
-    ubx_e[5] = 4;
-    lbx_e[6] = 0.15;
-    ubx_e[6] = 4;
-    lbx_e[7] = 0.15;
-    ubx_e[7] = 4;
-    lbx_e[8] = 1;
-    ubx_e[8] = 1;
+    lbx_e[4] = 0.01;
+    ubx_e[4] = 1;
+    lbx_e[5] = 0.01;
+    ubx_e[5] = 1;
+    lbx_e[6] = 0.01;
+    ubx_e[6] = 1;
+    lbx_e[7] = 0.01;
+    ubx_e[7] = 1;
+    ubx_e[8] = 100000;
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "idxbx", idxbx_e);
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "lbx", lbx_e);
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "ubx", ubx_e);
@@ -873,7 +813,7 @@ static void sth_acados_create_set_opts(sth_solver_capsule* capsule)
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "levenberg_marquardt", &levenberg_marquardt);
 
     /* options QP solver */
-    int qp_solver_cond_N;const int qp_solver_cond_N_ori = 25;
+    int qp_solver_cond_N;const int qp_solver_cond_N_ori = 20;
     qp_solver_cond_N = N < qp_solver_cond_N_ori ? N : qp_solver_cond_N_ori; // use the minimum value here
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "qp_cond_N", &qp_solver_cond_N);
 
@@ -914,7 +854,7 @@ static void sth_acados_create_set_opts(sth_solver_capsule* capsule)
     double nlp_solver_tol_comp = 0.00001;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "tol_comp", &nlp_solver_tol_comp);
 
-    int nlp_solver_max_iter = 1000;
+    int nlp_solver_max_iter = 5;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "max_iter", &nlp_solver_max_iter);
 
     // set options for adaptive Levenberg-Marquardt Update
@@ -977,7 +917,7 @@ static void sth_acados_create_set_opts(sth_solver_capsule* capsule)
     double anderson_activation_threshold = 10;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "anderson_activation_threshold", &anderson_activation_threshold);
 
-    int qp_solver_iter_max = 200;
+    int qp_solver_iter_max = 100;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "qp_iter_max", &qp_solver_iter_max);
 
 
@@ -992,11 +932,6 @@ static void sth_acados_create_set_opts(sth_solver_capsule* capsule)
 
 
     int ext_cost_num_hess = 0;
-    for (int i = 0; i < N; i++)
-    {
-        ocp_nlp_solver_opts_set_at_stage(nlp_config, nlp_opts, i, "cost_numerical_hessian", &ext_cost_num_hess);
-    }
-    ocp_nlp_solver_opts_set_at_stage(nlp_config, nlp_opts, N, "cost_numerical_hessian", &ext_cost_num_hess);
 }
 
 
@@ -1256,22 +1191,6 @@ int sth_acados_free(sth_solver_capsule* capsule)
     external_function_external_param_casadi_free(&capsule->ext_cost_0_fun_jac_hess);
     
     
-    for (int i = 0; i < N - 1; i++)
-    {
-        external_function_external_param_casadi_free(&capsule->ext_cost_fun[i]);
-        external_function_external_param_casadi_free(&capsule->ext_cost_fun_jac[i]);
-        external_function_external_param_casadi_free(&capsule->ext_cost_fun_jac_hess[i]);
-        
-        
-    }
-    free(capsule->ext_cost_fun);
-    free(capsule->ext_cost_fun_jac);
-    free(capsule->ext_cost_fun_jac_hess);
-    external_function_external_param_casadi_free(&capsule->ext_cost_e_fun);
-    external_function_external_param_casadi_free(&capsule->ext_cost_e_fun_jac);
-    external_function_external_param_casadi_free(&capsule->ext_cost_e_fun_jac_hess);
-    
-    
 
     // constraints
     for (int i = 0; i < N-1; i++)
@@ -1307,7 +1226,7 @@ void sth_acados_print_stats(sth_solver_capsule* capsule)
         printf("stat_n_max = %d is too small, increase it in the template!\n", stat_n_max);
         exit(1);
     }
-    double stat[16016];
+    double stat[96];
     ocp_nlp_get(capsule->nlp_solver, "statistics", stat);
 
     int nrow = nlp_iter+1 < stat_m ? nlp_iter+1 : stat_m;

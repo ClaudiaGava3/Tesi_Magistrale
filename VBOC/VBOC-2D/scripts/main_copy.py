@@ -469,7 +469,7 @@ if __name__ == '__main__':
         'sigm': torch.nn.Sigmoid()
     }
     act_fun = nls[params.act]
-    nn_filename = f'{params.NN_DIR}{robotic_system}_{params.act}_randB.pt'
+    nn_filename = f'{params.NN_DIR}{robotic_system}_{params.act}_randB_delete.pt'
     ub = 1
 
     # =========================================================================
@@ -541,8 +541,7 @@ if __name__ == '__main__':
                 res = p.starmap(
                     compute_data_on_border, 
                     [(q0, b0, box_guess, N, N_increment, vboc_repeat) 
-                     for q0, b0 in zip(q_init[(nb*sub_batch):((nb+1)*sub_batch)],
-                                       b_init[(nb*sub_batch):((nb+1)*sub_batch)])]
+                     for q0, b0 in zip(q_init[(nb*sub_batch):((nb+1)*sub_batch)], b_init[(nb*sub_batch):((nb+1)*sub_batch)])]
                 )
 
             # --- Unpack parallel results (Now 5 items, no longer 7!) ---
@@ -820,9 +819,9 @@ if __name__ == '__main__':
         d_data = np.load(params.DATA_DIR + 'sth_d_vboc.npy')
         status_data = np.load(params.DATA_DIR + 'sth_status_vboc_randB.npy')
 
-        actual_boxes = np.load(f'{params.DATA_DIR}{robotic_system}_actual_boxes_randB.npy')
-        traj_kinematics = np.load(f'{params.DATA_DIR}{robotic_system}_traj_kinematics_randB.npy')
-        u_traj = np.load(f'{params.DATA_DIR}{robotic_system}_u_traj_randB.npy')
+        actual_boxes = np.load(f'{params.DATA_DIR}{robotic_system}_actual_boxes_randB2000.npy')
+        traj_kinematics = np.load(f'{params.DATA_DIR}{robotic_system}_traj_kinematics_randB2000.npy')
+        u_traj = np.load(f'{params.DATA_DIR}{robotic_system}_u_traj_randB2000.npy')
         n_data = np.load(f'{params.DATA_DIR}{robotic_system}_n_horizons_vboc_randB.npy')
         
           
@@ -953,10 +952,6 @@ if __name__ == '__main__':
 
         # --- Standardize box + orientation features using training statistics 
         # ---
-        # mean = np.mean(x_train[:, :nbori])
-        # std = np.std(x_train[:, :nbori])
-        # for x_input in [x_train, x_val, x_test]:
-        #     x_input[:, :nbori] = (x_input[:, :nbori] - mean) / std
         mean = np.mean(x_train, axis=0)
         std = np.std(x_train, axis=0)
         for x_input in [x_train, x_val, x_test]:
@@ -997,6 +992,8 @@ if __name__ == '__main__':
         x_test = torch.Tensor(x_test).to(device)
         y_test = torch.Tensor(y_test).to(device)
 
+        t_start_step = time.perf_counter()
+
         # --- Train ---
         print('***START TRAINING***\n')
         train_val_dir = os.path.join(plots_dir, 'training_validation')
@@ -1010,6 +1007,11 @@ if __name__ == '__main__':
             args['epochs']
         )
         print('***TRAINING COMPLETED***\n')
+
+        t_end_step = time.perf_counter()
+
+        print(f'Training time: {t_end_step - start_time:.2f} seconds')
+
 
         # --- Evaluate on training+validation and test sets ---
         print('***MODEL EVALUATION***')
@@ -1035,7 +1037,7 @@ if __name__ == '__main__':
         }, nn_filename)
 
         # --- Plot training and validation loss curves ---
-        loss_dir = os.path.join(plots_dir, 'loss_evolution')
+        loss_dir = os.path.join(plots_dir, 'loss_evolution_randB')
         ensure_clean_dir(loss_dir)
         fig = plt.figure(figsize=(10, 6))
         plt.grid(True, which='both')
