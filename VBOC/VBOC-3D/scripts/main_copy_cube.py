@@ -20,10 +20,10 @@ from tqdm import tqdm
 from urdf_parser_py.urdf import URDF
 
 # Local
-from src.vboc.abstract_copy import Model
-from src.vboc.controller_copy import ViabilityController
-from src.vboc.learning import NeuralNetwork, NovelNeuralNetwork, RegressionNN, plot_brs
-from src.vboc.parser import Parameters, parse_args
+from src.VBOC.abstract_copy import Model
+from src.VBOC.controller_copy import ViabilityController
+from src.VBOC.learning import NeuralNetwork, NovelNeuralNetwork, RegressionNN, plot_brs
+from src.VBOC.parser import Parameters, parse_args
 
 # Impostazioni globali per le dimensioni del font
 plt.rcParams.update({
@@ -668,7 +668,7 @@ if __name__ == '__main__':
         #in 3D
         ref_box = np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0]) # Box di riferimento 1:1
 
-
+        t_start_step = time.perf_counter()
 
         print('Start data generation')
         for nb in range(n_batch):  
@@ -748,6 +748,10 @@ if __name__ == '__main__':
             print(f'Batch {nb}: Total number of points saved until now: {solved}')
 
         print('Total number of points solved: %d' % solved)
+
+        t_end_step = time.perf_counter()
+                
+        print(f'Dataset time: {t_end_step - t_start_step:.2f} seconds')
 
 
  # =========================================================================
@@ -879,9 +883,9 @@ if __name__ == '__main__':
         d_data = np.load(params.DATA_DIR + 'sth_d_vboc.npy')
         status_data = np.load(params.DATA_DIR + 'sth_status_vboc_randB_cube.npy')
 
-        actual_boxes = np.load(f'{params.DATA_DIR}{robotic_system}_actual_boxes_randB_cube.npy')
-        traj_kinematics = np.load(f'{params.DATA_DIR}{robotic_system}_traj_kinematics_randB_cube.npy')
-        u_traj = np.load(f'{params.DATA_DIR}{robotic_system}_u_traj_randB_cube.npy')
+        actual_boxes = np.load(f'{params.DATA_DIR}{robotic_system}_actual_boxes_vboc_randB_cube.npy')
+        traj_kinematics = np.load(f'{params.DATA_DIR}{robotic_system}_traj_kinematics_vboc_randB_cube.npy')
+        u_traj = np.load(f'{params.DATA_DIR}{robotic_system}_u_traj_vboc_randB_cube.npy')
         n_data = np.load(f'{params.DATA_DIR}{robotic_system}_n_horizons_vboc_randB_cube.npy')
         
 

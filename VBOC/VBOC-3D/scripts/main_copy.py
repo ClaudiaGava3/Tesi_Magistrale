@@ -20,10 +20,10 @@ from tqdm import tqdm
 from urdf_parser_py.urdf import URDF
 
 # Local
-from src.vboc.abstract_copy import Model
-from src.vboc.controller_copy import ViabilityController
-from src.vboc.learning import NeuralNetwork, NovelNeuralNetwork, RegressionNN, plot_brs
-from src.vboc.parser import Parameters, parse_args
+from src.VBOC.abstract_copy import Model
+from src.VBOC.controller_copy import ViabilityController
+from src.VBOC.learning import NeuralNetwork, NovelNeuralNetwork, RegressionNN, plot_brs
+from src.VBOC.parser import Parameters, parse_args
 
 # Impostazioni globali per le dimensioni del font
 plt.rcParams.update({
@@ -598,7 +598,7 @@ if __name__ == '__main__':
         'sigm': torch.nn.Sigmoid()
     }
     act_fun = nls[params.act]
-    nn_filename = f'{params.NN_DIR}{robotic_system}_{params.act}_randB.pt'
+    nn_filename = f'{params.NN_DIR}{robotic_system}_{params.act}_randB_2mln.pt'
     ub = 1
 
     # =========================================================================
@@ -668,7 +668,7 @@ if __name__ == '__main__':
         #in 3D
         ref_box = np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0]) # Box di riferimento 1:1
 
-
+        t_start_step = time.perf_counter()
 
         print('Start data generation')
         for nb in range(n_batch):  
@@ -730,22 +730,26 @@ if __name__ == '__main__':
 
             traj_kinematics = np.vstack([traj[:, 3:12] for traj in x_traj])
             
-            np.save(f'{params.DATA_DIR}{robotic_system}_x_vboc_randB', x_data)
-            np.save(f'{params.DATA_DIR}{robotic_system}_b_vboc_randB', b_optimized)
-            np.save(f'{params.DATA_DIR}{robotic_system}_n_horizons_vboc_randB', n_data)
-            np.save(f'{params.DATA_DIR}{robotic_system}_status_vboc_randB', status_list)
+            np.save(f'{params.DATA_DIR}{robotic_system}_x_vboc_randB_2mln', x_data)
+            np.save(f'{params.DATA_DIR}{robotic_system}_b_vboc_randB_2mln', b_optimized)
+            np.save(f'{params.DATA_DIR}{robotic_system}_n_horizons_vboc_randB_2mln', n_data)
+            np.save(f'{params.DATA_DIR}{robotic_system}_status_vboc_randB_2mln', status_list)
             # === SALVATAGGIO DEI FALLIMENTI ===
             np.save(f'{params.DATA_DIR}{robotic_system}_failed_q_init_vboc_randB', np.array(all_failed_q_init))
 
-            np.save(f'{params.DATA_DIR}{robotic_system}_actual_boxes_vboc_randB', actual_boxes)
-            np.save(f'{params.DATA_DIR}{robotic_system}_traj_kinematics_vboc_randB', traj_kinematics)
+            np.save(f'{params.DATA_DIR}{robotic_system}_actual_boxes_vboc_randB_2mln', actual_boxes)
+            np.save(f'{params.DATA_DIR}{robotic_system}_traj_kinematics_vboc_randB_2mln', traj_kinematics)
             np.save(f'{params.DATA_DIR}{robotic_system}_u_traj_vboc_randB', np.vstack(u_traj))
 
-            np.save(f'{params.DATA_DIR}{robotic_system}_TEST_dataset_classification', np.array(all_test_dataset))
+            np.save(f'{params.DATA_DIR}{robotic_system}_TEST_dataset_classification_2mln', np.array(all_test_dataset))
 
             
             solved = len(x_data)
             print(f'Batch {nb}: Total number of points saved until now: {solved}')
+
+        t_end_step = time.perf_counter()
+        
+        print(f'Training time: {t_end_step - t_start_step:.2f} seconds')
 
         print('Total number of points solved: %d' % solved)
 
@@ -873,15 +877,15 @@ if __name__ == '__main__':
     if params.training: 
 
         # --- Load data ---
-        x_data = np.load(f'{params.DATA_DIR}{robotic_system}_x_vboc_randB.npy')
-        b_data = np.load(f'{params.DATA_DIR}{robotic_system}_b_vboc_randB.npy')
+        x_data = np.load(f'{params.DATA_DIR}{robotic_system}_x_vboc_randB_2mln.npy')
+        b_data = np.load(f'{params.DATA_DIR}{robotic_system}_b_vboc_randB_2mln.npy')
         b_all_data = np.load(params.DATA_DIR + 'sth_b_all_vboc.npy')
         d_data = np.load(params.DATA_DIR + 'sth_d_vboc.npy')
-        status_data = np.load(params.DATA_DIR + 'sth_status_vboc_randB.npy')
+        status_data = np.load(params.DATA_DIR + 'sth_status_vboc_randB_2mln.npy')
 
-        actual_boxes = np.load(f'{params.DATA_DIR}{robotic_system}_actual_boxes_vboc_randB.npy')
-        traj_kinematics = np.load(f'{params.DATA_DIR}{robotic_system}_traj_kinematics_vboc_randB.npy')
-        u_traj = np.load(f'{params.DATA_DIR}{robotic_system}_u_traj_vboc_randB.npy')
+        actual_boxes = np.load(f'{params.DATA_DIR}{robotic_system}_actual_boxes_vboc_randB_2mln.npy')
+        traj_kinematics = np.load(f'{params.DATA_DIR}{robotic_system}_traj_kinematics_vboc_randB_2mln.npy')
+        u_traj = np.load(f'{params.DATA_DIR}{robotic_system}_u_traj_vboc_randB_2mln.npy')
         n_data = np.load(f'{params.DATA_DIR}{robotic_system}_n_horizons_vboc_randB.npy')
         
 

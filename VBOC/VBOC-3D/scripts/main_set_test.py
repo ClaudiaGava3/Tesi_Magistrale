@@ -20,10 +20,10 @@ from tqdm import tqdm
 from urdf_parser_py.urdf import URDF
 
 # Local
-from src.vboc.abstract import Model
-from src.vboc.controller import ViabilityController
-from src.vboc.learning import NeuralNetwork, NovelNeuralNetwork, RegressionNN, plot_brs
-from src.vboc.parser import Parameters, parse_args
+from src.VBOC.abstract_set_test import Model
+from src.VBOC.controller_set_test import ViabilityController
+from src.VBOC.learning import NeuralNetwork, NovelNeuralNetwork, RegressionNN, plot_brs
+from src.VBOC.parser import Parameters, parse_args
 
 # Impostazioni globali per le dimensioni del font
 plt.rcParams.update({
@@ -625,6 +625,15 @@ if __name__ == '__main__':
 
         # Creiamo il vettore di stato iniziale di 12 elementi (3 pos + 3 ori + 6 vel)
         q_init = np.hstack([pos_init, orient_init, vel_init])
+        # OPZIONE 1: Box CUBICO (6 lati uguali tra loro per ogni test)
+        # Estraiamo 1 solo valore random tra 0.15 e 1.0 e lo ripetiamo per i 6 lati
+        b_init_raw = np.random.uniform(0.15, 1.0, (params.prob_num, 1))
+        b_init = np.repeat(b_init_raw, model.nbox, axis=1)
+
+        # OPZIONE 2: Box IRREGOLARE (6 lati indipendenti tra loro per ogni test)
+        # Estraiamo 6 valori casuali separati tra 0.15 e 1.0
+        # b_init = np.random.uniform(0.15, 1.0, (params.prob_num, model.nbox))
+
 
         # --- Obstacle box bounds --- 
         box_guess=1e1
@@ -676,7 +685,8 @@ if __name__ == '__main__':
         #all_x_0, all_x_t, all_u_t, all_b_m, all_b_M, all_status, all_d_list = \
         #[],[],[],[],[],[],[]
         all_x_0, all_x_t, all_u_t, all_n_final, all_status = [], [], [], [], []
-        all_failed_q_init = [] # <--- NUOVA LISTA PER I FALLIMENTI
+        all_failed_q_init = []
+        all_test_dataset = []
 
         # Split the problems into sub-batches to allow intermediate saves
         if params.check:
@@ -737,8 +747,9 @@ if __name__ == '__main__':
             with Pool(params.cpu_num) as p:
                 res = p.starmap(
                     compute_data_on_border, 
-                    [(q0, ref_box, box_guess, N, N_increment, vboc_repeat) 
-                     for q0 in q_init[(nb*sub_batch):((nb+1)*sub_batch)]]
+                    [(q0, b0, box_guess, N, N_increment, vboc_repeat) 
+                     for q0, b0 in zip(q_init[(nb*sub_batch):((nb+1)*sub_batch)],
+                                       b_init[(nb*sub_batch):((nb+1)*sub_batch)])]
                 )
 
             # --- Unpack parallel results (Ora sono 5, non più 7!) ---
@@ -748,6 +759,24 @@ if __name__ == '__main__':
             all_u_t.extend(u_t)
             all_n_final.extend(n_final_list)
             all_status.extend(status)
+
+
+             # --- NUOVO BLOCCO PER IL SET DI TEST COMPLETO ---
+            q0_batch = q_init[(nb*sub_batch):((nb+1)*sub_batch)]
+            b0_batch = b_init[(nb*sub_batch):((nb+1)*sub_batch)]
+            
+            for i in range(len(x_0)):
+                # Se ha successo prendiamo lo scale (indice 10), se fallisce mettiamo -1.0
+                scale_val = x_0[i][10] if x_0[i] is not None else -1000.0
+
+                # Deriviamo il successo in base allo status (0 o 2 = Successo -> 1.0)
+                # Correzione: è un successo SOLO SE lo status è buono E abbiamo una soluzione reale
+                is_success = 1.0 if (status[i] in [0, 2] and x_0[i] is not None) else 0.0
+                
+                # q0_batch[i][2:6] salta x e z, prendendo solo theta, vx, vz, wy
+                row = np.hstack([q0_batch[i][3:12], b0_batch[i], status[i], scale_val, is_success])
+                all_test_dataset.append(row)
+            # ------------------------------------------------
 
             # === NUOVO CODICE: CATTURA I CASI FALLITI ===
             q0_batch = q_init[(nb*sub_batch):((nb+1)*sub_batch)]
@@ -765,42 +794,7 @@ if __name__ == '__main__':
                 warnings.warn('No solution found for any problem. Exiting.', RuntimeWarning)
                 exit()
 
-            # # --- Intermediate save: filter out failed problems ---
-            # x_data = np.vstack([i for i in all_x_0 if i is not None])
-            # x_traj = [i for i in all_x_t if i is not None]
-            # u_traj = [i for i in all_u_t if i is not None]
-            # b_min = list(all_b_m)
-            # b_max = list(all_b_M)
-            # d = list(all_d_list)
-            # status = list(all_status)
-            # b_combined = np.vstack([np.hstack((b_min[i], b_max[i])) 
-            #                         for i in range(len(b_min))]
-            # )
-            # np.save(f'{params.DATA_DIR}{robotic_system}_d_vboc', d)
-            # np.save(
-            #     f'{params.DATA_DIR}{robotic_system}_b_all_vboc', b_combined
-            # )
-            # np.save(f'{params.DATA_DIR}{robotic_system}_status_vboc', status)
-            # b_min_succ = [all_b_m[i] for i in range(len(all_b_m)) 
-            #               if all_x_0[i] is not None
-            # ]
-            # b_max_succ = [all_b_M[i] for i in range(len(all_b_M)) 
-            #               if all_x_0[i] is not None
-            # ]
-            # b_combined_succ = np.vstack(
-            #     [np.hstack((b_min_succ[i], b_max_succ[i])) 
-            #      for i in range(len(b_min_succ))
-            #     ]
-            # )
-            # solved = len(x_data)
-            # print(f'Batch {nb}: Total number of points saved until now: %d' 
-            #       % solved
-            # )
-            # np.save(f'{params.DATA_DIR}{robotic_system}_x_vboc', x_data)
-            # np.save(
-            #     f'{params.DATA_DIR}{robotic_system}_b_vboc', b_combined_succ
-            # )
-
+            
             x_data = np.vstack([i for i in all_x_0 if i is not None])
             x_traj = [i for i in all_x_t if i is not None]
             u_traj = [i for i in all_u_t if i is not None]
@@ -810,12 +804,12 @@ if __name__ == '__main__':
             # Il "box" ottimizzato è solo un fattore di scala!
             b_optimized = x_data[:, 18].reshape(-1, 1)
 
-            np.save(f'{params.DATA_DIR}{robotic_system}_x_vboc', x_data)
-            np.save(f'{params.DATA_DIR}{robotic_system}_b_vboc', b_optimized)
-            np.save(f'{params.DATA_DIR}{robotic_system}_n_horizons_vboc', n_data)
-            np.save(f'{params.DATA_DIR}{robotic_system}_status_vboc', status_list)
+            np.save(f'{params.DATA_DIR}{robotic_system}_x_vboc_dataset1m_cube', x_data)
+            np.save(f'{params.DATA_DIR}{robotic_system}_b_vboc_dataset1m_cube', b_optimized)
+            np.save(f'{params.DATA_DIR}{robotic_system}_n_horizons_vboc_dataset1m_cube', n_data)
+            np.save(f'{params.DATA_DIR}{robotic_system}_status_vboc_dataset1m_cube', status_list)
             # === SALVATAGGIO DEI FALLIMENTI ===
-            np.save(f'{params.DATA_DIR}{robotic_system}_failed_q_init_vboc', np.array(all_failed_q_init))
+            np.save(f'{params.DATA_DIR}{robotic_system}_failed_q_init_vboc_dataset1m', np.array(all_failed_q_init))
             
             solved = len(x_data)
             print(f'Batch {nb}: Total number of points saved until now: {solved}')
