@@ -643,7 +643,7 @@ if __name__ == '__main__':
         # b_init = b_init_raw / np.linalg.norm(b_init_raw, axis=1, keepdims=True)
 
         # --- Obstacle box bounds --- 
-        box_guess=1e1
+        box_guess=1.0
 
         # --- Random seeds, one per problem ---
         randomSeeds = [random.randint(0, params.prob_num) 

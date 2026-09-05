@@ -516,8 +516,6 @@ if __name__ == '__main__':
         ]
 
         # --- Accumulators for results across all batches ---
-        #all_x_0, all_x_t, all_u_t, all_b_m, all_b_M, all_status, all_d_list = \
-        #[],[],[],[],[],[],[]
         all_x_0, all_x_t, all_u_t, all_n_final, all_status = [], [], [], [], []
         all_failed_q_init = [] # <--- NEW LIST FOR FAILURES
         all_test_dataset = []

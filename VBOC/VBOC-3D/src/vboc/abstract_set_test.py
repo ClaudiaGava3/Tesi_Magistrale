@@ -51,12 +51,12 @@ class Model:
         
 
         # --- State and input dimensions 2D---
-        nq = 3  # Pose: 2 position + 1 orientation (Euler angles)
-        nv = 3
-        nu = 2  # Input: 2 squared rotor spinning rates
-        npos = 2    # Position sub-space dimension
-        nori = 1    # Orientation sub-space dimension
-        nbox = 4    # Obstacle box constraint dimension
+        nq = 6  # Pose: 2 position + 1 orientation (Euler angles)
+        nv = 6
+        nu = 4  # Input: 4 squared rotor spinning rates
+        npos = 3    # Position sub-space dimension
+        nori = 3    # Orientation sub-space dimension
+        nbox = 6    # Obstacle box constraint dimension
         nscale = 1  # FATTORE DI SCALA (Sostituisce nbox)
 
 
@@ -68,7 +68,7 @@ class Model:
             
         # --- Rotation matrix (ZYX Euler convention) ---
         euler_angles = self.x[npos:npos+nori] 
-        roll, pitch, yaw = 0.0, euler_angles[0], 0.0
+        roll, pitch, yaw = euler_angles[0], euler_angles[1], euler_angles[2]
 
         R_x = vertcat(
             horzcat(1,          0,          0   ),
@@ -96,11 +96,11 @@ class Model:
         tan_a = np.tan(self.alpha_tilt)
 
         # F maps squared rotor speeds to body-frame force components [3 × nu]
-        # in 2D
+        # in 3D
         self.F=self.cf*np.array([
-            [0,0],
-            [0,0],
-            [1,1]
+            [0,0,0,0],
+            [0,0,0,0],
+            [1,1,1,1]
         ])
 
 
@@ -115,11 +115,11 @@ class Model:
         # ])
 
         # M maps squared rotor speeds to body-frame torque components [3 × nu]
-        # in 2D
-        self.M= self.cf * np.array([
-            [0.0,0.0],
-            [-self.l,self.l],
-            [0.0,0.0]
+        # in 3D
+        self.M = np.array([
+            [0,      self.l*self.cf,  0,      -self.l*self.cf], # Roll (motori 2-4)
+            [-self.l*self.cf, 0,      self.l*self.cf,  0     ], # Pitch (motori 3-1)
+            [self.ct, -self.ct,      self.ct, -self.ct       ]  # Yaw
         ])
 
 
@@ -165,7 +165,7 @@ class Model:
         )
         self.Tinv = Function('Tinv', [self.x], [Tinv_expr])
 
-        omega_3d = vertcat(0.0, self.x[5], 0.0)
+        omega_3d = self.x[9:12]
 
         euler_rates_3d = self.Tinv(self.x) @ omega_3d
         accel_3d = -self.g*np.array([[0], [0], [1]]) + self.fc(self.x, self.u) / self.mass
@@ -173,16 +173,14 @@ class Model:
 
         # --- Explicit continuous-time dynamics: x_dot = f(x, u) ---
 
-        # 2D
+        # 3D
         self.f_expl = vertcat(
-            self.x[3:5],         # x_dot, z_dot
-            euler_rates_3d[1],   # theta_dot (derivato dal tuo Tinv!)
-            accel_3d[0],         # vx_dot
-            accel_3d[2],         # vz_dot
-            alpha_3d[1],         # wy_dot (derivato dalla tua equazione con cross!)
-            0.0, 0.0, 0.0, 0.0,   # Derivate dei 4 parametri del box (costanti)
-            0.0     # Derivata dello scaling (costante)
-            
+            self.x[6:9],         # Velocità lineari (v_x, v_y, v_z)
+            euler_rates_3d,      # phi_dot, theta_dot, psi_dot
+            accel_3d,            # vx_dot, vy_dot, vz_dot
+            alpha_3d,            # p_dot, q_dot, r_dot
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, # 6 parametri del box costanti
+            0.0                  # scaling costante
         )
 
 
@@ -249,19 +247,21 @@ class Model:
         )
 
         # Outward normals of the six faces of the axis-aligned bounding box
-        #in 2D
+        #in 3D
         box_normals = [
             DM([1.0,0.0,0.0]),
+            DM([0.0,1.0,0.0]),
             DM([0.0,0.0,1.0]),
             DM([-1.0,0.0,0.0]),
+            DM([0.0,-1.0,0.0]),
             DM([0.0,0.0,-1.0])
         ]
 
 
         # Build one scalar constraint per face
         self.con_h_expr_list = []
-        # Gli indici delle dimensioni del box in self.x sono 6, 7, 8, 9
-        #box_vars_indices = [6, 7, 8, 9]
+        # Gli indici delle dimensioni del box in self.x sono 12, 13, 14, 15, 16, 17
+        #box_vars_indices = [12, 13, 14, 15, 16, 17]
         
         #TENTATIVO 1 CON SOLO DIM BOX
         # for i,n in enumerate(box_normals):
@@ -273,10 +273,11 @@ class Model:
 
         #TENTATIVO 2 CON PROIEZIONE
         for i, n in enumerate(box_normals):
-            # Dimensione = fattore_di_scala (x[6]) * dimensione_base_fissa (p[i])
-            #in 2D
-            box_dim = self.x[10] * self.x[6+i]
-            pos_proj = n[0] * self.x[0] + n[2] * self.x[1]
+            # Dimensione = fattore_di_scala (x[18]) * dimensione_base_fissa (p[i])
+            #in 3D
+            box_dim = self.x[18] * self.x[12+i]
+            # Proiezione della posizione del drone (x[0], x[1], x[2]) sulla normale n
+            pos_proj = dot(n, self.x[0:3])
             
             expr = pos_proj + sqrt(n.T @ self.Q(self.x) @ n) - box_dim
             self.con_h_expr_list.append(expr)
@@ -347,17 +348,18 @@ class AbstractController:
         self.ocp.model = self.model.amodel
 
         # Calcolo della spinta di hovering
-        u_hover_val = (self.model.mass * self.model.g) / (2.0 * self.model.cf)
+        u_hover_val = (self.model.mass * self.model.g) / (4.0 * self.model.cf)
         
-        # Errore rispetto all'hovering
+        # Errore rispetto all'hovering (La tua idea!)
         err_u = self.model.u - u_hover_val
         cost_motori = dot(err_u, err_u)
-        
-        # Penalità sulle velocità vx e vz
-        cost_velocita = self.model.x[3]**2 + self.model.x[4]**2
+
+        # Penalità sulle velocità vx, vy e vz
+        cost_velocita = self.model.x[6]**2 + self.model.x[7]**2 + self.model.x[8]**2
         
         # Costo totale: diamo un piccolo peso a entrambi per stabilizzare il drone
         costo_totale = 1e-3 * cost_motori + 1e-2 * cost_velocita
+
 
         # Applichiamo il costo a tutti i nodi (iniziale, intermedio)
         self.ocp.cost.cost_type_0 = 'EXTERNAL'
@@ -369,6 +371,7 @@ class AbstractController:
         # Nessun costo al nodo terminale
         self.ocp.cost.cost_type_e = 'EXTERNAL'
         self.ocp.model.cost_expr_ext_cost_e = 0.0
+
         
         self.ocp.parameter_values = np.zeros(self.model.nbox) # Inizializza i parametri p
 
@@ -381,9 +384,9 @@ class AbstractController:
 
         # --- Initial shooting node: position and velocity fixed ---
         # Fissiamo x, z, theta, vx, vz, wy (Primi 6 indici: 0,1,2,3,4,5)
-        self.ocp.constraints.idxbx_0 = np.arange(self.model.nq + self.model.nv+self.model.nbox) 
+        self.ocp.constraints.idxbx_0 = np.arange(self.model.nq + self.model.nv + self.model.nbox) 
         self.ocp.constraints.lbx_0 = np.zeros(self.model.nq + self.model.nv + self.model.nbox)
-        self.ocp.constraints.ubx_0 = np.zeros(self.model.nq + self.model.nv+ self.model.nbox)
+        self.ocp.constraints.ubx_0 = np.zeros(self.model.nq + self.model.nv + self.model.nbox)
 
         # --- Path constraints ---
         # Nonlinear obstacle constraint (one per box face)
@@ -396,13 +399,13 @@ class AbstractController:
         self.ocp.constraints.lbx = np.hstack([
             np.full(self.model.nori, -np.pi), 
             np.full(self.model.nv, -1e2),
-            np.full(self.model.nbox, 0.15), 
+            np.full(self.model.nbox, 0.15),
             np.array([1.0])                   # scale min
         ])
         self.ocp.constraints.ubx = np.hstack([
             np.full(self.model.nori, np.pi),  
             np.full(self.model.nv, 1e2),
-            np.full(self.model.nbox, 4.0),
+            np.full(self.model.nbox, 1.0),  
             np.array([1.0])                    # scale max
         ])
 
@@ -411,14 +414,14 @@ class AbstractController:
         self.ocp.constraints.lbx_e = np.hstack([
             np.full(self.model.nori, -np.pi), 
             np.full(self.model.nv, -1e2),
-            np.full(self.model.nbox, 0.15),
-                        np.array([1.0])                 
+            np.full(self.model.nbox, 0.15),         
+            np.array([1.0])                   
         ])
         self.ocp.constraints.ubx_e = np.hstack([
-            np.full(self.model.nori, np.pi),  
+            np.full(self.model.nori, np.pi),        
             np.full(self.model.nv, 1e2),
-            np.full(self.model.nbox, 4.0),
-            np.array([1.0])                    
+            np.full(self.model.nbox, 1.0),         
+            np.array([1.0])                   
         ])
 
         # Terminal obstacle constraint (same expression as path)

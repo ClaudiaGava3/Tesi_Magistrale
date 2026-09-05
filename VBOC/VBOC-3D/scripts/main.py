@@ -20,10 +20,10 @@ from tqdm import tqdm
 from urdf_parser_py.urdf import URDF
 
 # Local
-from src.vboc.abstract import Model
-from src.vboc.controller import ViabilityController
-from src.vboc.learning import NeuralNetwork, NovelNeuralNetwork, RegressionNN, plot_brs
-from src.vboc.parser import Parameters, parse_args
+from src.VBOC.abstract import Model
+from src.VBOC.controller import ViabilityController
+from src.VBOC.learning import NeuralNetwork, NovelNeuralNetwork, RegressionNN, plot_brs
+from src.VBOC.parser import Parameters, parse_args
 
 # Impostazioni globali per le dimensioni del font
 plt.rcParams.update({

@@ -78,7 +78,7 @@ class ViabilityController(AbstractController):
                           np.full(self.model.nori, -np.pi), 
                           np.full(self.model.nv, -1e2),
                           np.full(self.model.nbox, 0.15),
-                          np.array([1.0])
+                          np.array([1.0])    # Limite inferiore box
                      ])
                 )
                 self.ocp_solver.constraints_set(
@@ -87,8 +87,8 @@ class ViabilityController(AbstractController):
                      np.hstack([
                           np.full(self.model.nori, np.pi), 
                           np.full(self.model.nv, 1e2),
-                          np.full(self.model.nbox, 4.0),
-                          np.array([1.0])
+                          np.full(self.model.nbox, 1.0),
+                          np.array([1.0])    # Limite superiore box
                     ])
                 )
 
@@ -98,9 +98,9 @@ class ViabilityController(AbstractController):
 
         # Shared bounds reused for stages N-1 and N
         zero_vel = np.zeros(self.model.nv)
-        ori_0 = np.full(self.model.nori, 0.0) # changed terminal angle constraint from -np.pi to 0
+        ori_0 = np.full(self.model.nori, 0.0) #cambiato vincolo a 0 da -np.pi
         box_min = np.full(self.model.nbox, 0.15)
-        box_max = np.full(self.model.nbox, 4.0)
+        box_max = np.full(self.model.nbox, 1.0)
 
 
         # Terminal constraint at stage N-1
@@ -193,7 +193,7 @@ class ViabilityController(AbstractController):
             Solver status code of the last solve call (0 = success).
         """
         N = N_start
-        gamma = float('inf')   # Initialize with infinite factor
+        gamma = float('inf')   # Inizializziamo con fattore inf
         x_sol, u_sol = None, None
 
         repeat = self.vboc_repeat
@@ -204,8 +204,8 @@ class ViabilityController(AbstractController):
                 # Evaluate the projected velocity at the initial stage
                 x0 = self.ocp_solver.get(0, "x")
                 
-                # in 2D
-                gamma_new = x0[10] # <--- The cost is the scaling factor
+                #in 2D
+                gamma_new = x0[18] # <--- Il costo è lo scaling
 
 
                 print(f"Iteration {r}: SUCCESS! Scale = {gamma_new:.4f}, Horizon N = {N}")
@@ -243,27 +243,27 @@ class ViabilityController(AbstractController):
             #     return None, None, None, status
 
             else:     
-                # If the solver fails, we don't give up!
+                # Se il solver fallisce, non ci arrendiamo! 
                 print(f"Iteration {r}: Solver failed with N={N}. Increasing horizon...")
                 
-                # Extend the initial guess before retrying
+                # Allunghiamo il guess iniziale prima di riprovare
                 new_x_guess = np.empty((N + n, self.model.nx))
                 new_u_guess = np.empty((N + n, self.model.nu)) 
                 
-                # Copy the old guess for the first N steps
+                # Copiamo il vecchio guess per i primi N step
                 new_x_guess[:N] = self.x_guess
                 new_u_guess[:N] = self.u_guess
                 
-                # Fill the new additional n steps
+                # Riempiamo i nuovi 'n' step aggiuntivi
                 new_x_guess[N:] = self.x_guess[-1]
                 
-                # ---> THIS IS WHERE IT GOES! Replace zero motors (np.zeros) <---
+                # ---> ECCO DOVE VA LA RIGA! Sostituisce i motori a zero (np.zeros) <---
                 new_u_guess[N:] = self.u_guess[-1] 
                 
-                # Save the extended guess
+                # Salviamo il nuovo guess allungato
                 self.setGuess(new_x_guess, new_u_guess)
 
-                # Increment N and update the solver
+                # Incrementiamo N e aggiorniamo il solver
                 N += n
                 self.resetHorizon(N)
             
