@@ -11,24 +11,23 @@ from try_bicopter_set import evaluate_V as evaluate_deep
 from try_bicopter_set import model as deep_model
 from try_bicopter_set import dynamics_obj as deep_dynamics
 
-# 2. IMPORTIAMO LA TUA RETE NEURALE
-# Sostituisci "nome_del_tuo_file" con il file dove hai definito la classe NeuralNetwork
+# 2. IMPORT THE NEURAL NETWORK
 os.chdir("/home/claudia/TESI/VBOC-2D/src/DEEPREACH")
 from learning import NeuralNetwork
 
 def main():
-    # --- A. CARICAMENTO DATI ---
+    # --- A. DATA LOADING ---
     dataset_path = "data/dataset_confronto/sth_TEST_dataset_classification.npy"
     data = np.load(dataset_path)
     print(f"Dataset caricato: {data.shape[0]} campioni.")
 
-    # --- B. CARICAMENTO RETE NEURALE ---
+    # --- B. NN LOADING ---
     nn_filename = "nn_models/sth/sth_gelu_randB.pt"
     checkpoint = torch.load(nn_filename, map_location=torch.device('cpu'), weights_only=False)
     mean_X = torch.tensor(checkpoint['mean'], dtype=torch.float32)
     std_X = torch.tensor(checkpoint['std'], dtype=torch.float32)
 
-    # Inizializza la tua rete (nota: input_size=8)
+    # Initialize the network
     net = NeuralNetwork(
         input_size=8, 
         hidden_size=1024,
@@ -40,15 +39,14 @@ def main():
     net.load_state_dict(checkpoint['model'])
     net.eval()
 
-    # --- C. VARIABILI STATISTICHE ---
+    # --- C. STATISTICAL VARIABLES ---
     VP_nn, FP_nn, VN_nn, FN_nn = 0, 0, 0, 0
     VP_dp, FP_dp, VN_dp, FN_dp = 0, 0, 0, 0
 
-    # --- D. CICLO DI CONFRONTO ---
+    # --- D. LOOP OF COMPARISON ---
     for i in range(data.shape[0]):
         row = data[i]
         
-        # ATTENZIONE: SOSTITUISCI GLI INDICI [0], [1] ECC. CON QUELLI CORRETTI DEL TUO DATASET!
         theta = row[0]
         vx = row[1]
         vz = row[2]
@@ -58,7 +56,6 @@ def main():
         x_min = row[6]
         z_min = row[7]
         
-        # Verdetto OCP (Ground Truth) -> Supponiamo sia l'ultima colonna
         ocp_success = row[-1] 
 
         # --- Test DeepReach ---
@@ -66,32 +63,32 @@ def main():
         V_val = evaluate_deep(deep_model, deep_dynamics, deep_state, time=0.5)
         deep_is_safe = (V_val > 0)
 
-        # --- Test Tua NN ---
-        # 1. Calcolo box normalizzato
+        # --- Test NN ---
+        # 1. Normalized box calculation
         norma = np.sqrt(x_min**2 + x_max**2 + z_min**2 + z_max**2)
         box_n = [x_max/norma, z_max/norma, x_min/norma, z_min/norma]
         
-        # 2. Preparazione input rete
+        # 2. NN input preparation
         x_in = torch.tensor([theta, vx, vz, wy] + box_n, dtype=torch.float32)
         x_norm = (x_in - mean_X) / std_X
         
-        # 3. Predizione e controllo
+        # 3. Prediction and check
         with torch.no_grad():
             alpha_pred = net(x_norm).item()
         
         nn_is_safe = (alpha_pred <= norma)
 
-        # --- LOGICA DI CONFRONTO (Tua Rete Neurale) ---
+        # --- COMPARISON LOGIC (NN) ---
         if not nn_is_safe and ocp_success == 0.0:
-            VP_nn += 1  # Vero Positivo: Rete dice insicuro, OCP fallisce
+            VP_nn += 1  # True Positive: NN predicts unsafe ocp fails
         elif not nn_is_safe and ocp_success == 1.0:
-            FP_nn += 1  # Falso Positivo: Rete dice insicuro, OCP si salva
+            FP_nn += 1  # False Positive: NN predicts unsafe ocp succeeds
         elif nn_is_safe and ocp_success == 1.0:
-            VN_nn += 1  # Vero Negativo: Rete dice sicuro, OCP si salva
+            VN_nn += 1  # True Negative: NN predicts safe ocp succeeds
         elif nn_is_safe and ocp_success == 0.0:
-            FN_nn += 1  # Falso Negativo: Rete dice sicuro, OCP fallisce (CRITICO!)
+            FN_nn += 1  # False Negative: NN predicts safe ocp fails (CRITICAL!)
 
-        # --- LOGICA DI CONFRONTO (DeepReach) ---
+        # --- COMPARISON LOGIC (DeepReach) ---
         if not deep_is_safe and ocp_success == 0.0:
             VP_dp += 1
         elif not deep_is_safe and ocp_success == 1.0:

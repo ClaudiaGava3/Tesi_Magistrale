@@ -61,7 +61,7 @@ class MpcController(AbstractController):
         self.ocp.constraints.lh_e = np.array([0.0])   # Must be >= 0
         self.ocp.constraints.uh_e = np.array([1e5])
         
-        # COMPILAZIONE DEL SOLVER
+        # SOLVER COMPILATION
         gen_name = self.params.GEN_DIR + 'ocp_mpc_' + self.model.amodel.name
         self.ocp.code_export_directory = gen_name
 

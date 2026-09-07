@@ -430,7 +430,6 @@ class AbstractController:
         ])
 
         # --- Terminal constraints per caso con NN ---
-        # non lo obbligo a fermarsi!!!!!
         self.ocp.constraints.idxbx_e = np.arange(self.model.npos, self.model.nx)
         self.ocp.constraints.lbx_e = np.hstack([np.full(self.model.nori, -np.pi/2), np.full(self.model.nv, -1)
         ])

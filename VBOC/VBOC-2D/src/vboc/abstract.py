@@ -104,15 +104,7 @@ class Model:
         ])
 
 
-        # exacopter in 3D
-        # self.F = self.cf * np.array([
-        #     [0, np.sqrt(3)/2 * sin_a, -np.sqrt(3)/2 * sin_a, 
-        #      0, np.sqrt(3)/2 * sin_a, -np.sqrt(3)/2 * sin_a],
-        #     [sin_a, -1/2 * sin_a, -1/2 * sin_a, 
-        #      sin_a, -1/2 * sin_a, -1/2 * sin_a],
-        #     [cos_a, cos_a, cos_a, 
-        #      cos_a, cos_a, cos_a]
-        # ])
+        
 
         # M maps squared rotor speeds to body-frame torque components [3 × nu]
         # in 2D
@@ -123,27 +115,7 @@ class Model:
         ])
 
 
-        # exacopter in 3D
-        # self.M = self.ct * np.array([
-        #     [0, 
-        #      np.sqrt(3)/2 * self.r * cos_a - np.sqrt(3)/2 * sin_a, 
-        #      np.sqrt(3)/2 * self.r * cos_a - np.sqrt(3)/2 * sin_a, 
-        #      0, 
-        #      -np.sqrt(3)/2 * self.r * cos_a + np.sqrt(3)/2 * sin_a, 
-        #      -np.sqrt(3)/2 * self.r * cos_a + np.sqrt(3)/2 * sin_a],
-        #     [-self.r * cos_a + sin_a, 
-        #      -1/2 * self.r * cos_a + 1/2 * sin_a, 
-        #       1/2 * self.r * cos_a - 1/2 * sin_a, 
-        #       self.r * cos_a - sin_a, 
-        #       1/2 * self.r * cos_a - 1/2 * sin_a,
-        #      -1/2 * self.r * cos_a + 1/2 * sin_a],
-        #     [self.r * sin_a + cos_a, 
-        #      -self.r * sin_a - cos_a, 
-        #       self.r * sin_a + cos_a, 
-        #      -self.r * sin_a - cos_a, 
-        #       self.r * sin_a + cos_a, 
-        #      -self.r * sin_a - cos_a]
-        # ])
+        
 
         # CasADi functions for net control force and torque
         self.fc = Function(
@@ -186,52 +158,12 @@ class Model:
         )
 
 
-        # exacopter in 3D
-        # self.f_expl = vertcat(
-        #     self.x[nq:nq+npos],
-        #     self.Tinv(self.x)@self.x[nq+npos:],
-        #     -self.g*np.array([[0], [0], [1]]) + self.fc(self.x, self.u) /
-        #     self.mass, 
-        #     np.linalg.inv(self.J) @ (
-        #         -cross(self.x[nq+npos:], self.J @ self.x[nq+npos:])) + 
-        #         np.linalg.inv(self.J) @ self.tc(self.u),
-        #     0.0,
-        #     0.0,
-        #     0.0,
-        #     0.0
-        # )
 
         # --- Input bounds ---
         self.u_max = np.full(nu, self.u_bar)
         self.u_min = np.zeros((nu,))
 
-        # --- Feasible orientation bounds (derived from actuator saturation) 
-        # ---
-        # Three regimes depending on the ratio between u_bar and hovering thrust
-        # if self.u_bar >= (self.mass*self.g)/(2*self.cf*cos_a):
-        #     ri = abs(-self.mass*self.g/2 * tan_a)
-        #     ro = self.mass*self.g * tan_a
-        # elif (self.mass*self.g) / (4*self.cf*cos_a) <= self.u_bar \
-        #       < (self.mass*self.g) / (2*self.cf*cos_a):
-        #     ri = min(
-        #         abs(-self.mass*self.g/2 * tan_a), 
-        #         abs(3*self.cf*self.u_bar*sin_a -self.mass*self.g/2 * tan_a)
-        #     )   
-        #     ro = np.linalg.norm(np.array([
-        #         np.sqrt(3)*self.cf*self.u_bar*sin_a, 
-        #         self.mass*self.g * tan_a - 3*self.cf*self.u_bar*sin_a
-        #     ]))
-        # else:
-        #     ri = 3*self.cf*self.u_bar*sin_a - self.mass*self.g/2 * tan_a
-        #     ro = self.mass * self.g * tan_a - 6* self.cf * self.u_bar * sin_a
-
-        # # Maximum tilt angles admissible for hovering and full actuation
-        # self.phi_hovering = np.arctan2(ri, self.mass * self.g)
-        # self.phi_hovering_max = np.arctan2(ro, self.mass * self.g) 
-        # self.phi_max = np.arccos(
-        #     (self.mass*self.g) / 
-        #     (self.cf * 6 * np.cos(self.alpha_tilt)*self.u_bar)
-        # )
+    
         self.phi_max = np.pi/2
 
         # --- Ellipsoidal obstacle-avoidance constraint ---
@@ -260,18 +192,7 @@ class Model:
 
         # Build one scalar constraint per face
         self.con_h_expr_list = []
-        # Gli indici delle dimensioni del box in self.x sono 6, 7, 8, 9
-        #box_vars_indices = [6, 7, 8, 9]
-        
-        #TENTATIVO 1 CON SOLO DIM BOX
-        # for i,n in enumerate(box_normals):
-        #     box_dim = self.x[box_vars_indices[i]]
-        #     expr = sqrt(n.T @ self.Q(self.x) @ n) - box_dim
-        #     self.con_h_expr_list.append(expr)
-
-        # self.con_h_expr = vertcat(*self.con_h_expr_list)
-
-        #TENTATIVO 2 CON PROIEZIONE
+    
         for i, n in enumerate(box_normals):
             # Dimensione = fattore_di_scala (x[6]) * dimensione_base_fissa (p[i])
             #in 2D
@@ -347,20 +268,14 @@ class AbstractController:
         self.ocp.model = self.model.amodel
 
         # --- Stage cost: minimize box size ---
-        # Costo allo stadio iniziale
+        # Cost for initial node
         self.ocp.cost.cost_type_0 = 'EXTERNAL'
 
-        #in 2D
-        self.ocp.model.cost_expr_ext_cost_0 = 1.0 * self.model.x[10] # Costo = Scaling
-        
-        self.ocp.parameter_values = np.zeros(self.model.nbox) # Inizializza i parametri p
+        # Cost = scaling factor
+        self.ocp.model.cost_expr_ext_cost_0 = 1.0 * self.model.x[10] 
 
-        # cost precedente
-        #  -dot(
-        #     self.model.p[:self.model.nq], 
-        #     self.model.x[self.model.nq:]
-        # )
-        #self.ocp.parameter_values = np.zeros(self.model.nv)
+        self.ocp.parameter_values = np.zeros(self.model.nbox) # Parameter initialization
+
 
         # --- Initial shooting node: position and velocity fixed ---
         # Fissiamo x, z, theta, vx, vz, wy (Primi 6 indici: 0,1,2,3,4,5)
@@ -379,13 +294,13 @@ class AbstractController:
         self.ocp.constraints.lbx = np.hstack([
             np.full(self.model.nori, -np.pi), 
             np.full(self.model.nv, -1e2),
-            np.full(self.model.nbox, 0.1),             # <--- Minimo per i lati (es. 10% della scala)     
+            np.full(self.model.nbox, 0.1),
             np.array([0.0])                   # scale min
         ])
         self.ocp.constraints.ubx = np.hstack([
             np.full(self.model.nori, np.pi),  
             np.full(self.model.nv, 1e2),
-            np.full(self.model.nbox, 1.0),             # <--- MAX per i lati imposto a 1.0!      
+            np.full(self.model.nbox, 1.0),
             np.array([1e5])                    # scale max
         ])
 

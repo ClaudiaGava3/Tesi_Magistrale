@@ -58,9 +58,9 @@ class Model:
         nori = 1    # Orientation sub-space dimension
 
         # --- MPC PARAMETERS ---
-        self.x_ref = MX.sym('x_ref', nq+nv)        # 6 elementi
+        self.x_ref = MX.sym('x_ref', nq+nv)        # 6 elements
         
-        # The parameter p has 10 elements (4 for box + 6 for target)
+        # The parameter p has 6 elements (target state)
         self.p = self.x_ref
         
                
@@ -155,7 +155,7 @@ class Model:
         # 2D
         self.f_expl = vertcat(
             self.x[3:5],         # x_dot, z_dot
-            euler_rates_3d[1],   # theta_dot (derivato dal tuo Tinv!)
+            euler_rates_3d[1],   # theta_dot
             accel_3d[0],         # vx_dot
             accel_3d[2],         # vz_dot
             alpha_3d[1],         # wy_dot            
@@ -277,9 +277,9 @@ class AbstractController:
         Q_cost = diag(vertcat(100, 100, 0.0001, 100.0, 100.0, 0.0001))
         R_cost = diag(vertcat(0.0001, 0.0001))
         
-        # Calcoliamo l'errore tra dove siamo (x) e dove vogliamo andare (x_ref)
+        # Calcula the error between the current state and the target
         err_x = self.model.x - self.model.x_ref
-        # Calcoliamo la spinta teorica per contrastare la gravità
+        # Calculate theoretical thrust to counteract gravity
         # u_hover = (m * g) / (2 * cf)
         u_hover_val = (self.model.mass * self.model.g) / (2.0 * self.model.cf)
         err_u = self.model.u - u_hover_val
@@ -289,7 +289,7 @@ class AbstractController:
         # At the terminal node, do not use the motors
         cost_terminal = err_x.T @ Q_cost @ err_x * 20
         
-        # Assegno le espressioni ad Acados
+        # Assign the expressions to Acados
         self.ocp.model.cost_expr_ext_cost = cost_step
         self.ocp.model.cost_expr_ext_cost_e = cost_terminal
 
@@ -310,12 +310,12 @@ class AbstractController:
         # Start from zero to constrain X and Z position as well
         self.ocp.constraints.idxbx = np.arange(0, self.model.nx) 
         self.ocp.constraints.lbx = np.hstack([
-            np.array([-100.0, -100.0]), # Fittizi
+            np.array([-100.0, -100.0]),
             np.full(self.model.nori, -np.pi), 
             np.full(self.model.nv, -1e1)
         ])
         self.ocp.constraints.ubx = np.hstack([
-            np.array([100.0, 100.0]),   # Fittizi
+            np.array([100.0, 100.0]),
             np.full(self.model.nori, np.pi),  
             np.full(self.model.nv, 1e1)
         ])

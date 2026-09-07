@@ -71,13 +71,13 @@ class MpcController(AbstractController):
             z_max_box - z_drone   # Ceiling
         )
         self.ocp.model.con_h_expr = h_expr_path
-        # Imponiamo che tutti e 4 i valori siano compresi tra 0 e infinito
+        # Enforce that all 4 values are between 0 and infinity
         self.ocp.constraints.lh = np.array([0.0, 0.0, 0.0, 0.0])
         self.ocp.constraints.uh = np.array([1e5, 1e5, 1e5, 1e5])
 
 
-        # # --- TERMINAL CONSTRAINT (4 ASYMMETRIC SIDES) ---
-        # # All 4 distances to the walls minus the predicted alpha must be >= 0
+        # --- TERMINAL CONSTRAINT (4 ASYMMETRIC SIDES) ---
+        # All 4 distances to the walls minus the predicted alpha must be >= 0
         h_expr_terminal = cs.vertcat(
             x_drone - x_min_box - alpha_pred,  # Left wall
             x_max_box - x_drone - alpha_pred,  # Right wall
@@ -86,7 +86,7 @@ class MpcController(AbstractController):
         )
 
         self.ocp.model.con_h_expr_e = h_expr_terminal
-        # Imponiamo che tutti e 4 i valori siano compresi tra 0 e infinito
+        # Enforce that all 4 values are between 0 and infinity
         self.ocp.constraints.lh_e = np.array([0.0, 0.0, 0.0, 0.0])
         self.ocp.constraints.uh_e = np.array([1e5, 1e5, 1e5, 1e5])
 
@@ -107,7 +107,7 @@ class MpcController(AbstractController):
         self,
         current_x: np.ndarray,
         x_ref: np.ndarray,
-        box_abs: np.ndarray # Array di 4 elementi [x_min, x_max, z_min, z_max]
+        box_abs: np.ndarray
         #obs_x: float
     ) -> tuple[np.ndarray, np.ndarray, float, int]:
         """

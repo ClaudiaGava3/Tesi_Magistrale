@@ -346,38 +346,31 @@ class AbstractController:
         # --- Symbolic model ---
         self.ocp.model = self.model.amodel
 
-        # Calcolo della spinta di hovering
+        # Hovering trust value used for cost computation
         u_hover_val = (self.model.mass * self.model.g) / (2.0 * self.model.cf)
         
-        # Errore rispetto all'hovering
+        # Motors cost
         err_u = self.model.u - u_hover_val
         cost_motori = dot(err_u, err_u)
         
-        # Penalità sulle velocità vx e vz
+        # Velocity cost
         cost_velocita = self.model.x[3]**2 + self.model.x[4]**2
         
-        # Costo totale: diamo un piccolo peso a entrambi per stabilizzare il drone
+        # Total cost: weighted sum of motor and velocity costs
         costo_totale = 1e-3 * cost_motori + 1e-2 * cost_velocita
 
-        # Applichiamo il costo a tutti i nodi (iniziale, intermedio)
+        # Cost application: external cost function for both path and terminal stages
         self.ocp.cost.cost_type_0 = 'EXTERNAL'
         self.ocp.model.cost_expr_ext_cost_0 = costo_totale
         
         self.ocp.cost.cost_type = 'EXTERNAL'
         self.ocp.model.cost_expr_ext_cost = costo_totale
         
-        # Nessun costo al nodo terminale
+        # No cost at the terminal node
         self.ocp.cost.cost_type_e = 'EXTERNAL'
         self.ocp.model.cost_expr_ext_cost_e = 0.0
         
-        self.ocp.parameter_values = np.zeros(self.model.nbox) # Inizializza i parametri p
-
-        # cost precedente
-        #  -dot(
-        #     self.model.p[:self.model.nq], 
-        #     self.model.x[self.model.nq:]
-        # )
-        #self.ocp.parameter_values = np.zeros(self.model.nv)
+        self.ocp.parameter_values = np.zeros(self.model.nbox) # Parameter initialization 
 
         # --- Initial shooting node: position and velocity fixed ---
         # Fissiamo x, z, theta, vx, vz, wy (Primi 6 indici: 0,1,2,3,4,5)

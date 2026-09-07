@@ -67,11 +67,11 @@ def get_lidar_hits_2d_qualsiasi(drone_x, drone_z, segments, num_rays=360, max_ra
     distances = []
     filtered_segments = []
 
-    # # filtraggio segmenti
+    # # Segment filtering
     # for seg in segments:
     #     (x_A, z_A), (x_B, z_B) = seg
         
-    #     # Bounding box del segmento vs Bounding box del drone
+    #     # Segment bounding box vs Drone bounding box
     #     if (min(x_A, x_B) <= drone_x + max_range and max(x_A, x_B) >= drone_x - max_range and
     #         min(z_A, z_B) <= drone_z + max_range and max(z_A, z_B) >= drone_z - max_range):
             
@@ -79,7 +79,7 @@ def get_lidar_hits_2d_qualsiasi(drone_x, drone_z, segments, num_rays=360, max_ra
     
     # Compute the angle between rays
     angle_step_rad = (2 * np.pi) / num_rays
-    num_half_rays = num_rays // 2  # Solo 180 iterazioni
+    num_half_rays = num_rays // 2  # Only 180 iterations
     angles = np.linspace(0, np.pi, num_half_rays, endpoint=False)
 
     
@@ -118,11 +118,11 @@ def get_lidar_hits_2d_qualsiasi(drone_x, drone_z, segments, num_rays=360, max_ra
                 if 0<= u <= 1:
                     # 4. Find the nearest wall
                     if t > 0:
-                        # Raggio in avanti (Fronte)
+                        # Forward ray (Front)
                         if t < ray_min_dist_fwd:
                             ray_min_dist_fwd = t
                     elif t < 0:
-                        # Raggio all'indietro (Retro): la distanza è positiva (-t)
+                        # Backward ray (Rear): the distance is positive (-t)
                         dist_bwd = -t
                         if dist_bwd < ray_min_dist_bwd:
                             ray_min_dist_bwd = dist_bwd
@@ -136,7 +136,7 @@ def get_lidar_hits_2d_qualsiasi(drone_x, drone_z, segments, num_rays=360, max_ra
             distances.append(ray_min_dist_fwd)
 
         if ray_min_dist_bwd < max_range:
-            # Per il retro, la direzione spaziale è invertita (-dx, -dz)
+            # For the rear, the spatial direction is inverted (-dx, -dz)
             hit_x_bwd = drone_x - ray_min_dist_bwd * dx
             hit_z_bwd = drone_z - ray_min_dist_bwd * dz
             hits.append([hit_x_bwd, hit_z_bwd])
@@ -154,7 +154,8 @@ def get_lidar_hits_2d_qualsiasi(drone_x, drone_z, segments, num_rays=360, max_ra
         
     return hits, radii
 
-def get_lidar_hits_2d_qualsiasi2_0(drone_x, drone_z, segments, num_rays=360, max_range=1.5):
+# Matrix version to reduce ulterly the computation time (360 rays x M walls)
+def get_lidar_hits_2d_qualsiasi_2_0(drone_x, drone_z, segments, num_rays=360, max_range=1.5):
     # Compute the angle between rays
     angle_step_rad = (2 * np.pi) / num_rays
     angles = np.linspace(0, 2 * np.pi, num_rays, endpoint=False)
@@ -163,7 +164,7 @@ def get_lidar_hits_2d_qualsiasi2_0(drone_x, drone_z, segments, num_rays=360, max
     dx = np.cos(angles).reshape(-1, 1)
     dz = np.sin(angles).reshape(-1, 1)
     
-    # 2. Prepare segment matrices (Shape: M muri)
+    # 2. Prepare segment matrices (Shape: M walls)
     seg_arr = np.array(segments)
     x_A, z_A = seg_arr[:, 0, 0], seg_arr[:, 0, 1]
     x_B, z_B = seg_arr[:, 1, 0], seg_arr[:, 1, 1]
@@ -174,7 +175,7 @@ def get_lidar_hits_2d_qualsiasi2_0(drone_x, drone_z, segments, num_rays=360, max
     # 3. Vectorized Math (Broadcasting 360x1 against 1xM -> Result is 360xM)
     den = dx * s_z - dz * s_x
     
-    # Ignora i warning temporanei per divisione per zero (li filtriamo dopo)
+    # Ignore temporary warnings for division by zero (filtered later)
     with np.errstate(divide='ignore', invalid='ignore'):
         diff_x = x_A - drone_x
         diff_z = z_A - drone_z
@@ -242,6 +243,7 @@ def get_lidar_hits_2d_qualsiasi2_0(drone_x, drone_z, segments, num_rays=360, max
 #     exitflag = 1 if not np.any(_spheres_intersect_box_2d(Q, R, box)) else 0
 #     return box[0], box[1], box[2], box[3], exitflag
 
+# BOX SELECTION ALGORITHM WITH DIRECTIONAL BIAS TOWARD THE TARGET
 def min_cube_select_base(Q, R, target_rel_x, target_rel_z, drone_radius=0.1, W=0, rel=0.1):
     """
     Q: array Nx2 of intersection points (obstacles seen by the lidar, relative coordinates)
@@ -286,6 +288,7 @@ def min_cube_select_base(Q, R, target_rel_x, target_rel_z, drone_radius=0.1, W=0
     exitflag = 1 if not np.any(_spheres_intersect_box_2d(Q, R, box)) else 0
     return box[0], box[1], box[2], box[3], exitflag
 
+# BOX SELECTION ALGORITHM WITH DIRECTIONAL BIAS TOWARD THE TARGET AND EXPANSION
 def min_cube_select_directional(Q, R, target_rel_x, target_rel_z, drone_radius=0.1, expand_mode='general', W=0, rel=0.1):
     LIMIT = 1.0
     MARGIN = 0.15 #margin beyond the projection
@@ -367,7 +370,7 @@ def min_cube_select_directional(Q, R, target_rel_x, target_rel_z, drone_radius=0
     return box[0], box[1], box[2], box[3], exitflag
 
 
-
+# BOX SELECTION ALGORITHM WITH DIRECTIONAL BIAS TOWARD THE TARGET, EXPANSION, AND WARM START
 def min_cube_warm_start(Q, R, target_rel_x, target_rel_z, targetx, targetz, drone_radius=0.1, box_prev=None, expand_mode='general', W=0, rel=0.1):
     """
     Initializes from the previous box, checks for obstacles, protects the drone, and expands.
@@ -469,6 +472,7 @@ def _spheres_intersect_box_2d(Q, R, box, tol=1e-6):
 
 #     return box, moved
 
+# FUNCTION THAT PUSHES THE BOX FACES WITH A DIRECTIONAL BONUS TOWARD THE TARGET
 def _push_faces_bonus(box, Qi, Ri, drone_radius, target_rel_x, target_rel_z, W=0, rel=0.1):
     xMin, xMax, zMin, zMax = box
     moved = False
@@ -560,7 +564,7 @@ def _push_faces_bonus(box, Qi, Ri, drone_radius, target_rel_x, target_rel_z, W=0
 
     return box, moved
 
-
+# FUNCTION THAT PUSHES THE BOX FACES WITH A DIRECTIONAL PENALTY TOWARD THE TARGET 
 def _push_faces_malus(box, Qi, Ri, drone_radius, dx, dz, W=0):
     xMin, xMax, zMin, zMax = box
     moved = False
@@ -631,6 +635,7 @@ def _push_faces_malus(box, Qi, Ri, drone_radius, dx, dz, W=0):
 
     return box, moved
 
+# FUNCTION THAT PUSHES THE BOX FACES WITH A DIRECTIONAL PENALTY TOWARD THE TARGET, BUT LOCKS CERTAIN FACES
 def _push_faces_notblocked(box, Qi, Ri, drone_radius, dx, dz, locked_faces, W=0):
     xMin, xMax, zMin, zMax = box
     moved = False
@@ -707,12 +712,13 @@ def _push_faces_notblocked(box, Qi, Ri, drone_radius, dx, dz, locked_faces, W=0)
 
     return box, moved
 
-
+# FUNCTION THAT EXPANDS THE BOX FACES IN ALL DIRECTIONS, CHOOSING THE BEST SCORE
 def _expand_faces_score(box, Q, R, target_rel_x, target_rel_z, W=0, LIMIT=1.0, rel=0.1):
     """
-    Espansione unificata: calcola le 4 possibili espansioni (su, giù, dx, sx) 
-    fino al primo ostacolo e sceglie quella che massimizza (Area + W * Bonus).
-    Ripete finché il box non è incastrato su tutti i lati.
+    Unified expansion: calculates the 4 possible expansions (up, down, right,
+    left) up to the first obstacle and chooses the one that maximizes
+    (Area + W * Bonus).
+    Repeats until the box is stuck on all sides.
     """
     new_box = box.copy()
 
@@ -724,37 +730,37 @@ def _expand_faces_score(box, Q, R, target_rel_x, target_rel_z, W=0, LIMIT=1.0, r
         moved = False
         candidates = []
 
-        # --- FASE 1: Trova il limite massimo di espansione per ogni faccia ---
+        # --- PHASE 1: Find the maximum expansion limit for each face ---
         
-        # 0. Faccia Sinistra (-X)
+        # 0. Left Face (-X)
         mask_left = (Q[:, 0] < new_box[0]) & (Q[:, 1] + R > new_box[2]) & (Q[:, 1] - R < new_box[3])
         val_left = np.max(Q[mask_left, 0] + R[mask_left]) + 1e-4 if np.any(mask_left) else -LIMIT
         if val_left < new_box[0] - 1e-3: # Se c'è spazio per espandersi
             candidates.append((0, val_left))
 
-        # 1. Faccia Destra (+X)
+        # 1. Right Face (+X)
         mask_right = (Q[:, 0] > new_box[1]) & (Q[:, 1] + R > new_box[2]) & (Q[:, 1] - R < new_box[3])
         val_right = np.min(Q[mask_right, 0] - R[mask_right]) - 1e-4 if np.any(mask_right) else LIMIT
         if val_right > new_box[1] + 1e-3:
             candidates.append((1, val_right))
 
-        # 2. Faccia Bassa (-Z)
+        # 2. Bottom Face (-Z)
         mask_bottom = (Q[:, 1] < new_box[2]) & (Q[:, 0] + R > new_box[0]) & (Q[:, 0] - R < new_box[1])
         val_bottom = np.max(Q[mask_bottom, 1] + R[mask_bottom]) + 1e-4 if np.any(mask_bottom) else -LIMIT
         if val_bottom < new_box[2] - 1e-3:
             candidates.append((2, val_bottom))
 
-        # 3. Faccia Alta (+Z)
+        # 3. Top Face (+Z)
         mask_top = (Q[:, 1] > new_box[3]) & (Q[:, 0] + R > new_box[0]) & (Q[:, 0] - R < new_box[1])
         val_top = np.min(Q[mask_top, 1] - R[mask_top]) - 1e-4 if np.any(mask_top) else LIMIT
         if val_top > new_box[3] + 1e-3:
             candidates.append((3, val_top))
 
-        # Se nessuna faccia può espandersi, fermiamo il ciclo
+        # If no face can expand, stop the loop
         if not candidates:
             break 
 
-        # --- FASE 2: Valuta lo Score (Identico al _push_faces_bonus) ---
+        # --- PHASE 2: Evaluate the Score (Identical to _push_faces_bonus)---
         best_score = -float('inf')
         best_face_idx = -1
         best_val = 0
@@ -763,10 +769,10 @@ def _expand_faces_score(box, Q, R, target_rel_x, target_rel_z, W=0, LIMIT=1.0, r
             test_box = new_box.copy()
             test_box[face_idx] = val
             
-            # 1. Calcolo Area
+            # 1. Area calculation
             area = (test_box[1] - test_box[0]) * (test_box[3] - test_box[2])
             
-            # 2. Calcolo Bonus Direzionale
+            # 2. Directional Bonus Calculation
             if target_rel_x > rel:
                 bonus_x = test_box[1]
             elif target_rel_x < -rel:
@@ -781,7 +787,7 @@ def _expand_faces_score(box, Q, R, target_rel_x, target_rel_z, W=0, LIMIT=1.0, r
             else:
                 bonus_z = 0.0
                 
-            # 3. Score Totale
+            # 3. Total score
             score = area + W * (bonus_x + bonus_z)
             
             if score > best_score:
@@ -789,18 +795,18 @@ def _expand_faces_score(box, Q, R, target_rel_x, target_rel_z, W=0, LIMIT=1.0, r
                 best_face_idx = face_idx
                 best_val = val
 
-        # --- FASE 3: Applica l'espansione vincente ---
+        # --- PHASE 3: Apply the winning expansion ---
         if best_face_idx != -1:
             new_box[best_face_idx] = best_val
-            moved = True # Il box è cambiato, facciamo un altro giro!
+            moved = True # The box has changed, let's do another iteration!
 
     return new_box
 
-
+# FUNCTION THAT EXPANDS THE BOX FACES IN ALL DIRECTIONS UNTIL HITTING AN OBSTACLE OR LIMIT (BASE EXPANSION)
 def _expand_faces(box, Q, R, LIMIT=1.0):
     """
-    Algoritmo di espansione avida. Prende un box e ne spinge le facce 
-    verso l'esterno finché non sbattono contro un ostacolo o raggiungono LIMIT.
+    Greedy expansion algorithm. Takes a box and pushes its faces outward until
+    they hit an obstacle or reach LIMIT.
     """
     new_box = box.copy()
 
@@ -809,22 +815,20 @@ def _expand_faces(box, Q, R, LIMIT=1.0):
         return np.array([-LIMIT, LIMIT, -LIMIT, LIMIT], dtype=float)
 
 
-    # INTRODUZIONE DELLA TOLLERANZA (5 cm)
-    # Permette al box di scivolare sui muri piatti senza essere strangolato 
-    # dalle sfere tangenti espanse dei raggi obliqui.
+    # INTRODUCTION OF TOLERANCE (1 cm)
+    # Allows the box to slide on flat walls without being choked by the expanded tangent spheres of the oblique rays
     TOL = 0.01
 
-    # 1. ESPANDI A DESTRA (+X, indice 1)
-    # Cerchiamo ostacoli che sono più a destra della faccia attuale (Q[:, 0] > new_box[1])
-    # E che sono allineati verticalmente con il box (sovrapposizione in Z)
+    # 1. EXPAND RIGHT (+X, index 1)
+    # Look for obstacles further right than the current face (Q[:, 0] > new_box[1]) ad that are vertically aligned with the box (Z overlap)
     mask_right = (Q[:, 0] > new_box[1] + TOL) & (Q[:, 1] + R > new_box[2]) & (Q[:, 1] - R < new_box[3] - TOL)
     if np.any(mask_right):
         closest_obs_x = np.min(Q[mask_right, 0] - R[mask_right])
-        new_box[1] = min(LIMIT, closest_obs_x - 1e-4) # Spinge fino all'ostacolo
+        new_box[1] = min(LIMIT, closest_obs_x - 1e-4) # Pushes up to the obstacle
     else:
-        new_box[1] = LIMIT # Nessun ostacolo, spinge al massimo
+        new_box[1] = LIMIT # No obstacle, pushes to the maximum
 
-    # 2. ESPANDI A SINISTRA (-X, indice 0)
+    # 2. EXPAND LEFT (-X, index 0)
     mask_left = (Q[:, 0] < new_box[0]) & (Q[:, 1] + R > new_box[2] + TOL) & (Q[:, 1] - R < new_box[3] - TOL)
     if np.any(mask_left):
         closest_obs_x = np.max(Q[mask_left, 0] + R[mask_left])
@@ -832,7 +836,7 @@ def _expand_faces(box, Q, R, LIMIT=1.0):
     else:
         new_box[0] = -LIMIT
 
-    # 3. ESPANDI IN ALTO (+Z, indice 3)
+    # 3. EXPAND UP (+Z, index 3)
     mask_top = (Q[:, 1] > new_box[3]) & (Q[:, 0] + R > new_box[0] + TOL) & (Q[:, 0] - R < new_box[1] - TOL)
     if np.any(mask_top):
         closest_obs_z = np.min(Q[mask_top, 1] - R[mask_top])
@@ -840,7 +844,7 @@ def _expand_faces(box, Q, R, LIMIT=1.0):
     else:
         new_box[3] = LIMIT
 
-    # 4. ESPANDI IN BASSO (-Z, indice 2)
+    # 4. EXPAND DOWN (-Z, index 2)
     mask_bottom = (Q[:, 1] < new_box[2]) & (Q[:, 0] + R > new_box[0] + TOL) & (Q[:, 0] - R < new_box[1] - TOL)
     if np.any(mask_bottom):
         closest_obs_z = np.max(Q[mask_bottom, 1] + R[mask_bottom])
@@ -850,46 +854,40 @@ def _expand_faces(box, Q, R, LIMIT=1.0):
 
     return new_box
 
+# FUNCTION THAT EXPANDS THE BOX FACES IN ALL DIRECTIONS, BUT PRIORITIZES THE DIRECTION OF THE TARGET
 def _expand_faces_directional(box, Q, R, dx, dz, targetx, targetz, LIMIT=1.0):
     """
-    Espansione direzionale ibrida: espande TUTTE le facce fino al LIMIT, 
-    ma processa prima quelle verso cui è diretta la predizione (dx, dz).
+    Directional hybrid expansion: expands ALL faces up to the LIMIT, 
+    but processes first those toward which the prediction is directed (dx, dz).
     """
     new_box = box.copy()
 
-    # Nel vuoto, espandi tutto al massimo
+    # In the void, expand everything to the maximum
     if len(Q) == 0:
         return np.array([-LIMIT, LIMIT, -LIMIT, LIMIT], dtype=float)
 
-    # 1. Determina l'ordine in base al vettore direzionale
-    # Asse X: 1 = Destra (+X), 0 = Sinistra (-X)
+    # 1. Determine the order based on the directional vector
+    # X-axis: 1 = Right (+X), 0 = Left (-X)
     x_first = 1 if dx >= 0 else 0
     x_last = 0 if dx >= 0 else 1
     
-    # Asse Z: 3 = Alto (+Z), 2 = Basso (-Z)
+    # Z-axis: 3 = Up (+Z), 2 = Down (-Z)
     z_first = 3 if dz >= 0 else 2
     z_last = 2 if dz >= 0 else 3
     
-    # # L'array definisce l'ordine: prima le direzionali, poi le opposte
-    # ordine_facce = [x_first, z_first, x_last, z_last]
-    
+    # The array defines the order: first the directional ones, then the opposite   
     if abs(targetx) >= abs(targetz):
-        # Necessità X: garantiamo prima lo spazio orizzontale in avanti
+        # X requirement: guarantee forward horizontal space first
         ordine_facce = [x_first, z_first, x_last, z_last]
     else:
-        # Necessità Z: il drone sta salendo/scendendo ripidamente, 
-        # garantiamo prima lo spazio verticale
+        # Z requirement: the drone is climbing/descending rapidly, guarantee vertical space first
         ordine_facce = [z_first, x_first, z_last, x_last]
     
-
-    # INTRODUZIONE DELLA TOLLERANZA (5 cm)
-    # Permette al box di scivolare sui muri piatti senza essere strangolato 
-    # dalle sfere tangenti espanse dei raggi obliqui.
     TOL = 0.01
 
-    # 2. Esegui l'espansione seguendo l'ordine calcolato
+    # 2. Execute expansion following the calculated order
     for faccia in ordine_facce:
-        if faccia == 1: # ESPANDI A DESTRA (+X)
+        if faccia == 1: # EXPAND RIGHT (+X)
             
             mask = (Q[:, 0] > new_box[1]) & (Q[:, 1] + R > new_box[2]+TOL) & (Q[:, 1] - R < new_box[3]-TOL)
             if np.any(mask):
@@ -897,21 +895,21 @@ def _expand_faces_directional(box, Q, R, dx, dz, targetx, targetz, LIMIT=1.0):
             else:
                 new_box[1] = LIMIT
                 
-        elif faccia == 0: # ESPANDI A SINISTRA (-X)
+        elif faccia == 0: # EXPAND LEFT (-X)
             mask = (Q[:, 0] < new_box[0]) & (Q[:, 1] + R > new_box[2]+TOL) & (Q[:, 1] - R < new_box[3]-TOL)
             if np.any(mask):
                 new_box[0] = max(-LIMIT, np.max(Q[mask, 0] + R[mask]) + 1e-4)
             else:
                 new_box[0] = -LIMIT
                 
-        elif faccia == 3: # ESPANDI IN ALTO (+Z)
+        elif faccia == 3: # EXPAND UP (+Z)
             mask = (Q[:, 1] > new_box[3]) & (Q[:, 0] + R > new_box[0]+TOL) & (Q[:, 0] - R < new_box[1]-TOL)
             if np.any(mask):
                 new_box[3] = min(LIMIT, np.min(Q[mask, 1] - R[mask]) - 1e-4)
             else:
                 new_box[3] = LIMIT
                 
-        elif faccia == 2: # ESPANDI IN BASSO (-Z)
+        elif faccia == 2: # EXPAND DOWN (-Z)
             mask = (Q[:, 1] < new_box[2]) & (Q[:, 0] + R > new_box[0]+TOL) & (Q[:, 0] - R < new_box[1]-TOL)
             if np.any(mask):
                 new_box[2] = max(-LIMIT, np.max(Q[mask, 1] + R[mask]) + 1e-4)
@@ -920,41 +918,41 @@ def _expand_faces_directional(box, Q, R, dx, dz, targetx, targetz, LIMIT=1.0):
 
     return new_box
 
-
+# FUNCTION THAT FORCES THE TRAJECTORY TO BE INSIDE THE BOX
 def force_trajectory_in_box(box_abs, x_sol_prev):
     """
-    Controlla se la traiettoria predetta al passo precedente è contenuta nel nuovo box.
-    In caso contrario, espande i limiti del box per includerla forzatamente.
+    Check if the predicted trajectory at the previous step is contained in the new box.
+    If not, expand the box limits to include it forcefully.
     """
-    # Se non c'è una traiettoria precedente (es. step 0), restituisci il box intatto
+    # If there is no previous trajectory (e.g., step 0), return the box intact
     if x_sol_prev is None or len(x_sol_prev) == 0:
         return box_abs
 
-    # 1. Estrai tutte le coordinate X e Z dalla traiettoria predetta
+    # 1. Extract all X and Z coordinates from the predicted trajectory
     traj_x = [p[0] for p in x_sol_prev]
     traj_z = [p[1] for p in x_sol_prev]
 
-    # 2. Trova i limiti geometrici della traiettoria (il suo "Bounding Box")
+    # 2. Find the geometric limits of the trajectory (its "Bounding Box")
     traj_xmin = min(traj_x)
     traj_xmax = max(traj_x)
     traj_zmin = min(traj_z)
     traj_zmax = max(traj_z)
 
-    # 3. Creiamo una copia del box per modificarla
+    # 3. Create a copy of the box to modify
     new_box = list(box_abs)
 
-    # 4. Allarghiamo il box se la traiettoria sporge dai bordi
+    # 4. Widen the box if the trajectory protrudes from the edges
     if traj_xmin < new_box[0]: 
-        new_box[0] = traj_xmin  # Allarga a sinistra
+        new_box[0] = traj_xmin  # Expand left
         
     if traj_xmax > new_box[1]: 
-        new_box[1] = traj_xmax  # Allarga a destra
+        new_box[1] = traj_xmax  # Expand right
         
     if traj_zmin < new_box[2]: 
-        new_box[2] = traj_zmin  # Allarga in basso
+        new_box[2] = traj_zmin  # Expand down
         
     if traj_zmax > new_box[3]: 
-        new_box[3] = traj_zmax  # Allarga in alto
+        new_box[3] = traj_zmax  # Expand up
 
     return new_box
 

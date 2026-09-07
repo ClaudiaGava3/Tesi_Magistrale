@@ -162,7 +162,7 @@ class Model:
         # 2D
         self.f_expl = vertcat(
             self.x[3:5],         # x_dot, z_dot
-            euler_rates_3d[1],   # theta_dot (derivato dal tuo Tinv!)
+            euler_rates_3d[1],   # theta_dot
             accel_3d[0],         # vx_dot
             accel_3d[2],         # vz_dot
             alpha_3d[1],         # wy_dot            
@@ -282,14 +282,14 @@ class AbstractController:
         
         # Define the weights (Q_cost for state, R_cost for motors)
         # State order: [x, z, theta, vx, vz, wy]
-        Q_cost = diag(vertcat(0.0001, 0.0001, 20.0, 100.0, 1.0, 1.0))
-        #costi target di posizione: #100.0, 100.0, 20.0, 1.0, 1.0, 1.0
-        # cost target di velocità: #0.0001, 0.0001, 20.0, 100.0, 1.0, 1.0
+        Q_cost = diag(vertcat(100.0, 100.0, 20.0, 1.0, 1.0, 1.0))
+            # Position target costs: #100.0, 100.0, 20.0, 1.0, 1.0, 1.0
+            # Velocity target costs: #0.0001, 0.0001, 20.0, 100.0, 1.0, 1.0
         R_cost = diag(vertcat(0.0001, 0.0001))
         
-        # Calcoliamo l'errore tra dove siamo (x) e dove vogliamo andare (x_ref)
+        # Calculate the error between current state (x) and target (x_ref)
         err_x = self.model.x - self.model.x_ref
-        # Calcoliamo la spinta teorica per contrastare la gravità
+        # Calculate theoretical thrust to counteract gravity
         # u_hover = (m * g) / (2 * cf)
         u_hover_val = (self.model.mass * self.model.g) / (2.0 * self.model.cf)
         err_u = self.model.u - u_hover_val
@@ -299,7 +299,7 @@ class AbstractController:
         # At the terminal node, do not use the motors
         cost_terminal = err_x.T @ Q_cost @ err_x * 20
         
-        # Assegno le espressioni ad Acados
+        # Assign expressions to Acados
         self.ocp.model.cost_expr_ext_cost = cost_step
         self.ocp.model.cost_expr_ext_cost_e = cost_terminal
 
@@ -323,20 +323,17 @@ class AbstractController:
         # Start from zero to constrain X and Z position as well
         self.ocp.constraints.idxbx = np.arange(0, self.model.nx) 
         self.ocp.constraints.lbx = np.hstack([
-            np.array([-100.0, -100.0]), # Fittizi
+            np.array([-100.0, -100.0]),
             np.full(self.model.nori, -np.pi), 
             np.full(self.model.nv, -1e1)
         ])
         self.ocp.constraints.ubx = np.hstack([
-            np.array([100.0, 100.0]),   # Fittizi
+            np.array([100.0, 100.0]),
             np.full(self.model.nori, np.pi),  
             np.full(self.model.nv, 1e1)
         ])
 
         
-
-
-
         # --- Terminal constraints ---
         self.ocp.constraints.idxbx_e = np.arange(0, self.model.nx)
         self.ocp.constraints.lbx_e = np.hstack([

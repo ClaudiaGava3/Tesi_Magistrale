@@ -27,7 +27,7 @@ import matplotlib.patches as patches
 
 
 
-def genera_caverna():
+def genera_labirinto_1():
     """Defines the cave obstacles and waypoints."""
 
     # --- OBSTACLE DEFINITION ---
@@ -51,59 +51,59 @@ def genera_caverna():
     ]
     return ostacoli, waypoints
 
-# def genera_labirinto():
-#     """ Complex 2D maze with a long sliding section """
-#     ostacoli = []
+def genera_labirinto_2():
+    """ Complex 2D maze with a long sliding section """
+    ostacoli = []
     
-#     # Outer edges (Floor and Ceiling) - extended to 45m
-#     ostacoli.append([-2.0, 45.0, -2.0, 0.0])   # Floor
-#     ostacoli.append([-2.0, 45.0, 10.0, 12.0])  # Ceiling
+    # Outer edges (Floor and Ceiling) - extended to 45m
+    ostacoli.append([-2.0, 45.0, -2.0, 0.0])   # Floor
+    ostacoli.append([-2.0, 45.0, 10.0, 12.0])  # Ceiling
 
-#     # Obstacle 1: Stalactite (forces passage below)
-#     ostacoli.append([3.0, 4.0, 4.0, 10.0])
+    # Obstacle 1: Stalactite (forces passage below)
+    ostacoli.append([3.0, 4.0, 4.0, 10.0])
     
-#     # Obstacle 2: Stalagmite (forces passage above)
-#     ostacoli.append([7.0, 8.0, 0.0, 6.0])
+    # Obstacle 2: Stalagmite (forces passage above)
+    ostacoli.append([7.0, 8.0, 0.0, 6.0])
 
-#     # Obstacle 3: Floating central block (we choose to pass underneath)
-#     ostacoli.append([11.0, 14.0, 4.0, 6.0])
+    # Obstacle 3: Floating central block (we choose to pass underneath)
+    ostacoli.append([11.0, 14.0, 4.0, 6.0])
 
-#     # Obstacle 4: Funnel-shaped horizontal constriction
-#     ostacoli.append([17.0, 19.0, 0.0, 3.0])    # Constriction floor
-#     ostacoli.append([17.0, 19.0, 7.0, 10.0])   # Constriction ceiling
+    # Obstacle 4: Funnel-shaped horizontal constriction
+    ostacoli.append([17.0, 19.0, 0.0, 3.0])    # Constriction floor
+    ostacoli.append([17.0, 19.0, 7.0, 10.0])   # Constriction ceiling
 
-#     # Obstacle 5: Very tall wall (forces ceiling-skimming flight)
-#     ostacoli.append([22.0, 23.0, 0.0, 8.0])
+    # Obstacle 5: Very tall wall (forces ceiling-skimming flight)
+    ostacoli.append([22.0, 23.0, 0.0, 8.0])
 
-#     # Obstacle 6: Very low wall (forces low-level flight near the floor)
-#     ostacoli.append([26.0, 27.0, 2.0, 10.0])
+    # Obstacle 6: Very low wall (forces low-level flight near the floor)
+    ostacoli.append([26.0, 27.0, 2.0, 10.0])
 
-#     # Obstacle 7: Long final tunnel
-#     ostacoli.append([30.0, 36.0, 0.0, 4.0])    # Raised floor
-#     ostacoli.append([30.0, 36.0, 6.0, 10.0])   # Lowered ceiling
+    # Obstacle 7: Long final tunnel
+    ostacoli.append([30.0, 36.0, 0.0, 4.0])    # Raised floor
+    ostacoli.append([30.0, 36.0, 6.0, 10.0])   # Lowered ceiling
 
-#     # --- WAYPOINT DEFINITION (Simulated global path planning) ---
-#     waypoints = [
-#         np.array([1.5, 2.0, 0.0, 0.0, 0.0, 0.0]),   # WP1: Descend through the first gap
-#         np.array([5.0, 2.0, 0.0, 0.0, 0.0, 0.0]),   # WP2: Beyond the first stalactite
-#         np.array([6.0, 8.0, 0.0, 0.0, 0.0, 0.0]),   # WP3: Climb above the stalagmite
-#         np.array([9.0, 8.0, 0.0, 0.0, 0.0, 0.0]),   # WP4: Beyond the stalagmite
-#         np.array([10.0, 2.0, 0.0, 0.0, 0.0, 0.0]),  # WP5: Descend to pass under the island
-#         np.array([15.0, 2.0, 0.0, 0.0, 0.0, 0.0]),  # WP6: Under the floating island
-#         np.array([16.0, 5.0, 0.0, 0.0, 0.0, 0.0]),  # WP7: Climb and center for the constriction
-#         np.array([20.0, 5.0, 0.0, 0.0, 0.0, 0.0]),  # WP8: Out of the constriction
-#         np.array([21.0, 9.0, 0.0, 0.0, 0.0, 0.0]),  # WP9: Ceiling-skimming climb
-#         np.array([24.0, 9.0, 0.0, 0.0, 0.0, 0.0]),  # WP10: Beyond the tall wall
-#         np.array([25.0, 1.0, 0.0, 0.0, 0.0, 0.0]),  # WP11: Fast low-level dive
-#         np.array([28.0, 1.0, 0.0, 0.0, 0.0, 0.0]),  # WP12: Beyond the low wall
-#         np.array([29.0, 5.0, 0.0, 0.0, 0.0, 0.0]),  # WP13: Climb and center for the long tunnel
-#         np.array([37.0, 5.0, 0.0, 0.0, 0.0, 0.0]),  # WP14: Tunnel exit
-#         np.array([42.0, 5.0, 0.0, 0.0, 0.0, 0.0])   # WP15: Final target
-#     ]
+    # --- WAYPOINT DEFINITION (Simulated global path planning) ---
+    waypoints = [
+        np.array([1.5, 2.0, 0.0, 0.0, 0.0, 0.0]),   # WP1: Descend through the first gap
+        np.array([5.0, 2.0, 0.0, 0.0, 0.0, 0.0]),   # WP2: Beyond the first stalactite
+        np.array([6.0, 8.0, 0.0, 0.0, 0.0, 0.0]),   # WP3: Climb above the stalagmite
+        np.array([9.0, 8.0, 0.0, 0.0, 0.0, 0.0]),   # WP4: Beyond the stalagmite
+        np.array([10.0, 2.0, 0.0, 0.0, 0.0, 0.0]),  # WP5: Descend to pass under the island
+        np.array([15.0, 2.0, 0.0, 0.0, 0.0, 0.0]),  # WP6: Under the floating island
+        np.array([16.0, 5.0, 0.0, 0.0, 0.0, 0.0]),  # WP7: Climb and center for the constriction
+        np.array([20.0, 5.0, 0.0, 0.0, 0.0, 0.0]),  # WP8: Out of the constriction
+        np.array([21.0, 9.0, 0.0, 0.0, 0.0, 0.0]),  # WP9: Ceiling-skimming climb
+        np.array([24.0, 9.0, 0.0, 0.0, 0.0, 0.0]),  # WP10: Beyond the tall wall
+        np.array([25.0, 1.0, 0.0, 0.0, 0.0, 0.0]),  # WP11: Fast low-level dive
+        np.array([28.0, 1.0, 0.0, 0.0, 0.0, 0.0]),  # WP12: Beyond the low wall
+        np.array([29.0, 5.0, 0.0, 0.0, 0.0, 0.0]),  # WP13: Climb and center for the long tunnel
+        np.array([37.0, 5.0, 0.0, 0.0, 0.0, 0.0]),  # WP14: Tunnel exit
+        np.array([42.0, 5.0, 0.0, 0.0, 0.0, 0.0])   # WP15: Final target
+    ]
 
-#     return ostacoli, waypoints
+    return ostacoli, waypoints
 
-def genera_labirinto():
+def genera_labirinto_3():
     """2D maze with narrow corridors and 90-degree turns (Pipe Maze)."""
     ostacoli = []
     
@@ -207,11 +207,12 @@ def main():
     target_idx = 0
     TOLLERANZA_WAYPOINT = 0.20
 
-    # maze initial state
+    # Initial state
     x0 = np.array([0.0, 5.0, 0.0, 0.0, 0.0, 0.0])
-    # cave state
-    #x0 = np.array([0.0, 5.0, 0.0, 0.0, 0.0, 0.0])
-    ostacoli, waypoints = genera_ambiente_obliquo()
+
+    # Select the environment to generate: labirinto_1/2/3 or ambiente_obliquo
+    # Then select the right LiDAR detector!
+    ostacoli, waypoints = genera_labirinto_1()
     current_x = x0.copy()
 
     x_history = [current_x]
@@ -264,7 +265,8 @@ def main():
             x_ref_attuale = waypoints[target_idx]
 
         # 1. LiDAR and Safe-Box
-        hits, radii = get_lidar_hits_2d_qualsiasi(current_x[0], current_x[1], ostacoli, num_rays=360, max_range=2.0)
+        # Select the right LiDAR detector based on the environment: get_lidar_hits_2d or get_lidar_hits_2d_qualsiasi
+        hits, radii = get_lidar_hits_2d(current_x[0], current_x[1], ostacoli, num_rays=360, max_range=2.0)
         # max range 1.5 for cave without recovery help; 2.0 is fine if infeasibility handling is present; for maze 2.0 avoids seeing too close
         Q_rel = hits.copy()
         if len(hits) > 0:

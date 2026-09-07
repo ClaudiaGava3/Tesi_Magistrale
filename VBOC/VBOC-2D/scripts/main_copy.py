@@ -22,7 +22,7 @@ from urdf_parser_py.urdf import URDF
 # Local
 from src.VBOC.abstract_copy import Model
 from src.VBOC.controller_copy import ViabilityController
-from src.VBOC.learning_copy import NeuralNetwork, NovelNeuralNetwork, RegressionNN, plot_brs
+from src.VBOC.learning import NeuralNetwork, NovelNeuralNetwork, RegressionNN, plot_brs
 from src.VBOC.parser import Parameters, parse_args
 
 # Global font size settings
@@ -245,130 +245,6 @@ def compute_data_on_border(
         )
 
 
-def generate_constrained_rpy(
-    min_inclination: float,
-    max_inclination: float,
-    n_samples: int
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Generate uniformly distributed orientations within an inclination range.
-
-    Uses rejection sampling on random quaternions to produce ``n_samples``
-    orientations whose Z-axis tilt angle lies in
-    ``[min_inclination, max_inclination]``.
-
-    Parameters
-    ----------
-    min_inclination : float
-        Minimum angle between the world Z-axis and the rotated Z-axis (rad).
-    max_inclination : float
-        Maximum angle between the world Z-axis and the rotated Z-axis (rad).
-    n_samples : int
-        Number of valid orientations to generate.
-
-    Returns
-    -------
-    roll : np.ndarray, shape (n_samples,)
-        Roll angles in radians.
-    pitch : np.ndarray, shape (n_samples,)
-        Pitch angles in radians.
-    yaw : np.ndarray, shape (n_samples,)
-        Yaw angles in radians.
-
-    Raises
-    ------
-    ValueError
-        If arguments are out of range or of the wrong type.
-    RuntimeError
-        If the sampler exhausts ``max_tries`` before collecting enough samples.
-    """
-    # --- Input validation ---
-    if not (
-        isinstance(min_inclination, (int, float)) and
-        isinstance(max_inclination, (int, float)) and
-        isinstance(n_samples, int) and
-        0 <= min_inclination <= max_inclination <= 180 and
-        n_samples >= 0
-    ):
-        raise ValueError("Invalid input arguments.  \
-            Check ranges (0<=a<=b<=180) and types."
-        )
-
-    if n_samples == 0:
-        return np.array([]), np.array([]), np.array([])
-    
-    roll_list, pitch_list, yaw_list = [], [], []
-    count = 0
-    max_tries = max(n_samples * 1000, 10000)
-
-    # --- Rejection sampling ---
-    for _ in range(max_tries):
-        if count == n_samples:
-            break
-
-        # rot[2, 2] is the cosine of the tilt angle between Z-axes
-        rot = Rot.random().as_matrix()
-        theta = np.arccos(np.clip(rot[2, 2], -1.0, 1.0))
-
-        if min_inclination <= theta <= max_inclination:
-            # ZYX convention returns [yaw, pitch, roll]
-            yaw, pitch, roll = Rot.from_matrix(rot).as_euler('ZYX')
-            roll_list.append(roll)
-            pitch_list.append(pitch)
-            yaw_list.append(yaw)
-            count += 1
-
-    if count < n_samples:
-        raise RuntimeError(
-            f"Max tries ({max_tries}) exceeded: "
-            f"found {count}/{n_samples} valid samples."
-        )
-
-    return np.array(roll_list), np.array(pitch_list), np.array(yaw_list)
-
-def set_axes_equal(ax: Axes3D) -> None:
-    """
-    Set equal aspect ratio for a 3D Matplotlib axis.
-
-    Rescales all three axes to share the same range, centred on the
-    midpoint of each axis's current limits.
-
-    Parameters
-    ----------
-    ax : Axes3D
-        A Matplotlib 3D axis object to rescale.
-    """
-    limits = np.array([ax.get_xlim3d(), ax.get_ylim3d(), ax.get_zlim3d()])
-    midpoints = limits.mean(axis=1)
-    half_range = (limits[:, 1] - limits[:, 0]).max() / 2
-
-    ax.set_xlim3d([midpoints[0] - half_range, midpoints[0] + half_range])
-    ax.set_ylim3d([midpoints[1] - half_range, midpoints[1] + half_range])
-    ax.set_zlim3d([midpoints[2] - half_range, midpoints[2] + half_range])
-
-def normalize_data(data: np.ndarray, indexes: list[int]) -> np.ndarray:
-    """
-    Normalize specific columns of an array to the [0, 1] range.
-
-    Parameters
-    ----------
-    data : np.ndarray
-        Input array of shape (n, d), modified in-place.
-    indexes : list of int
-        Column indices to normalize.
-
-    Returns
-    -------
-    np.ndarray
-        The array with the specified columns normalized.
-    """
-    for idx in indexes:
-        col = data[:, idx]
-        col_min, col_max = col.min(), col.max()
-        data[:, idx] = (col - col_min) / (col_max - col_min)
-
-    return data
-
 class Sine(torch.nn.Module):  
     def __init__(self, alpha=1.):
         super().__init__()
@@ -517,10 +393,8 @@ if __name__ == '__main__':
         ]
 
         # --- Accumulators for results across all batches ---
-        #all_x_0, all_x_t, all_u_t, all_b_m, all_b_M, all_status, all_d_list = \
-        #[],[],[],[],[],[],[]
         all_x_0, all_x_t, all_u_t, all_n_final, all_status = [], [], [], [], []
-        all_failed_q_init = [] # <--- NEW LIST FOR FAILURES
+        all_failed_q_init = []
         all_test_dataset = []
 
         # Split the problems into sub-batches to allow intermediate saves
@@ -544,7 +418,7 @@ if __name__ == '__main__':
                      for q0, b0 in zip(q_init[(nb*sub_batch):((nb+1)*sub_batch)], b_init[(nb*sub_batch):((nb+1)*sub_batch)])]
                 )
 
-            # --- Unpack parallel results (Now 5 items, no longer 7!) ---
+            # --- Unpack parallel results ---
             x_0, x_t, u_t, n_final_list, status = zip(*res)
             all_x_0.extend(x_0)
             all_x_t.extend(x_t)
@@ -606,7 +480,7 @@ if __name__ == '__main__':
             np.save(f'{params.DATA_DIR}{robotic_system}_traj_kinematics_vboc_randB', traj_kinematics)
             np.save(f'{params.DATA_DIR}{robotic_system}_u_traj_vboc_randB', np.vstack(u_traj))
 
-            np.save(f'{params.DATA_DIR}{robotic_system}_TEST_dataset_classification', np.array(all_test_dataset))
+            
             
             solved = len(x_data)
             print(f'Batch {nb}: Total number of points saved until now: {solved}')
@@ -815,14 +689,12 @@ if __name__ == '__main__':
         # --- Load data ---
         x_data = np.load(f'{params.DATA_DIR}{robotic_system}_x_vboc_randB.npy')
         b_data = np.load(f'{params.DATA_DIR}{robotic_system}_b_vboc_randB.npy')
-        b_all_data = np.load(params.DATA_DIR + 'sth_b_all_vboc.npy')
-        d_data = np.load(params.DATA_DIR + 'sth_d_vboc.npy')
         status_data = np.load(params.DATA_DIR + 'sth_status_vboc_randB.npy')
-
         actual_boxes = np.load(f'{params.DATA_DIR}{robotic_system}_actual_boxes_randB2000.npy')
         traj_kinematics = np.load(f'{params.DATA_DIR}{robotic_system}_traj_kinematics_randB2000.npy')
         u_traj = np.load(f'{params.DATA_DIR}{robotic_system}_u_traj_randB2000.npy')
         n_data = np.load(f'{params.DATA_DIR}{robotic_system}_n_horizons_vboc_randB.npy')
+        failed_file = f'{params.DATA_DIR}{robotic_system}_failed_q_init_vboc_randB.npy'
         
           
 
@@ -861,9 +733,7 @@ if __name__ == '__main__':
                 saving_dir=hist_dir,
                 xticks=[0, 2, 4]
             )
-            
-            
-            # 5. Dimensioni del Box Normalizzato (Indici 6, 7, 8, 9 di x_data)
+            # 4. Normalized Box Dimensions
             plot_histogram(
                 x_data[:, 6:10],
                 title="5_Normalized_Box_Dimensions", 
@@ -873,7 +743,7 @@ if __name__ == '__main__':
                 bins=50, 
                 saving_dir=hist_dir
             )
-        
+            # 5. Horizon        
             plot_histogram(
                 n_data, 
                 title="Distribution_of_Converged_Horizons_N", 
@@ -883,8 +753,7 @@ if __name__ == '__main__':
                 saving_dir=hist_dir,
                 xticks=np.arange(20, 33, 2)
             )
-
-            # 6. Dimensioni del Box Effettivo (Lati calcolati in metri)
+            # 6. Real box dimensions (scaled by the optimized scaling factor)
             plot_histogram(
                 actual_boxes,
                 title="Actual_Box_Dimensions", 
@@ -894,9 +763,7 @@ if __name__ == '__main__':
                 bins=50, 
                 saving_dir=hist_dir
             )
-
-            # 5. Histogram of FAILED cases
-            failed_file = f'{params.DATA_DIR}{robotic_system}_failed_q_init_vboc_randB.npy'
+            # 7. Failed cases
             if os.path.exists(failed_file):
                 failed_data = np.load(failed_file)
                 if len(failed_data) > 0:
@@ -910,14 +777,11 @@ if __name__ == '__main__':
                         saving_dir=hist_dir
                     )
 
-            # 7. Traiettorie: Angolo, vx, vz e Motori
-            # traj_kinematics[:, 0:3] sono theta, vx, vz.
-            # Aggiungiamo u_traj[:, 0] (il motore 1) per avere esattamente 4 grafici come hai chiesto.
+            # 8. Trajectory Kinematics and Motors
             traj_data_to_plot = np.hstack((
                 traj_kinematics[:, 0:4],          # Angolo e 3 velocità
                 u_traj                           # Comando motore (u_1,u_2)
             ))
-
             plot_histogram(
                 traj_data_to_plot,
                 title="Trajectory_Kinematics_and_Motors", 
@@ -941,7 +805,6 @@ if __name__ == '__main__':
         # --- Shuffle and split into training / validation / test sets ---
         #np.random.shuffle(x_data)
         n = len(x_data)        
-        #nbori = model.nbox + model.nori
         train_size = int(params.train_ratio * n)
         val_size = int(params.val_ratio * n)
         test_size = n - train_size - val_size
@@ -964,7 +827,6 @@ if __name__ == '__main__':
         y_test = y_data[train_size + val_size:]
         
         # --- Build model, loss, and optimiser ---
-        #nx_train = nbori+model.nv
         #in 2D
         nx_train = 8
     

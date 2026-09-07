@@ -92,7 +92,6 @@ plt.rcParams.update({
 
 
 def genera_ambiente_2d_test():
-    """Nuova mappa basata sullo schizzo con ostacoli blu e target verdi."""
     poligoni = [
         # Fixed bases (floor, ceiling, final wall)
         [[-2.0, -4.0], [25.0, -4.0], [25.0, -5.0], [-2.0, -5.0]], 
@@ -175,7 +174,7 @@ def main_statistico():
     print(f"--- AVVIO TEST DI COPERTURA: {N_TESTS} TARGET ---")
     
     for test_idx, target_base in enumerate(targets):
-        # Punto di partenza fisso
+        # Fixed starting point
         current_x = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         
         x_history = [current_x.copy()]
@@ -185,7 +184,6 @@ def main_statistico():
         recovery_in_questo_test = 0
         esito = "Timeout" 
 
-        # Variabili di stato di labirinto.py
         contatore_stallo = 0
         MAX_STALLO_ITER = 50
         in_recovery = True
@@ -226,7 +224,6 @@ def main_statistico():
         ax_anim.set_ylim(-6, 6)
         ax_anim.grid(True, linestyle='--', alpha=0.5)
 
-        # AGGIUNGI QUESTA LISTA QUI: conterrà i fotogrammi del video
         frames_animazione = []
         # ==========================================
 
@@ -300,7 +297,7 @@ def main_statistico():
                 #     dx, dz = target_rel_x, target_rel_z
 
             else:
-                # Al primissimo passo (t=0)
+                # At first step (t=0)
                 dx = target_rel_x
                 dz = target_rel_z
 
@@ -319,16 +316,16 @@ def main_statistico():
             #     box_prev_rel = None
 
             # ==========================================
-            # WARM START SAFE BOX (MODIFICATO)
+            # WARM START SAFE BOX (MODIFIED)
             # ==========================================
             if x_sol_prev is not None:
-                # 1. Calcola il bounding box (min e max) dell'INTERA traiettoria predetta al passo precedente
+                # 1. Calculate the bounding box (min and max) of the ENTIRE predicted trajectory at the previous step
                 traj_xmin = np.min(x_sol_prev[:, 0])
                 traj_xmax = np.max(x_sol_prev[:, 0])
                 traj_zmin = np.min(x_sol_prev[:, 1])
                 traj_zmax = np.max(x_sol_prev[:, 1])
                 
-                # 2. Converti questo Bounding Box in coordinate RELATIVE rispetto al drone attuale (current_x)
+                # 2. Convert this Bounding Box to relative coordinates with respect to the current position of the drone
                 margin = 0.15
                 box_prev_rel = [
                     traj_xmin - current_x[0]-margin,
@@ -534,14 +531,14 @@ def main_statistico():
                         esito = "Crashes"
                         in_recovery = False
 
-                        # --- INIZIO CHECK AUTOPSIA CRASH ---
+                        # --- START CRASH AUTOPSY CHECK ---
                         if x_sol_prev is not None:
                             punti_fuori = sum(1 for p in x_sol_prev if (p[0] < box_abs[0]-1e-3 or p[0] > box_abs[1]+1e-3 or p[1] < box_abs[2]-1e-3 or p[1] > box_abs[3]+1e-3))
                             print(f"💀 AUTOPSIA CRASH (Step {t}): {punti_fuori}/{len(x_sol_prev)} punti della traiettoria precedente erano finiti FUORI dal box fatale!")
 
                             if punti_fuori > 0:
                                 crashes_per_feasibility += 1
-                        # --- FINE CHECK ---
+                        # --- END CHECK ---
 
                         break
                 
@@ -571,7 +568,7 @@ def main_statistico():
             # ==========================================
             # VIDEO FRAME UPDATE
             # ==========================================
-            # Aggiorna la linea della traiettoria
+            # Update the trajectory line
             traj_attuale = np.array(x_history)
             linea_traj.set_data(traj_attuale[:, 0], traj_attuale[:, 1])
 
@@ -605,8 +602,6 @@ def main_statistico():
             
             plt.pause(0.1) 
 
-            # AGGIUNGI QUESTE RIGHE QUI PER CATTURARE IL FRAME:
-            # Converte il disegno corrente a schermo in un'immagine da salvare nel video
             image = np.frombuffer(fig_anim.canvas.tostring_rgb(), dtype='uint8')
             image = image.reshape(fig_anim.canvas.get_width_height()[::-1] + (3,))
             frames_animazione.append(image)
@@ -736,11 +731,8 @@ def main_statistico():
         # ==========================================
         # END OF VIDEO
         # ==========================================
-        # ==========================================
-        # ESPORTAZIONE E SALVATAGGIO DEL VIDEO
-        # ==========================================
         plt.ioff()
-        plt.close(fig_anim) # Chiude la finestra video real-time per liberare memoria
+        plt.close(fig_anim)
 
         if len(frames_animazione) > 0:
             cartella_video = "video_traiettorie_tempi"
@@ -751,21 +743,19 @@ def main_statistico():
             ax_movie = fig_movie.add_subplot(111)
             ax_movie.axis('off')
             
-            # Mostra il primo frame
+            # Show the first frame
             im = ax_movie.imshow(frames_animazione[0])
             
             def update_frame(i):
                 im.set_data(frames_animazione[i])
                 return [im]
             
-            # Crea l'animazione dalle immagini salvate
+            # Create the animation from saved images
             ani = animation.FuncAnimation(fig_movie, update_frame, frames=len(frames_animazione), blit=True)
             
-            # Configura il nome del file video
             nome_video = os.path.join(cartella_video, f"Video_Target_N10_{test_idx+1:02d}_{esito}.mp4")
             
-            # Salva come MP4 (richiede ffmpeg installato sul PC)
-            # Se ffmpeg dà problemi, puoi cambiare l'estensione in '.gif' e usare il writer 'pillow'
+            # Save
             try:
                 ani.save(nome_video, writer='ffmpeg', fps=10)
                 print(f"🎬 Video salvato con successo: {nome_video}")
@@ -888,7 +878,7 @@ def main_statistico():
     # box plots
     for bh in all_box:
         if len(bh) > 0:
-            # 1. Disegna i box intermedi normali (uno ogni 10 o 5, escludendo l'ultimo)
+            # 1. Draw intermediate boxes (one every 10 or 5, excluding the last)
             for box in bh[:-1:10]: 
                 box_w = box[1] - box[0]
                 box_h = box[3] - box[2]
@@ -896,7 +886,7 @@ def main_statistico():
                                                 edgecolor='lime', facecolor='none', 
                                                 linewidth=0.8, alpha=0.3))
             
-            # 2. Disegna L'ULTIMISSIMO BOX in modo speciale (es. Magenta)
+            # 2. Draw the LAST BOX in a special way (e.g., Magenta)
             ultimo_box = bh[-1]
             box_w = ultimo_box[1] - ultimo_box[0]
             box_h = ultimo_box[3] - ultimo_box[2]

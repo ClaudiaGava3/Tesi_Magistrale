@@ -39,7 +39,7 @@ class MpcController(AbstractController):
         self.ocp_solver.constraints_set(0, "ubx", current_x)
 
 
-        # 2. Parameter vector: [alpha_real_min(1), x_ref(6)]
+        # 2. Parameter vector: x_ref(6)
         p_val = x_ref
 
         

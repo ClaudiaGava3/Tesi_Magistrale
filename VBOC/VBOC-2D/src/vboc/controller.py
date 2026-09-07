@@ -63,14 +63,7 @@ class ViabilityController(AbstractController):
             self.ocp_solver.set(i, 'p', ref_box)
 
             if i != 0:
-                # Box constraint on the obstacle (upper bound encodes both min 
-                # and max)
-                # self.ocp_solver.constraints_set(
-                #      i, "uh", 
-                #      np.hstack([box_min_values, box_max_values])
-                # )
-                # Orientation bounded in [-π, π]; velocity loosely bounded for 
-                # feasibility
+                
                 self.ocp_solver.constraints_set(
                      i, 
                      "lbx", 
@@ -118,20 +111,6 @@ class ViabilityController(AbstractController):
         self.ocp_solver.constraints_set(
             self.N, "ubx", np.hstack([ori_0, zero_vel, box_max, np.array([1e5])]) # <-- Added upper box limit
         )
-        # self.ocp_solver.constraints_set(
-        #     self.N, "uh",
-        #     np.hstack([box_min_values, box_max_values])
-        # )
-
-        # Build the projection matrix C = [0 | I - d·dᵀ] to constrain
-        # the initial velocity to lie in the hyperplane orthogonal to d
-        # d_arr = np.array([d.tolist()])
-        # self.C[:, self.model.nq:] = (
-        #      np.eye(self.model.nv) - np.matmul(d_arr.T, d_arr)
-        # )
-        # self.ocp_solver.constraints_set(0, "C", self.C, api='new')
-
-        # Fix initial position and velocity; box dimensions remain free to be optimized
 
         # Ensure we pass 6 elements (pos + vel) to match idxbx_0
         self.ocp_solver.constraints_set(0, "lbx", q_init)
@@ -205,12 +184,6 @@ class ViabilityController(AbstractController):
 
                 print(f"Iteration {r}: SUCCESS! Scale = {gamma_new:.4f}, Horizon N = {N}")
 
-                # # Early stopping: no meaningful improvement and solver 
-                # # converged
-                # if gamma - gamma_new < self.tol and status == 0:
-                #     break
-                
-                # gamma = gamma_new
 
                 # Roll out the full solution trajectory
                 x_sol = np.empty((N, self.model.nx))
@@ -220,22 +193,6 @@ class ViabilityController(AbstractController):
                     u_sol[i] = self.ocp_solver.get(i, 'u')
 
                 break
-
-                # # Extend trajectory by repeating the terminal state with zero 
-                # # input
-                # x_sol[N:] = self.ocp_solver.get(N, 'x')
-                # u_sol[N:] = np.zeros((n, self.model.nu))
-
-                # # Warm-start the next iteration with the current solution
-                # self.setGuess(x_sol, u_sol)
-                
-                # # Increment the horizon and resize the solver accordingly
-                # N += n
-                # self.resetHorizon(N)
-                
-            # else:     
-            #     # Solver failed: abort and propagate the failure status
-            #     return None, None, None, status
 
             else:     
                 # If the solver fails, we don't give up!
@@ -252,7 +209,7 @@ class ViabilityController(AbstractController):
                 # Fill the new additional n steps
                 new_x_guess[N:] = self.x_guess[-1]
                 
-                # ---> THIS IS WHERE IT GOES! Replace zero motors (np.zeros) <---
+                
                 new_u_guess[N:] = self.u_guess[-1] 
                 
                 # Save the extended guess

@@ -11,8 +11,7 @@ from src.MPC.mapping.mpc_controller_obs import MpcController
 from src.MPC.mapping.lidar import min_cube_select_base, get_lidar_hits_2d_qualsiasi, min_cube_select_directional, force_trajectory_in_box, min_cube_warm_start
 
 
-# PER ATTIVARE IL TARGET IN VELOCITA' CAMBIARE I PESI NEL FILE ABSTRACT PER LA FUNZIONE DI COSTO
-
+# TO ENABLE THE VELOCITY TARGET CHANGE THE WEIGHTS IN THE COST FUNCTION OF THE abstact.py FILE
 
 # Global font size settings
 plt.rcParams.update({
@@ -44,7 +43,7 @@ def genera_ambienti_random(num_tests=10):
     targets = []
     roof = 11.0
 
-    # Forme base
+    # Base shapes for obstacles
     v_triangolo  = [[-2.0, -1.5], [2.0, -1.5], [0.0, 1.5]]                  
     v_rettangolo = [[-2.0, -0.75], [2.0, -0.75], [2.0, 0.75], [-2.0, 0.75]] 
     v_quadrato   = [[-1.2, -1.2], [1.2, -1.2], [1.2, 1.2], [-1.2, 1.2]]     
@@ -53,25 +52,22 @@ def genera_ambienti_random(num_tests=10):
 
     for _ in range(num_tests):
         poligoni = []
-        # Pavimento e Soffitto fissi
+        # Fixed floor and ceiling
         poligoni.append([[-2.0, 0.0], [52.0, 0.0], [52.0, -1.0], [-2.0, -1.0]]) 
         poligoni.append([[-2.0, 11.0], [52.0, 11.0], [52.0, 12.0], [-2.0, 12.0]]) 
 
         num_ostacoli = 7
         x_start = 8.0
         x_end = 48.0
-        step_x = (x_end - x_start) / num_ostacoli # Circa 5.7 metri a settore
+        step_x = (x_end - x_start) / num_ostacoli
 
-        # Decidiamo a caso se lo slalom parte dall'alto o dal basso
         inizia_alto = random.choice([True, False])
 
         for i in range(num_ostacoli):
             forma = random.choice(forme)
             
-            # 1. Piazzo l'ostacolo nel suo specifico settore (con un po' di margine casuale)
             cx = np.random.uniform(x_start + i * step_x + 0.5, x_start + (i + 1) * step_x - 0.5)
             
-            # 2. Alternanza garantita dello slalom
             is_high = (i % 2 == 0) if inizia_alto else (i % 2 != 0)
             
             if is_high:
@@ -79,12 +75,10 @@ def genera_ambienti_random(num_tests=10):
             else:
                 angolo = random.choice([0, 45, -45, 20, -20])
 
-            # 3. Calcolo dell'ingombro ruotato per non bucare i bordi
             forma_ruotata_zero = ruota_e_trasla(forma, 0.0, 0.0, angolo)
             z_min_locale = min(v[1] for v in forma_ruotata_zero)
             z_max_locale = max(v[1] for v in forma_ruotata_zero)
             
-            # 4. Assegnazione dell'altezza sicura
             margin = 0.50
             if is_high:
                 limite_sup = 11.0 - margin - z_max_locale
@@ -103,12 +97,12 @@ def genera_ambienti_random(num_tests=10):
             for i in range(n):
                 segments.append([poli[i], poli[(i + 1) % n]])
         
-        # Muro fittizio finale per il Lidar
+        # Final fictitious wall
         segments.append([[55.0, 0.0], [55.0, 11.0]])
 
         ambienti.append((poligoni, segments))
 
-        # Target Random di Velocità
+        # Random Target for velocity
         vx_rand = round(np.random.uniform(0.8, 1.2), 2)
         targets.append(np.array([0.0, 0.0, 0.0, vx_rand, 0.0, 0.0]))
 
@@ -116,14 +110,13 @@ def genera_ambienti_random(num_tests=10):
 
 
 def dist_punto_segmento(px, pz, p1, p2):
-    """Calcola la distanza minima tra un punto e un segmento."""
+    """Calculates the min distance between a point and a segment"""
     x1, z1 = p1
     x2, z2 = p2
     l2 = (x2 - x1)**2 + (z2 - z1)**2
     if l2 == 0: 
         return np.hypot(px - x1, pz - z1)
     
-    # Proiezione ortogonale del punto sul segmento (parametro t tra 0 e 1)
     t = max(0, min(1, ((px - x1) * (x2 - x1) + (pz - z1) * (z2 - z1)) / l2))
     proj_x = x1 + t * (x2 - x1)
     proj_z = z1 + t * (z2 - z1)
@@ -131,10 +124,10 @@ def dist_punto_segmento(px, pz, p1, p2):
 
 def aggiungi_ostacoli_densi(ambienti, num_rombi=10):
     """
-    Aggiunge ostacoli a forma di rombo all'ambiente.
-    Garantisce che non si sovrappongano ai muri e che siano ben distanziati tra loro.
+    Adds obstacles in the shape of a rhombus to the environment.
+    Ensures that they do not overlap with the walls and are well spaced.
     """
-    # Rombo più grande (raggio 0.6, larghezza/altezza totale 1.2 metri)
+
     v_rombo = [[0.0, 0.6], [0.6, 0.0], [0.0, -0.6], [-0.6, 0.0]] 
     nuovi_ambienti = []
     
@@ -144,18 +137,15 @@ def aggiungi_ostacoli_densi(ambienti, num_rombi=10):
         
         tentativi = 0
         rombi_aggiunti = 0
-        centri_piazzati = [] # Memoria dei rombi già piazzati per distanziarli
+        centri_piazzati = []
         
-        # Aumentiamo i tentativi massimi perché le condizioni ora sono più stringenti
         while rombi_aggiunti < num_rombi and tentativi < 500:
-            # Genera centro casuale
             cx = np.random.uniform(7.0, 47.0)
             cz = np.random.uniform(2.0, 9.0)
             
-            # 1. CHECK DISTANZA TRA ROMBI (Evita che siano "ammucchiati" o attaccati)
             troppo_vicini_tra_loro = False
             for (px, pz) in centri_piazzati:
-                if np.hypot(cx - px, cz - pz) < 3.5:  # Distanza minima tra due rombi
+                if np.hypot(cx - px, cz - pz) < 3.5:
                     troppo_vicini_tra_loro = True
                     break
             
@@ -163,19 +153,16 @@ def aggiungi_ostacoli_densi(ambienti, num_rombi=10):
                 tentativi += 1
                 continue
                 
-            # 2. CHECK DISTANZA DAGLI OSTACOLI ORIGINALI
             troppo_vicino_ai_muri = False
             for seg in nuovi_segmenti:
-                if seg[0][0] > 54.0: # Ignora il traguardo
+                if seg[0][0] > 54.0:
                     continue
                 
                 dist = dist_punto_segmento(cx, cz, seg[0], seg[1])
-                # 0.6m (raggio rombo) + 0.1m (drone) + 0.5m (margine di volo) = 1.2m
                 if dist < 1.2: 
                     troppo_vicino_ai_muri = True
                     break
             
-            # 3. PIAZZAMENTO
             if not troppo_vicino_ai_muri:
                 rombo_traslato = [[x+cx, z+cz] for x, z in v_rombo]
                 nuovi_poligoni.append(rombo_traslato)
@@ -184,7 +171,7 @@ def aggiungi_ostacoli_densi(ambienti, num_rombi=10):
                 for j in range(n):
                     nuovi_segmenti.append([rombo_traslato[j], rombo_traslato[(j+1)%n]])
                     
-                centri_piazzati.append((cx, cz)) # Salva il centro per i prossimi check
+                centri_piazzati.append((cx, cz))
                 rombi_aggiunti += 1
             
             tentativi += 1
@@ -195,33 +182,25 @@ def aggiungi_ostacoli_densi(ambienti, num_rombi=10):
 
 def anteprima_ambiente(num_rombi=10):
     """
-    Genera un singolo ambiente, aggiunge gli ostacoli densi e mostra un plot statico.
-    Utile per calibrare visivamente la grandezza e il numero dei rombi.
+    Generates a single environment, adds the dense obstacles and shows a static plot.
+    Useful for visually calibrating the size and number of rhombi.
     """
-    # 1. Genera un solo ambiente base
+
     ambienti_base, targets, roof = genera_ambienti_random(1)
     
-    # 2. Aggiunge i rombi
     ambienti_densi = aggiungi_ostacoli_densi(ambienti_base, num_rombi=num_rombi)
     
-    # 3. Estrae i poligoni per il disegno
     poligoni, segmenti = ambienti_densi[0] 
 
-    # 4. Configurazione del Plot
     fig, ax = plt.subplots(figsize=(14, 4))
 
-    # Disegna tutti gli ostacoli (inclusi i nuovi rombi)
     for poli in poligoni:
         ax.add_patch(patches.Polygon(poli, closed=True, facecolor='silver', edgecolor='black', alpha=0.8, linewidth=1.2))
         
-    # Elementi fissi (Traguardo e Start)
-    # ax.plot([50.0, 50.0], [0.0, 11.0], color='red', linestyle='--', linewidth=2, label="Traguardo")
-    # ax.scatter(1.0, 5.0, color='blue', s=150, label="Start Drone", zorder=5)
 
-    # Dettagli estetici del grafico
     ax.set_xlim(-2, 52)
     ax.set_ylim(-1, 12)
-    ax.set_aspect('equal') # Mantiene le proporzioni reali (non distorce i rombi)
+    ax.set_aspect('equal')
     ax.grid(True, linestyle='--', alpha=0.5)
     ax.set_title("Test Environment A")
     ax.set_xlabel("X [m]")
@@ -244,7 +223,7 @@ def main_statistico(N_TESTS):
     tutte_le_traiettorie = []
     registro_violazioni_globale = []
 
-    # Pesi della funzione di costo (per la valutazione Closed-Loop)
+    # Cost function weights
     Q_COST = np.diag([0.0001, 0.0001, 20.0, 100.0, 1.0, 1.0])
     R_COST = np.diag([0.0001, 0.0001])
 
@@ -261,7 +240,7 @@ def main_statistico(N_TESTS):
     N_SIM = int(SIM_TIME / DT)
     
     
-    # Generiamo 10 stanze uniche e 10 target random
+    # Generate different rooms and random target
     ambienti, targets, roof = genera_ambienti_random(N_TESTS)
 
     ambienti = aggiungi_ostacoli_densi(ambienti, num_rombi=0)
@@ -270,10 +249,9 @@ def main_statistico(N_TESTS):
     
     for test_idx, target_base in enumerate(targets):
 
-        # Estrae i poligoni e i segmenti specifici per questo run
         poligoni, segmenti = ambienti[test_idx]
 
-        # Punto di partenza fisso
+        # Fixed start point
         current_x = np.array([1.0, 5.0, 0.0, 0.0, 0.0, 0.0])
         
         x_history = [current_x.copy()]
@@ -283,7 +261,6 @@ def main_statistico(N_TESTS):
         recovery_in_questo_test = 0
         esito = "Successes" 
 
-        # Variabili di stato di labirinto.py
         contatore_stallo = 0
         MAX_STALLO_ITER = 50
         in_recovery = True
@@ -329,7 +306,6 @@ def main_statistico(N_TESTS):
         ax_anim.set_ylim(-1, 12)
         ax_anim.grid(True, linestyle='--', alpha=0.5)
 
-        # AGGIUNGI QUESTA LISTA QUI: conterrà i fotogrammi del video
         frames_animazione = []
         # ==========================================
 
@@ -434,13 +410,13 @@ def main_statistico(N_TESTS):
             # WARM START SAFE BOX (MODIFICATO)
             # ==========================================
             if x_sol_prev is not None:
-                # 1. Calcola il bounding box (min e max) dell'INTERA traiettoria predetta al passo precedente
+                # 1. Calculate the bounding box (min and max) of the entire trajectory predicted at previous step
                 traj_xmin = np.min(x_sol_prev[:, 0])
                 traj_xmax = np.max(x_sol_prev[:, 0])
                 traj_zmin = np.min(x_sol_prev[:, 1])
                 traj_zmax = np.max(x_sol_prev[:, 1])
                 
-                # 2. Converti questo Bounding Box in coordinate RELATIVE rispetto al drone attuale (current_x)
+                # 2. Convert this Bounding Box to relative coordinates with respect to the current drone (current_x)
                 margin = 0.15
                 box_prev_rel = [
                     traj_xmin - current_x[0]-margin,
@@ -503,14 +479,13 @@ def main_statistico(N_TESTS):
             x_sol, u_sol, alpha_curr, status = controller.solve_step(current_x, x_ref_attuale, box_abs)
 
             if status not in [3, 4]:
-                # # Estrae il costo totale (funzione obiettivo) calcolato dall'ottimizzatore C'è QUELLO ATTUALE PIù QUELLO PREDETTO, SE SOMMO TUTTO LO CONTO DUE VOLTE ALLA FINE
-                # E POI C'è COSTO TERMINALE *20 MA APF NON HA UN COSTO TERMINALE
+    
                 # costo_totale_run += controller.ocp_solver.get_cost()
 
 
-                # Calcolo del Closed-Loop Cost (Esattamente come in APF)
+                # Closed-Loop Cost calculation
                 err_x = current_x - x_ref_attuale
-                # u_sol[0] è l'input effettivamente applicato al drone in questo istante
+                
                 err_u = u_sol[0] - np.array([u_hover, u_hover]) 
                 
                 costo_step = err_x.T @ Q_COST @ err_x + err_u.T @ R_COST @ err_u
@@ -547,7 +522,7 @@ def main_statistico(N_TESTS):
                 x_sol, u_sol, alpha_curr, status = controller.solve_step(current_x, x_ref_attuale, box_abs)
 
                 if status not in [3, 4]:
-                # Estrae il costo totale (funzione obiettivo) calcolato dall'ottimizzatore
+                # Extract the total cost (objective function) calculated by the optimizer
                     costo_totale_run += controller.ocp_solver.get_cost()
 
                 # PLAN B: historical warm start
@@ -593,7 +568,7 @@ def main_statistico(N_TESTS):
                     x_sol, u_sol, alpha_curr, status = controller.solve_step(current_x, x_ref_attuale, box_abs)
 
                     if status not in [3, 4]:
-                    # Estrae il costo totale (funzione obiettivo) calcolato dall'ottimizzatore
+                    # Extract the total cost (objective function) calculated by the optimizer
                         costo_totale_run += controller.ocp_solver.get_cost()
                     
                     if status in [3, 4]:
@@ -601,14 +576,14 @@ def main_statistico(N_TESTS):
                         in_recovery = False
                         costo_totale_run = 0.0
 
-                        # --- INIZIO CHECK AUTOPSIA CRASH ---
+                        # --- START CRASH AUTOPSIA CHECK ---
                         if x_sol_prev is not None:
                             punti_fuori = sum(1 for p in x_sol_prev if (p[0] < box_abs[0]-1e-3 or p[0] > box_abs[1]+1e-3 or p[1] < box_abs[2]-1e-3 or p[1] > box_abs[3]+1e-3))
                             print(f"💀 AUTOPSIA CRASH (Step {t}): {punti_fuori}/{len(x_sol_prev)} punti della traiettoria precedente erano finiti FUORI dal box fatale!")
 
                             if punti_fuori > 0:
                                 crashes_per_feasibility += 1
-                        # --- FINE CHECK ---
+                        # --- END CRASH AUTOPSIA CHECK ---
 
                         break
                 
@@ -645,8 +620,8 @@ def main_statistico(N_TESTS):
             # ==========================================
             # VIDEO FRAME UPDATE
             # ==========================================
-            if t % 5 == 0:  # Aggiunto per alleggerire il video e pareggiare l'APF
-                # Aggiorna la linea della traiettoria
+            if t % 5 == 0:  
+
                 traj_attuale = np.array(x_history)
                 linea_traj.set_data(traj_attuale[:, 0], traj_attuale[:, 1])
 
@@ -684,16 +659,13 @@ def main_statistico(N_TESTS):
                     box_corrente.set_edgecolor('lime')
                     box_corrente.set_facecolor('lime')
                 
-                # ---> TITOLO AGGIORNATO COME RICHIESTO <---
                 ax_anim.set_title(f"MPC-NN Target {test_idx +1} | Step: {t} | Dist: {distanza_percorsa:.1f}m | Vx: {current_x[3]:.2f} | Status MPC: {status}")
                 
                 # Draw the frame on the screen
                 fig_anim.canvas.draw()
                 fig_anim.canvas.flush_events()
                 
-                # (Rimosso plt.pause(0.1) per non rallentare l'esecuzione)
 
-                # Converte il disegno corrente a schermo in un'immagine da salvare nel video
                 image = np.frombuffer(fig_anim.canvas.tostring_rgb(), dtype='uint8')
                 image = image.reshape(fig_anim.canvas.get_width_height()[::-1] + (3,))
                 frames_animazione.append(image)
@@ -806,11 +778,8 @@ def main_statistico(N_TESTS):
         # ==========================================
         # END OF VIDEO
         # ==========================================
-        # ==========================================
-        # ESPORTAZIONE E SALVATAGGIO DEL VIDEO
-        # ==========================================
         plt.ioff()
-        plt.close(fig_anim) # Chiude la finestra video real-time per liberare memoria
+        plt.close(fig_anim)
 
         if len(frames_animazione) > 0:
             cartella_video = "video_MPC-NN.2"
@@ -821,21 +790,17 @@ def main_statistico(N_TESTS):
             ax_movie = fig_movie.add_subplot(111)
             ax_movie.axis('off')
             
-            # Mostra il primo frame
             im = ax_movie.imshow(frames_animazione[0])
             
             def update_frame(i):
                 im.set_data(frames_animazione[i])
                 return [im]
             
-            # Crea l'animazione dalle immagini salvate
             ani = animation.FuncAnimation(fig_movie, update_frame, frames=len(frames_animazione), blit=True)
             
-            # Configura il nome del file video
             nome_video = os.path.join(cartella_video, f"Video_MPC-NN_{test_idx+1:02d}_{esito}.mp4")
             
-            # Salva come MP4 (richiede ffmpeg installato sul PC)
-            # Se ffmpeg dà problemi, puoi cambiare l'estensione in '.gif' e usare il writer 'pillow'
+            # Save
             try:
                 ani.save(nome_video, writer='ffmpeg', fps=10)
                 print(f"🎬 Video salvato con successo: {nome_video}")
@@ -882,8 +847,8 @@ def main_statistico(N_TESTS):
         # plt.show() # Mostra il grafico di questa stanza. Chiudilo per passare al test successivo!
 
 
-# ==========================================
-    # RESOCONTO GLOBALE FINALE (FUORI dal ciclo for, alla fine di main_statistico)
+    # ==========================================
+    # GLOBAL RECURSIVE FEASIBILITY REPORT
     # ==========================================
     print(f"\n--- RISULTATI FINALI ---")
     print(f"Successes: {risultati['Successes']} | Timeout: {risultati['Timeout']} | Crashes: {risultati['Crashes']}")
@@ -896,7 +861,6 @@ def main_statistico(N_TESTS):
             f"Uscite dal box: {row['num_violazioni']:<3} | Correlazione: {row['correlazione']}")
     print("="*70 + "\n")
 
-    # Mostra solo il grafico a torta riassuntivo alla fine
     fig_pie, ax_pie = plt.subplots(figsize=(8, 6))
     labels = list(risultati.keys())
     sizes = list(risultati.values())

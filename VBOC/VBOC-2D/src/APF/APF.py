@@ -6,7 +6,6 @@ import matplotlib.patches as patches
 import matplotlib.animation as animation
 import os
 
-# Importiamo le funzioni dell'ambiente dal tuo script
 from parser import Parameters
 from src.MPC.mapping.MPC_test_target_vel import genera_ambienti_random
 from src.MPC.mapping.MPC_test_target_vel import aggiungi_ostacoli_densi
@@ -15,28 +14,28 @@ from APF_mpc_abstract import Model
 from APF_mpc_controller import MpcController
 
 # ==========================================
-# 1. PARAMETRI FISICI E DI TUNING APF
+# 1. PHYSICAL PARAMETERS AND APF TUNING
 # ==========================================
 
 MASS = 0.75          # kg
 G = 9.81             # m/s^2
-CF = 1.5e-3          # Coefficiente di spinta
+CF = 1.5e-3          # Thrust coefficent
 DT = 0.02            # Time step
 U_HOVER = (MASS * G) / (2.0 * CF)
 
-I_YY = 0.00735         # Inerzia lungo l'asse Y (kg*m^2)
-L_ARM = 0.10         # Lunghezza del braccio (metri)
+I_YY = 0.00735         # Inertia along x-axis (kg*m^2)
+L_ARM = 0.10         # Length of the arm (meters)
 
-# Pesi della funzione di costo (Replicati da MPC)
+# Cost functions weights (replicated from MPC)
 Q_COST = np.diag([0.0001, 0.0001, 20.0, 100.0, 1.0, 1.0])
 R_COST = np.diag([0.0001, 0.0001])
 
-# ---> PARAMETRI DA TARARE PER L'APF <---
-K_ATT_BASE = 2.5     # Moltiplicatore base per la forza attrattiva costante
-K_REP = 0.05          # Guadagno repulsivo per ogni singolo punto LiDAR
+# ---> PARAMETERS TO TUNE FOR THE APF <---
+K_ATT_BASE = 2.5     # Base multiplier for the constant attractive force
+K_REP = 0.05          # Repulsive gain for each individual LiDAR point
 K_DAMP = 5.0
-RHO_0 =  3.0         # Distanza limite in cui il punto LiDAR inizia a respingere
-DRONE_RADIUS = 0.1  # Raggio del drone per check schianto
+RHO_0 =  3.0         # Limit distance at which the LiDAR point starts repelling
+DRONE_RADIUS = 0.1  # Radius of the drone for collision checking
 
 def compute_apf_forces(current_x, x_ref, hits):
     pos_drone = current_x[0:2]
@@ -44,17 +43,17 @@ def compute_apf_forces(current_x, x_ref, hits):
     v_curr_z = current_x[4]  # Serve per lo smorzatore in Z
     v_target_x = x_ref[3]
     
-    # 1. FORZA ATTRATTIVA (Metodo del Prof)
-    # Spinge se v_curr_x < v_target, frena se v_curr_x > v_target.
-    # Quando v_curr_x == v_target, la forza è ZERO e il drone prosegue per INERZIA.
+    # 1. ATTRACTIVE FORCE
+    # Pushes if v_curr_x < v_target, breaks if v_curr_x > v_target.
+    # When v_curr_x == v_target, the force is ZERO and the drone continues by inertia.
     f_att_x = K_ATT_BASE * (v_target_x - v_curr_x)
     
-    # Freno in Z: se sbatte contro un ostacolo, l'APF lo rimette dritto a Vz=0
+    # Z-axis break: if it hits an obstacle the AP Fstraightens it to vz=0
     f_att_z = K_DAMP * (0.0 - v_curr_z)
         
     F_att = np.array([f_att_x, f_att_z])
     
-    # 2. FORZA REPULSIVA (Somma dei contributi di OGNI punto LiDAR)
+    # 2. REPULSIVE FORCE (Sum of contributions from EACH LiDAR point)
     F_rep = np.array([0.0, 0.0])
     
     if len(hits) > 0:
@@ -83,7 +82,7 @@ def main_apf(N_TESTS):
     np.random.seed(44)
     random.seed(44)
 
-    print("--- INIZIALIZZAZIONE MPC ---")
+    print("--- MPC INITIALIZATION ---")
     params = Parameters("sth")
     params.build = True
     model = Model(params)
@@ -108,7 +107,7 @@ def main_apf(N_TESTS):
         distanza_percorsa = 0.0
         distanza_x = 0.0
         
-        esito = "Successes" # Inizializzato come successo (sopravvivenza)
+        esito = "Successes" # Initialized as success (survival)
         
         plt.ion()
         fig_anim, ax_anim = plt.subplots(figsize=(18, 5))
@@ -132,10 +131,10 @@ def main_apf(N_TESTS):
         N_SIM = int(SIM_TIME / DT)
 
         for t in range(N_SIM):
-            # 1. Rilevamento Lidar
+            # 1. Lidar detection
             hits, _ = get_lidar_hits_2d_qualsiasi(current_x[0], current_x[1], segmenti, num_rays=360, max_range=3.0)
             
-            # --- CHECK CRASH FISICO ---
+            # --- PHYSICAL CRASH CHECK ---
             if len(hits) > 0:
                 distanze_ostacoli = np.linalg.norm(hits - current_x[0:2], axis=1)
                 if np.min(distanze_ostacoli) <= DRONE_RADIUS:
@@ -143,15 +142,15 @@ def main_apf(N_TESTS):
                     costo_totale_run = 0.0 
                     break
             
-            # 2. APF: Calcolo Forze
+            # 2. APF: Force calculation
             F_att, F_rep = compute_apf_forces(current_x, x_ref_attuale, hits)
             F_tot = F_att + F_rep
             
-            # 3. Dinamica
+            # 3. Dynamics
             a_x = F_tot[0] / MASS
             a_z = F_tot[1] / MASS
             
-            # --- CALCOLO TARGET FITTIZIO PER L'MPC ---
+            # --- CALCULATION OF FAKE TARGET FOR THE MPC ---
             dt_target = DT * mpc.N
             
             x_target_fittizio = current_x[0] + current_x[3] * dt_target + 0.5 * a_x * (dt_target**2)
@@ -159,12 +158,10 @@ def main_apf(N_TESTS):
             vx_target_fittizio = current_x[3] + a_x * dt_target
             vz_target_fittizio = current_x[4] + a_z * dt_target
 
-            # Creiamo il vettore x_ref da passare all'MPC [x, z, theta, vx, vz, wy]
-            # Theta e wy li lasciamo a 0 come abbiamo detto.
+            
             x_ref_mpc = np.array([x_target_fittizio, z_target_fittizio, 0.0, vx_target_fittizio, vz_target_fittizio, 0.0])
 
-            # --- CHIAMATA ALL'MPC ---
-            # Passiamo lo stato corrente e il target fittizio
+            # --- MPC CALL ---
             x_sol, u_sol_mpc, status = mpc.solve_step(current_x, x_ref_mpc)
 
             if status not in [0, 2]:
@@ -173,21 +170,21 @@ def main_apf(N_TESTS):
                 costo_totale_run = 0.0
                 break
 
-            # --- AGGIORNAMENTO STATO ---
-            # Preleviamo il primo stato predetto dall'MPC (x_sol[1]) e la coppia ottima (u_sol[0])
+            # --- STATE UPDATE ---
+            # Extract the first state predicted by the MPC and use it as the new current state for the next iteration
             nuovo_stato = x_sol[1]
-            u_sol = u_sol_mpc[0]  # Serve per il calcolo del costo
+            u_sol = u_sol_mpc[0]
 
-            # Calcolo distanza percorsa in questo step
+            # Calculation of distance traveled in this step 
             step_dist = np.linalg.norm(np.array([nuovo_stato[0], nuovo_stato[1]]) - current_x[0:2])
             distanza_percorsa += step_dist
             distanza_x += abs(current_x[0] - nuovo_stato[0])
 
-            # Aggiorniamo current_x
+            # Update current_x
             current_x = nuovo_stato
             x_history.append(current_x.copy())
             
-            # 4. Accumulo Costo
+            # 4. Cost accumulation
             costo_totale_run += calcola_costo_step(current_x, u_sol, x_ref_attuale)
 
             # VIDEO UPDATE
@@ -196,8 +193,8 @@ def main_apf(N_TESTS):
                 linea_traj.set_data(traj_attuale[:, 0], traj_attuale[:, 1])
                 punto_drone.set_offsets([[current_x[0], current_x[1]]])
 
-                lunghezza_corpo = 0.8  # Lunghezza della linea (0.8 metri in totale)
-                theta = current_x[2]   # Estraiamo l'angolo theta dallo stato corrente
+                lunghezza_corpo = 0.8
+                theta = current_x[2]
                 dx = (lunghezza_corpo / 2.0) * np.cos(theta)
                 dz = (lunghezza_corpo / 2.0) * -np.sin(theta)
                 linea_angolo_drone.set_data([current_x[0] - dx, current_x[0] + dx], [current_x[1] - dz, current_x[1] + dz])
@@ -216,7 +213,7 @@ def main_apf(N_TESTS):
                 image = image.reshape(fig_anim.canvas.get_width_height()[::-1] + (3,))
                 frames_animazione.append(image)
 
-        # FINE DEL SINGOLO TEST
+        # END OF SINGLE TEST
         print(f"\n🎯 REPORT APF TARGET {test_idx+1}/{N_TESTS}")
         print(f"Esito finale: {esito} (Iterazione di stop: {t})")
         print(f"Costo accumulato: {costo_totale_run:.2f} | Dist. Totale: {distanza_percorsa:.2f} m | Dist. X: {distanza_x:.2f} m")
@@ -234,7 +231,7 @@ def main_apf(N_TESTS):
         plt.ioff()
         plt.close(fig_anim)
         
-        # SALVATAGGIO VIDEO
+        # SAVE VIDEO
         if len(frames_animazione) > 0:
             cartella_video = "video_APF"
             os.makedirs(cartella_video, exist_ok=True)
@@ -257,7 +254,7 @@ def main_apf(N_TESTS):
             plt.close(fig_movie)
 
     # ==========================================
-    # RESOCONTO GLOBALE FINALE
+    # FINAL GLOBAL REPORT
     # ==========================================
     print("\n" + "="*80)
     print("📊 RESOCONTO GLOBALE APF")
@@ -269,7 +266,7 @@ def main_apf(N_TESTS):
 
 
     # ==========================================
-    # PLOT STATISTICO INDIVIDUALE CON PROFILO VELOCITÀ
+    # INDIVIDUAL STATISTICAL PLOT WITH VELOCITY PROFILE
     # ==========================================
     fig_singolo, (ax_traj, ax_vel) = plt.subplots(2, 1, figsize=(18, 10), gridspec_kw={'height_ratios': [2, 1]})
         
@@ -288,14 +285,13 @@ def main_apf(N_TESTS):
     ax_traj.grid(True, linestyle='--', alpha=0.5)
     # ax_traj.legend(loc='lower left', fontsize=12)
         
-    # --- PLOT VELOCITÀ Vx (Sotto) ---
+    # --- PLOT VELOCITY Vx ---
     steps = np.arange(len(traj))
     vx_storico = traj[:, 3]
         
     ax_vel.plot(steps, vx_storico, color='blue', linewidth=2, label='Vx Corrente')
     ax_vel.axhline(y=target_base[3], color='red', linestyle='--', linewidth=2, label=f'Target Vx ({target_base[3]:.2f} m/s)')
         
-    # Aggiungiamo un po' di margine dinamico all'asse Y per inquadrare bene eventuali picchi
     y_min = min(0.0, np.min(vx_storico)) - 0.2
     y_max = max(target_base[3], np.max(vx_storico)) + 0.5
         
