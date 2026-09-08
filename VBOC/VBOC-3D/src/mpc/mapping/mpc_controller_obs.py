@@ -15,7 +15,7 @@ class MpcController(AbstractController):
     def __init__(self, model) -> None:
         super().__init__(model)
         
-        # 2. CARICAMENTO RETE NEURALE
+        # 2. NEURAL NETWORK LOADING
         nn_filename = f"{self.params.NN_DIR}{self.params.robot_name}_{self.params.act}.pt"
         print(f"--- Caricamento Rete Neurale da {nn_filename} ---")
         
@@ -23,8 +23,7 @@ class MpcController(AbstractController):
         self.mean_X = checkpoint['mean']
         self.std_X = checkpoint['std']
         
-        # Inizializzazione rete neurale (Input 4D per il 2D: theta, vx, vz, wy)
-        # NOTA: assicurati di usare la stessa activation del training (es. GELU)
+        
         net = NeuralNetwork(
             input_size=9, 
             hidden_size=self.params.hidden_size, 
@@ -36,24 +35,22 @@ class MpcController(AbstractController):
         net.load_state_dict(checkpoint['model'])
         net.eval()
         
-        # 3. L4CASADI E VINCOLO TERMINALE
-        # Nello stato 3D [x,y,z, phi,theta,psi, vx,vy,vz, p,q,r], la rete usa gli indici da 3 a 12 esclusi
+        
         x_nn_sym = self.model.x[3:12]
         
-        # Normalizzazione input per la rete
+        # Input normalization
         x_norm = (x_nn_sym - cs.DM(self.mean_X)) / cs.DM(self.std_X)
         
-        # Funzione L4CasADi
+        # Function L4CasADi
         self.l4c_model = l4c.L4CasADi(net, name="drone_viability_net")
         
-        # Output della rete: spazio di frenata predetto (Alpha)
+        # NN output: predicted alpha
         alpha_pred = self.l4c_model(x_norm.T)
         
 
-        # DISTANZA DINAMICA: Posizione Muro fissa (p[0]) - Posizione drone futura (x[0])
+        # Dynamic distance: Posizione Muro fissa (p[0]) - Posizione drone futura (x[0])
         #dist_dinamica = self.model.p[0] - self.model.x[0]
 
-        # Estraiamo la posizione futura del drone e i limiti del box dai parametri
         x_drone = self.model.x[0]
         y_drone = self.model.x[1]
         z_drone = self.model.x[2]
@@ -66,24 +63,22 @@ class MpcController(AbstractController):
         z_max_box = self.model.p[5]
 
 
-        # --- PATH CONSTRAINT (6 LATI ASIMMETRICI) ---
-        # Tutte e 6 le distanze dai muri devono essere >= 0
+        # --- PATH CONSTRAINT ---
         h_expr_path = cs.vertcat(
-            x_drone - x_min_box,  # Muro SX
-            x_max_box - x_drone,  # Muro DX
-            y_drone - y_min_box,  # Muro FRONT
-            y_max_box - y_drone,  # Muro BACK
-            z_drone - z_min_box,  # Pavimento
-            z_max_box - z_drone   # Soffitto
+            x_drone - x_min_box,  # Wall SX
+            x_max_box - x_drone,  # Wall DX
+            y_drone - y_min_box,  # Wall FRONT
+            y_max_box - y_drone,  # Wall BACK
+            z_drone - z_min_box,  # Floor
+            z_max_box - z_drone   # Roof
         )
         self.ocp.model.con_h_expr = h_expr_path
-        # Imponiamo che tutti e 6 i valori siano compresi tra 0 e infinito
+
         self.ocp.constraints.lh = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         self.ocp.constraints.uh = np.array([1e5, 1e5, 1e5, 1e5, 1e5, 1e5])
 
 
-        # --- VINCOLO TERMINALE ( 6 LATI ASIMMETRICI) ---
-        # Tutte e 6 le distanze dai muri meno l'alpha predetto devono essere >= 0
+        # --- TERMINAL CONSTRAINT ---
         h_expr_terminal = cs.vertcat(
             x_drone - x_min_box - alpha_pred,
             x_max_box - x_drone - alpha_pred,
@@ -97,11 +92,8 @@ class MpcController(AbstractController):
         self.ocp.constraints.lh_e = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         self.ocp.constraints.uh_e = np.array([1e5, 1e5, 1e5, 1e5, 1e5, 1e5])
 
-        # if h_expr_terminal<0: print("⚠️ ATTENZIONE: VINCOLO TERMINALE CON VALORE NEGATIVO!")
-
-
-        
-        # COMPILAZIONE DEL SOLVER
+                
+        # SOLVER COMPILATION
         gen_name = self.params.GEN_DIR + 'ocp_mpc_' + self.model.amodel.name
         self.ocp.code_export_directory = gen_name
 
@@ -115,7 +107,7 @@ class MpcController(AbstractController):
         self,
         current_x: np.ndarray,
         x_ref: np.ndarray,
-        box_abs: np.ndarray # Array di 4 elementi [x_min, x_max, z_min, z_max]
+        box_abs: np.ndarray
         #obs_x: float
     ) -> tuple[np.ndarray, np.ndarray, float, int]:
         """
@@ -124,19 +116,18 @@ class MpcController(AbstractController):
         """
         self.ocp_solver.reset()
 
-        # Stato iniziale ai valori correnti misurati dai sensori
         self.ocp_solver.constraints_set(0, "lbx", current_x)
         self.ocp_solver.constraints_set(0, "ubx", current_x)
 
 
-        # 2. Vettore dei parametri: [alpha_real_min(1), x_ref(6)]
+        # 2. Parameters vector
         p_val = np.hstack([box_abs, x_ref])
 
         # Limiti del box per la posizione
         lbx_dynamic = np.hstack([box_abs[0], box_abs[2], box_abs[4], np.full(self.model.nori, -np.pi), np.full(self.model.nv, -1e1)])
         ubx_dynamic = np.hstack([box_abs[1], box_abs[3], box_abs[5], np.full(self.model.nori, np.pi), np.full(self.model.nv, 1e1)])
         
-        # 2. WARM-START E PARAMETRI
+        # 2. WARM-START AND PARAMETERS
         for i in range(self.N):
             if i == 0:
                 self.ocp_solver.set(i, 'x', current_x)
@@ -146,9 +137,6 @@ class MpcController(AbstractController):
             self.ocp_solver.set(i, 'u', self.u_guess[i])
             self.ocp_solver.set(i, 'p', p_val)
 
-            # self.ocp_solver.constraints_set(i, "lbx", lbx_dynamic)
-            # self.ocp_solver.constraints_set(i, "ubx", ubx_dynamic)
-
 
         # # Warm-start terminal stage
         lbx_dynamic_e = np.hstack([box_abs[0], box_abs[2], box_abs[4], np.full(self.model.nori, -np.pi), np.full(self.model.nv, -1e1)])
@@ -157,10 +145,7 @@ class MpcController(AbstractController):
         self.ocp_solver.set(self.N, 'x', self.x_guess[-1])
         self.ocp_solver.set(self.N, 'p', p_val)
 
-        # self.ocp_solver.constraints_set(self.N, "lbx", lbx_dynamic_e)
-        # self.ocp_solver.constraints_set(self.N, "ubx", ubx_dynamic_e)
-
-        
+                
         
         # Solver
         status = self.ocp_solver.solve()
@@ -194,14 +179,13 @@ class MpcController(AbstractController):
         #     print(f"✅ TUTTI I VINCOLI RISPETTATI")
         # # -------------------------------------------
 
-        # Interroga la rete per restituire il valore corretto anche se fallisce
+        
         x_terminal = self.ocp_solver.get(self.N, 'x')
         x_norm = (x_terminal[3:12] - self.mean_X) / self.std_X  
         with torch.no_grad():
             alpha_pred_val = self.l4c_model.model(torch.tensor(x_norm, dtype=torch.float32).unsqueeze(0)).item()
 
-        # --- IL PRINT DI DEBUG CORRETTO VA QUI ---
-        # Calcoliamo la distanza REALE AL NODO TERMINALE
+        
         dist_x_min = x_terminal[0] - box_abs[0]
         dist_x_max = box_abs[1] - x_terminal[0]
         dist_y_min = x_terminal[1] - box_abs[2]
@@ -215,7 +199,7 @@ class MpcController(AbstractController):
     
         # ------------------------------------------
         
-        if status in [0, 2]: # Successo o sub-ottimo accettabile
+        if status in [0, 2]: # Success of sub-optimal
             x_sol = np.empty((self.N + 1, self.model.nx))
             u_sol = np.empty((self.N, self.model.nu))
             
@@ -225,8 +209,7 @@ class MpcController(AbstractController):
             x_sol[self.N] = self.ocp_solver.get(self.N, 'x')
             
 
-
-            # Aggiorno warm-start
+            # Warm-start update
             new_x_guess = np.vstack([x_sol[1:], x_sol[-1]])
             new_u_guess = np.vstack([u_sol[1:], u_sol[-1]])
             self.setGuess(new_x_guess, new_u_guess)

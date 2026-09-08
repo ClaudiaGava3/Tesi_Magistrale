@@ -10,7 +10,7 @@ import time
 from parser import Parameters
 from mpc_abstract_obs import Model
 from mpc_controller_obs import MpcController
-from MPC.mapping.lidar import get_lidar_hits_3d, min_cube_select_3d
+from lidar import get_lidar_hits_3d, min_cube_select_3d
 
 # Impostazioni globali per le dimensioni del font
 plt.rcParams.update({
@@ -121,8 +121,8 @@ def crea_animazione_3d(x_history, box_history, ostacoli, waypoints):
 
     ani = animation.FuncAnimation(fig, update, frames=len(x_h), interval=50, blit=True)
     
-    # Salvataggio in GIF (Non richiede installazioni esterne come ffmpeg)
-    output_file = "labirinto_3d.gif"
+    # Save
+    output_file = "labirinto_3d_2.gif"
     ani.save(output_file, writer='pillow', fps=20)
     print(f"✅ Video salvato con successo: {output_file}")
     plt.show()
@@ -142,7 +142,6 @@ def main():
     SIM_TIME = 100.0 
     N_SIM = int(SIM_TIME / DT)
 
-    # --- DEFINIZIONE WAYPOINTS 12D ---
     waypoints = [
         # np.array([5.2, 0.0, 4.0, 0,0,0, 0,0,0, 0,0,0]),  # WP1
         # np.array([10.0, 0.0, 3.6, 0,0,0, 0,0,0, 0,0,0]), # WP2
@@ -150,9 +149,9 @@ def main():
         np.array([22.0, 0.0, 4.0, 0,0,0, 0,0,0, 0,0,0])  # WP4
     ]
     target_idx = 0
-    TOLLERANZA_WAYPOINT = 0.30 # Aumentata leggermente in 3D
+    TOLLERANZA_WAYPOINT = 0.30
 
-    x0 = np.array([1.0, 0.0, 4.5, 0,0,0, 0,0,0, 0,0,0]) # Partenza a Z=5.0
+    x0 = np.array([1.0, 0.0, 4.5, 0,0,0, 0,0,0, 0,0,0])
     ostacoli = genera_caverna_3d()
     current_x = x0.copy()
 
@@ -160,16 +159,13 @@ def main():
     box_history = []
     u_history = []
 
-    # Inizializzazione solver
-    u_hover = (model.mass * 9.81) / (4.0 * model.cf) # diviso 4.0 per il 3D
+    # Solver initialization
+    u_hover = (model.mass * 9.81) / (4.0 * model.cf)
     controller.ocp_solver.reset()
     controller.x_guess = np.tile(x0, (controller.N, 1))
     controller.u_guess = np.full((controller.N, model.nu), u_hover)
 
 
-
-    
-    # Controllo stalli
     contatore_stallo = 0
     MAX_STALLO_ITER = 50
 
@@ -177,8 +173,8 @@ def main():
     timer_recovery = 0
     target_recovery = np.zeros(12)
     
-    ghost_waypoints = []       # Ricorda i target vecchi spostati per stallo
-    mode_history = ['normal']  # Ricorda se in quell'istante era in recovery
+    ghost_waypoints = []      
+    mode_history = ['normal']
 
     print(f"Inizio volo verso Waypoint {target_idx + 1}...")
 
@@ -190,16 +186,14 @@ def main():
             
             if timer_recovery <= 0:
                 in_recovery = False
-                # FINE EMERGENZA:
-                # Ripristiniamo la Rete Neurale
+                
+                # Restore NN
                 controller.ocp_solver.constraints_set(controller.N, "lh", np.zeros(6))
                 
                 lbx_e_curr = controller.ocp_solver.constraints_get(controller.N, "lbx")
                 ubx_e_curr = controller.ocp_solver.constraints_get(controller.N, "ubx")
 
-
-                
-                # Ripristino velocità
+                # Restore velocity
                 lbx_e_curr[6:] = [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0]
                 ubx_e_curr[6:] = [ 1.0,  1.0,  1.0, 1.0,  1.0,  1.0]
                 
@@ -236,17 +230,14 @@ def main():
 
 
         # ==========================================
-        # BLOCCO DI DIAGNOSTICA (MPC DEBUGGER)
+        # DIAGNOSTIC BLOCK (MPC DEBUGGER)
         # ==========================================
-        if t % 10 == 0: # Stampo ogni 10 passi
+        if t % 10 == 0:
             print(f"\n--- DEBUG PASSO {t} ---")
             print(f"1. Posizione Drone : X={current_x[0]:.2f}, Y={current_x[1]:.2f}, Z={current_x[2]:.2f}")
             print(f"2. Box Verde (AABB): X in [{box_abs[0]:.2f}, {box_abs[1]:.2f}] | Y in [{box_abs[2]:.2f}, {box_abs[3]:.2f}] | Z in [{box_abs[4]:.2f}, {box_abs[5]:.2f}]")
             print(f"3. Target Locale  : X={x_ref_attuale[0]:.2f}, Y={x_ref_attuale[1]:.2f}, Z={x_ref_attuale[2]:.2f}")
             
-
-            
-            # Calcolo la distanza tra drone e target locale
             dist_to_local = np.linalg.norm(current_x[:3] - np.array([target_rel_x, target_rel_y, target_rel_z])[:3])
             print(f"5. Distanza da percorrere nel box: {dist_to_local:.3f} metri")
         # ==========================================
@@ -256,7 +247,7 @@ def main():
 
         if status in [3, 4]:
              # ==========================================
-            # PIANO A: Reset della memoria (Hovering Guess)
+            # PLAN A: Memory reset (Hovering Guess)
             # ==========================================
             controller.ocp_solver.reset()
             controller.x_guess = np.tile(current_x, (controller.N, 1))
@@ -267,7 +258,7 @@ def main():
             
                         
             # ==========================================
-            # PIANO B: Historical Warm-Start 3D
+            # PLAN B: Historical Warm-Start 3D
             # ==========================================
             if status in [3, 4] and not in_recovery and len(u_history) > 0:
                 print(f"\n⚠️ PIANO A FALLITO. Avvio PIANO B (Ricerca a ritroso nei controlli passati 3D)...")
@@ -288,24 +279,24 @@ def main():
                         break
 
             # ==========================================
-            # PIANO C: Ritiro al Centro con Rilassamento Alpha
+            # PLAN C: Return at box centre and relax constraints
             # ==========================================
             if status in [3, 4] and not in_recovery:
                 print(f"\n⚠️ PIANO B FALLITO. Avvio PIANO C (Ritiro al Centro con Rilassamento Alpha)...")
                 
-                passi_indietro = 5 # Numero di passi indietro da cui prendere il box sicuro
+                passi_indietro = 5
                 if len(box_history) > passi_indietro:
                     box_sicuro = box_history[-passi_indietro]
                 else:
-                    box_sicuro = box_history[0]  # Se fallisce subito, torna alla partenza
+                    box_sicuro = box_history[0]
 
-                # Calcoliamo il centro geometrico del box tridimensionale
+                # Box centre
                 center_x = (box_sicuro[0] + box_sicuro[1]) / 2.0
                 center_y = (box_sicuro[2] + box_sicuro[3]) / 2.0
                 center_z = (box_sicuro[4] + box_sicuro[5]) / 2.0
                 
 
-                # Inizializziamo il target di ripiego a 12 stati
+                # Target initialization
                 target_recovery = np.zeros(12)
                 target_recovery[0] = center_x
                 target_recovery[1] = center_y
@@ -316,7 +307,7 @@ def main():
                 timer_recovery = 80 
                 
                 # ==========================================
-                # RILASSAMENTO MATEMATICO DEL VINCOLO (Realistico)
+                # CONSTRAINTS RELAXING
                 # ==========================================
                 controller.ocp_solver.constraints_set(controller.N, "lh", np.full(6, -alpha_curr))
                
@@ -351,13 +342,12 @@ def main():
 
 
         # ==========================================
-        # GESTIONE DELLO STALLO (Local Minimum Escape 3D)
+        # HANDING STALL
         # ==========================================
         if t > 0 and not in_recovery:
-            # Calcoliamo lo spostamento nello spazio 3D (X, Y, Z) rispetto al passo prima
             spostamento = np.linalg.norm(current_x[:3] - x_history[-2][:3])
             
-            if spostamento < 0.01:  # Meno di 1 cm
+            if spostamento < 0.01:
                 contatore_stallo += 1
             else:
                 contatore_stallo = 0  
@@ -368,7 +358,6 @@ def main():
                 
                 ghost_waypoints.append(waypoints[target_idx].copy())
                 
-                # ATTENZIONE: Nel 3D la quota Z è all'indice 2!
                 waypoints[target_idx][2] += 0.20 
                 x_ref_attuale = waypoints[target_idx] 
                 
@@ -376,9 +365,8 @@ def main():
         # ==========================================
 
         # ==========================================
-        # 3. LOGICA DI SWITCH DEL TARGET (3D: X, Y, Z)
+        # 3. TARGET SWITCH
         # ==========================================
-        # CALCOLIAMO LA DISTANZA DAL WAYPOINT REALE (non da x_ref_attuale che potrebbe essere il centro del box!)
         dist_al_target_reale = np.linalg.norm(current_x[:3] - waypoints[target_idx][:3])
 
         if dist_al_target_reale < TOLLERANZA_WAYPOINT:
@@ -390,7 +378,7 @@ def main():
                 break 
         # ==========================================
 
-    # --- AVVIA ANIMAZIONE VIDEO ---
+    # --- VIDEO ---
     crea_animazione_3d(x_history, box_history, ostacoli, waypoints)
 
 if __name__ == '__main__':

@@ -56,14 +56,13 @@ class Model:
         nu = 4  # Input: 4 squared rotor spinning rates
         npos = 3    # Position sub-space dimension
         nori = 3    # Orientation sub-space dimension
-        #nbox = 6    # Obstacle box constraint dimension
-        #nscale = 1  # FATTORE DI SCALA (Sostituisce nbox)
-
-        # --- PARAMETRI MPC ---
-        self.box_limits = MX.sym('box_limits', 6)  # [x_min, x_max, y_min, y_max, z_min, z_max]
-        self.x_ref = MX.sym('x_ref', nq+nv)        # 12 elementi
         
-        # Il parametro p ha 12 elementi (6 per box + 6 target)
+
+        # --- MPC PARAMETERS ---
+        self.box_limits = MX.sym('box_limits', 6)  # [x_min, x_max, y_min, y_max, z_min, z_max]
+        self.x_ref = MX.sym('x_ref', nq+nv)
+        
+        # The parameter p has 12 elements (6 for box + 6 target)
         self.p = vertcat(self.box_limits, self.x_ref)
         
                
@@ -173,7 +172,6 @@ class Model:
         self.acados_model.f_expl_expr = self.f_expl
 
 
-
         # --- Input bounds ---
         self.u_max = np.full(nu, self.u_bar)
         self.u_min = np.zeros((nu,))
@@ -274,7 +272,6 @@ class AbstractController:
         self.ocp.model = self.model.amodel
 
         # --- Stage cost: minimize box size ---
-        # Costo allo stadio iniziale
         from scipy.linalg import block_diag # Assicurati di importarlo all'inizio del file!
 
         # --- Stage cost: Target tracking ---
@@ -282,36 +279,29 @@ class AbstractController:
         self.ocp.cost.cost_type = 'EXTERNAL'
         self.ocp.cost.cost_type_e = 'EXTERNAL'
         
-        # Definiamo i pesi (Q_cost per lo stato, R_cost per i motori)
-        # Ordine stato: [x, z, theta, vx, vz, wy]
+        # Weights (Q_cost for the state, R_cost for the motors)
+        # State order: [x, y, z, phi, theta, psi, vx, vy, vz, wx, wy, wz]
         Q_cost = diag(vertcat(100.0, 100.0, 100.0, 20.0, 20.0, 20.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0))
         R_cost = diag(vertcat(0.0001, 0.0001, 0.0001, 0.0001))
         
-        # Calcoliamo l'errore tra dove siamo (x) e dove vogliamo andare (x_ref)
+        # Error between currente state (x) e where we want to go (x_ref)
         err_x = self.model.x - self.model.x_ref
-        # Calcoliamo la spinta teorica per contrastare la gravità
-        # u_hover = (m * g) / (2 * cf)
+        # Hovering thrust
         u_hover_val = (self.model.mass * self.model.g) / (4.0 * self.model.cf)
         err_u = self.model.u - u_hover_val
         
 
         cost_step = err_x.T @ Q_cost @ err_x + err_u.T @ R_cost @ err_u
-        # Al nodo finale non uso i motori
+
         cost_terminal = err_x.T @ Q_cost @ err_x * 20
         
-        # Assegno le espressioni ad Acados
+        # Assign expression to Acados
         self.ocp.model.cost_expr_ext_cost = cost_step
         self.ocp.model.cost_expr_ext_cost_e = cost_terminal
-
-        # #in 2D
-        # self.ocp.model.cost_expr_ext_cost_0 = 1.0 * self.model.x[10] # Costo = Scaling
         
-        # # Inizializziamo i parametri con dei valori di default (1 per alpha, 0 per x_ref)
+        # Parameter initialization
         self.ocp.parameter_values = np.zeros(self.model.p.size()[0])
         # self.ocp.parameter_values[0] = 1.0
-
-
-
 
         # --- Initial shooting node ---
         self.ocp.constraints.idxbx_0 = np.arange(self.model.nq + self.model.nv) 
@@ -323,12 +313,12 @@ class AbstractController:
         # Partiamo da 0 per vincolare anche posizione X e Z
         self.ocp.constraints.idxbx = np.arange(0, self.model.nx) 
         self.ocp.constraints.lbx = np.hstack([
-            np.array([-100.0, -100.0,-100.0]), # Fittizi
+            np.array([-100.0, -100.0,-100.0]),
             np.full(self.model.nori, -np.pi), 
             np.full(self.model.nv, -1e1)
         ])
         self.ocp.constraints.ubx = np.hstack([
-            np.array([100.0, 100.0, 100.0]),   # Fittizi
+            np.array([100.0, 100.0, 100.0]), 
             np.full(self.model.nori, np.pi),  
             np.full(self.model.nv, 1e1)
         ])

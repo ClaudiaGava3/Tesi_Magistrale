@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
-# Impostazioni globali per le dimensioni del font
+# Global settings for font dimension
 plt.rcParams.update({
     'axes.titlesize': 28,     # Dimensione titolo
     'axes.labelsize': 24,     # Dimensione etichette assi (X e Y)
@@ -13,9 +13,7 @@ plt.rcParams.update({
     'font.size': 22           # Dimensione base per tutto il resto
 })
 
-# =============================================================================
-# 1. SIMULAZIONE LIDAR E SFERE TANGENTI (3D Sferico)
-# =============================================================================
+# FUNCTION TO INDIVIDUATE THE AXIS_ALIGNED OBSTACLES
 def get_lidar_hits_3d(drone_x, drone_y, drone_z, obstacles, num_rays=1000, max_range=1.5):
     """
     Simula un LiDAR 3D sparando raggi sferici usando la spirale di Fibonacci.
@@ -24,18 +22,18 @@ def get_lidar_hits_3d(drone_x, drone_y, drone_z, obstacles, num_rays=1000, max_r
     hits = []
     distances = []
     
-    # Ripartizione uniforme su sfera con spirale di Fibonacci
+    # Uniform distribution with Fibonacci
     indices = np.arange(0, num_rays, dtype=float) + 0.5
     phi = np.arccos(1 - 2 * indices / num_rays)
     theta = np.pi * (1 + 5**0.5) * indices
     
-    # Direzioni dei raggi
+    # Ray directions
     dx = np.cos(theta) * np.sin(phi)
     dy = np.sin(theta) * np.sin(phi)
     dz = np.cos(phi)
     
-    # Angolo solido per calcolare il raggio approssimato della bolla
-    # Area media di copertura = (4 * pi) / num_rays
+    # Solid angle to calculate the approximate ray of the sphere
+    # Average covering area = (4 * pi) / num_rays
     # r_bolla = r_distanza * sqrt(Area / pi) -> r_distanza * 2 / sqrt(num_rays)
     cone_angle = 2.0 / np.sqrt(num_rays)
     
@@ -46,7 +44,7 @@ def get_lidar_hits_3d(drone_x, drone_y, drone_z, obstacles, num_rays=1000, max_r
         for obs in obstacles:
             x_min, x_max, y_min, y_max, z_min, z_max = obs
             
-            # Intersezione Raggio-AABB 3D
+            # Ray intersection-AABB 3D
             t_x1 = (x_min - drone_x) / (ray_dx + 1e-6)
             t_x2 = (x_max - drone_x) / (ray_dx + 1e-6)
             t_y1 = (y_min - drone_y) / (ray_dy + 1e-6)
@@ -63,7 +61,7 @@ def get_lidar_hits_3d(drone_x, drone_y, drone_z, obstacles, num_rays=1000, max_r
                     ray_min_dist = dist
                     
         if ray_min_dist < max_range:
-            # Salvataggio punti in 3D: [X, Y, Z]
+            # Points saving in 3D: [X, Y, Z]
             hits.append([
                 drone_x + ray_dx * ray_min_dist, 
                 drone_y + ray_dy * ray_min_dist,
@@ -74,7 +72,7 @@ def get_lidar_hits_3d(drone_x, drone_y, drone_z, obstacles, num_rays=1000, max_r
     hits = np.array(hits)
     distances = np.array(distances)
     
-    # 5% margine sicurezza per evitare buchi
+    # 5% safety margin to avoid voids
     if len(distances) > 0:
         radii = distances * cone_angle * 1.05
     else:
@@ -94,6 +92,7 @@ def triangula_facce(facce_poligonali):
             triangoli.append((p0, faccia[i], faccia[i+1]))
     return np.array(triangoli)
 
+# FUNCTION TO INDIVIDUATE GENERAL OBSTACLES
 def get_lidar_hits_3d_qualsiasi(drone_pos, facce_ostacoli, num_rays=2000, max_range=2.5):
     """
     Rilevamento ostacoli 3D per poligoni qualsiasi (Möller-Trumbore vettorializzato).
@@ -103,17 +102,17 @@ def get_lidar_hits_3d_qualsiasi(drone_pos, facce_ostacoli, num_rays=2000, max_ra
     if not facce_ostacoli:
         return np.array([]), np.array([])
         
-    # 1. Triangolazione automatica
+    # 1. Automatic triangulation
     triangoli = triangula_facce(facce_ostacoli)
     A = triangoli[:, 0, :]
     B = triangoli[:, 1, :]
     C = triangoli[:, 2, :]
     
-    # Vettori spigolo del triangolo
+    # Corner of the triangle
     E1 = B - A
     E2 = C - A
     
-    # 2. Generazione Raggi Omogenei (Sfera di Fibonacci)
+    # 2. Ray generation (Fibonacci sphere)
     indices = np.arange(0, num_rays, dtype=float) + 0.5
     phi = np.arccos(1 - 2 * indices / num_rays)
     theta = np.pi * (1 + 5**0.5) * indices
@@ -126,15 +125,15 @@ def get_lidar_hits_3d_qualsiasi(drone_pos, facce_ostacoli, num_rays=2000, max_ra
     distances = []
     O = np.array(drone_pos)
     
-    # 3. Intersezione Vettorializzata (Un raggio contro TUTTI i triangoli)
+    # 3. Vectoral intersection
     for D in rays:
         P = np.cross(D, E2)
         det = np.sum(E1 * P, axis=1)
         
-        # Escludiamo i triangoli paralleli al raggio
+        # Eliminate rays that are parallel to the triangle plane 
         valid_mask = np.abs(det) > 1e-8
         
-        # Regola di Cramer
+        # Cramer rule
         inv_det = np.zeros_like(det)
         inv_det[valid_mask] = 1.0 / det[valid_mask]
         
@@ -144,7 +143,7 @@ def get_lidar_hits_3d_qualsiasi(drone_pos, facce_ostacoli, num_rays=2000, max_ra
         v = np.sum(D * Q, axis=1) * inv_det
         t = np.sum(E2 * Q, axis=1) * inv_det
         
-        # Condizioni Fisiche: t>0 (davanti), u,v in [0,1] (dentro il triangolo)
+        # Physical conditions: t>0 (front), u,v in [0,1] (inside the triangle)
         hit_mask = valid_mask & (u >= 0) & (v >= 0) & ((u + v) <= 1) & (t > 0)
         
         valid_t = t[hit_mask]
@@ -157,7 +156,7 @@ def get_lidar_hits_3d_qualsiasi(drone_pos, facce_ostacoli, num_rays=2000, max_ra
     hits = np.array(hits)
     distances = np.array(distances)
     
-    # Raggio per AABB: calcoliamo l'angolo solido approssimato per raggio
+    # Ray for AABB: calculate solid angle and approximate radius of the sphere
     angle_step_rad = np.sqrt(4 * np.pi / num_rays)
     if len(distances) > 0:
         radii = distances * np.tan(angle_step_rad / 2) * 1.05
@@ -168,9 +167,7 @@ def get_lidar_hits_3d_qualsiasi(drone_pos, facce_ostacoli, num_rays=2000, max_ra
 
 
 
-# =============================================================================
-# 2. ALGORITMO DI MAX (Adattato al 3D)
-# =============================================================================
+# BASE FUNCTION TO GENERATE A 3D CUBE AROUND THE DRONE
 def min_cube_select_3d(Q, R, target_rel_x, target_rel_y, target_rel_z, drone_radius=0.1, W=0, rel=0.1, lidar_ray=3.0):
     """
     Q: array Nx3 dei punti di intersezione
@@ -185,7 +182,6 @@ def min_cube_select_3d(Q, R, target_rel_x, target_rel_y, target_rel_z, drone_rad
     # Box 3D: [xMin, xMax, yMin, yMax, zMin, zMax]
     box = np.array([-LIMIT, LIMIT, -LIMIT, LIMIT, -LIMIT, LIMIT], dtype=float)
     
-    # Il drone deve starci dentro
     box[0] = min(box[0], -drone_radius); box[1] = max(box[1],  drone_radius)
     box[2] = min(box[2], -drone_radius); box[3] = max(box[3],  drone_radius)
     box[4] = min(box[4], -drone_radius); box[5] = max(box[5],  drone_radius)
@@ -202,6 +198,7 @@ def min_cube_select_3d(Q, R, target_rel_x, target_rel_y, target_rel_z, drone_rad
     exitflag = 1 if not np.any(_spheres_intersect_box_3d(Q, R, box)) else 0
     return box[0], box[1], box[2], box[3], box[4], box[5], exitflag
 
+# WARM START FUNCTION TO GENERATE A 3D CUBE AROUND THE DRONE, USING PREVIOUS BOX AS STARTING POINT
 def min_cube_warm_start_3d(Q, R, target_rel_x, target_rel_y, target_rel_z, targetx, targety, targetz, drone_radius=0.1, box_prev=None, expand_mode='general', W=0, rel=0.1, lidar_ray=3.0):
     
     LIMIT = lidar_ray/np.sqrt(2) 
@@ -232,7 +229,6 @@ def min_cube_warm_start_3d(Q, R, target_rel_x, target_rel_y, target_rel_z, targe
 
     if expand_mode == 'directional':
         box = _expand_faces_directional_3d(box, Q, R, target_rel_x, target_rel_y, target_rel_z, targetx, targety, targetz, LIMIT=LIMIT)
-    # Aggiungi qui gli altri expand_mode se vuoi testarli (general, score)
 
     intersecting = _spheres_intersect_box_3d(Q, R, box)
     if np.any(intersecting):
@@ -248,6 +244,7 @@ def _spheres_intersect_box_3d(Q, R, box, tol=1e-6):
     dist2 = (Q[:, 0] - cx)**2 + (Q[:, 1] - cy)**2 + (Q[:, 2] - cz)**2
     return dist2 < (R**2 - tol)
 
+# FUNCTION TO PUSH THE FACES OF THE BOX IN 3D
 def _push_faces_3d(box, Qi, Ri, drone_radius, target_rel_x, target_rel_y, target_rel_z, W=0, rel=0.1, lidar_ray=3.0):
     moved = False
 
@@ -258,8 +255,6 @@ def _push_faces_3d(box, Qi, Ri, drone_radius, target_rel_x, target_rel_y, target
         r = Ri[i]
         candidates = []
 
-
-        # Valuta di spingere i 6 bordi
         new_xMin = cx + r + 1e-4
         if -LIMIT <= new_xMin <= 0: candidates.append((0, new_xMin))
         new_xMax = cx - r - 1e-4
@@ -289,8 +284,7 @@ def _push_faces_3d(box, Qi, Ri, drone_radius, target_rel_x, target_rel_y, target
             # Calcola VOLUME
             volume = (test_box[1] - test_box[0]) * (test_box[3] - test_box[2]) * (test_box[5] - test_box[4])
             
-            # Bonus direzionale 3D
-            # rel ora a 0.1 come 2D prima era 0.4
+            # Directional bonus 3D
             if target_rel_x > rel:
                 bonus_x = test_box[1]
             elif target_rel_x < -rel:
@@ -321,7 +315,6 @@ def _push_faces_3d(box, Qi, Ri, drone_radius, target_rel_x, target_rel_y, target
         new_box = box.copy()
         new_box[best_face_idx] = best_val
 
-        # Assicurati che non stritoli il drone
         if not (new_box[0] > -drone_radius or new_box[1] < drone_radius or 
                 new_box[2] > -drone_radius or new_box[3] < drone_radius or
                 new_box[4] > -drone_radius or new_box[5] < drone_radius):
@@ -330,6 +323,7 @@ def _push_faces_3d(box, Qi, Ri, drone_radius, target_rel_x, target_rel_y, target
 
     return box, moved
 
+# EXPANSION FUNCTION FOR DIRECTIONAL 3D BOX
 def _expand_faces_directional_3d(box, Q, R, dx, dy, dz, targetx, targety, targetz, LIMIT=1.0):
     """
     Espansione direzionale 3D: Coerente col 2D. Usa dx, dy, dz per il verso,
@@ -345,7 +339,7 @@ def _expand_faces_directional_3d(box, Q, R, dx, dy, dz, targetx, targety, target
     y_first = 3 if dy >= 0 else 2; y_last = 2 if dy >= 0 else 3
     z_first = 5 if dz >= 0 else 4; z_last = 4 if dz >= 0 else 5
 
-    # 2. Ordina gli assi in base al target assoluto (come abs(targetx) >= abs(targetz) nel 2D)
+    
     priorities = [
         (abs(targetx), x_first, x_last),
         (abs(targety), y_first, y_last),
@@ -353,16 +347,14 @@ def _expand_faces_directional_3d(box, Q, R, dx, dy, dz, targetx, targety, target
     ]
     priorities.sort(key=lambda item: item[0], reverse=True) # Dal più grande al più piccolo
 
-    # 3. L'array definisce l'ordine: prima le facce frontali prioritarie, poi le opposte
+    
     ordine_facce = [
         priorities[0][1], priorities[1][1], priorities[2][1],
         priorities[0][2], priorities[1][2], priorities[2][2]
     ]
     
-    # INTRODUZIONE DELLA TOLLERANZA (come nel 2D)
     TOL = 0.01
 
-    # 4. Esegui l'espansione seguendo l'ordine
     for faccia in ordine_facce:
         if faccia == 1: # ESPANDI A DESTRA (+X)
             mask = (Q[:, 0] > new_box[1]) & \
