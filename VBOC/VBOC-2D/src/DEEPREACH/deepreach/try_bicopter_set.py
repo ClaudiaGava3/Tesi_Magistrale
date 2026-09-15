@@ -9,10 +9,9 @@ import numpy as np
 import pickle
 
 from datetime import datetime
-from dynamics import dynamics
+from dynamics import dynamics 
 from experiments import experiments
-from utils import dataio, losses
-from utils import modules
+from utils import modules, dataio, losses
 
 import matplotlib.pyplot as plt
 
@@ -125,13 +124,40 @@ current_time = datetime.now()
 with open(os.path.join(experiment_dir, 'orig_opt.pickle'), 'rb') as opt_file:
     orig_opt = pickle.load(opt_file)
 
+
+def print_orig_opt(orig_opt):
+    """Stampa tutti gli attributi del run caricato da orig_opt.pickle.
+
+    Sono le impostazioni con cui il modello e' stato *addestrato*: servono per sapere
+    quale dinamica, quale tMax e quale deepReach_model stai effettivamente valutando.
+    """
+    attrs = vars(orig_opt)
+    width = max(len(k) for k in attrs)
+    name = getattr(orig_opt, 'experiment_name', '?')
+    header = f" impostazioni del run '{name}' ({len(attrs)} attributi) "
+    line_width = max(width + 40, len(header) + 8)
+    print(header.center(line_width, '='))
+    for k in sorted(attrs):
+        print(f'  {k:<{width}} = {attrs[k]}')
+    print('=' * line_width)
+
+
+print_orig_opt(orig_opt)
+
 # set the experiment seed
 torch.manual_seed(orig_opt.seed)
 random.seed(orig_opt.seed)
 np.random.seed(orig_opt.seed)
 
 dynamics_class = getattr(dynamics, orig_opt.dynamics_class)
-dynamics_obj = dynamics_class(**{argname: getattr(orig_opt, argname) for argname in inspect.signature(dynamics_class).parameters.keys() if argname != 'self'})
+dynamics_params = [argname for argname in inspect.signature(dynamics_class).parameters.keys() if argname != 'self']
+# i run vecchi sono stati picklati prima che 'device' entrasse nella firma delle dinamiche:
+# prendo dall'orig_opt solo i parametri che ci sono davvero
+dynamics_kwargs = {argname: getattr(orig_opt, argname) for argname in dynamics_params if hasattr(orig_opt, argname)}
+# qui si valuta soltanto, e il modello sta su cpu: tengo su cpu anche i tensori della dinamica
+if 'device' in dynamics_params:
+    dynamics_kwargs['device'] = 'cpu'
+dynamics_obj = dynamics_class(**dynamics_kwargs)
 dynamics_obj.deepReach_model=orig_opt.deepReach_model
 
 # dynamics_obj.to('cpu')   # only if Dynamics subclasses nn.Module / has a .to()
@@ -146,6 +172,7 @@ model.to('cpu')
 checkpoint = experiment_dir + '/training/checkpoints/model_final.pth'
 
 model.load_state_dict(torch.load(checkpoint, map_location='cpu')['model'])
+
 
 def _move_to_cpu(obj):
     for name, val in vars(obj).items():
@@ -182,16 +209,17 @@ def plot_state(model, device, dynamics, dataslice: np.ndarray, time: float, x_ax
     coords = torch.zeros(x_resolution*y_resolution, dynamics.state_dim + 1)
     coords[:, 0] = time
     coords[:, 1:] = torch.tensor(dataslice)
-    coords[:, 1 + plot_config['x_axis_idx']] = xys[:, 0]
-    coords[:, 1 + plot_config['y_axis_idx']] = xys[:, 1]
+    coords[:, 1 + x_axis] = xys[:, 0]
+    coords[:, 1 + y_axis] = xys[:, 1]
+    coords[:, 1:] = dynamics.equivalent_wrapped_state(coords[:, 1:])
 
     with torch.no_grad():
         model_results = model({'coords': dynamics.coord_to_input(coords.to('cpu')).to('cpu')})
         values = dynamics.io_to_value(model_results['model_in'].detach(), model_results['model_out'].squeeze(dim=-1).detach())
 
     plt.title(f't = {time}, state = {dataslice}')
-    plt.xlabel(f"{plot_config['state_labels'][plot_config['x_axis_idx']]}")
-    plt.ylabel(f"{plot_config['state_labels'][plot_config['y_axis_idx']]}")
+    plt.xlabel(f"{plot_config['state_labels'][x_axis]}")
+    plt.ylabel(f"{plot_config['state_labels'][y_axis]}")
 
     s = plt.imshow(1*(values.detach().cpu().numpy().reshape(x_resolution, y_resolution).T), cmap='inferno', origin='lower', extent=(x_min.cpu(), x_max.cpu(), y_min.cpu(), y_max.cpu()))
     fig.colorbar(s)
@@ -201,15 +229,10 @@ def plot_state(model, device, dynamics, dataslice: np.ndarray, time: float, x_ax
 
     fig2 = plt.figure()
     ax2 = fig2.gca()
-    coords = torch.zeros(x_resolution*y_resolution, dynamics.state_dim + 1)
-    coords[:, 0] = time
-    coords[:, 1:] = torch.tensor(dataslice)
-    coords[:, 1 + plot_config['x_axis_idx']] = xys[:, 0]
-    coords[:, 1 + plot_config['y_axis_idx']] = xys[:, 1]
 
     plt.title(f't = {time}, state = {dataslice}')
-    plt.xlabel(f"{plot_config['state_labels'][plot_config['x_axis_idx']]}")
-    plt.ylabel(f"{plot_config['state_labels'][plot_config['y_axis_idx']]}")
+    plt.xlabel(f"{plot_config['state_labels'][x_axis]}")
+    plt.ylabel(f"{plot_config['state_labels'][y_axis]}")
 
     s = plt.imshow(1*(values.detach().cpu().numpy().reshape(x_resolution, y_resolution).T <= 0), cmap='bwr', origin='lower', extent=(x_min.cpu(), x_max.cpu(), y_min.cpu(), y_max.cpu()))
     fig2.colorbar(s)
@@ -217,12 +240,14 @@ def plot_state(model, device, dynamics, dataslice: np.ndarray, time: float, x_ax
     ax2.yaxis.set_major_locator(ticker.MaxNLocator(n_ticks))
     plt.grid(True)
 
-    return values.detach().cpu().numpy()
+    return values.detach().cpu().numpy(), fig, fig2
 
-val2 = plot_state(model, 'cpu', dynamics_obj, np.array([0, 0, 0, 2.5, 2.5, 2.5, 2.5, 2., 0, 0]), 0.5, 0, 1, 100, 100, n_ticks=15)
+val2, fig_value, fig_mask = plot_state(model, 'cpu', dynamics_obj, np.array([0, 0, 0, 2.5, 2.5, 2.5, 2.5, 2., 0, 0]), 0.5, 0, 1, 100, 100, n_ticks=15)
 
 
-plt.savefig('test_bicopter.png')
+# savefig() salva la figura *corrente*, cioe' l'ultima creata: salvo esplicitamente entrambe
+fig_value.savefig('test_bicopter_value.png')
+fig_mask.savefig('test_bicopter_mask.png')
 plt.show()
 
 
@@ -241,6 +266,7 @@ def evaluate_V(model, dynamics, state, time):
     model.requires_grad_(False)
 
     state = torch.as_tensor(state, dtype=torch.float32).reshape(1, -1)
+    state = dynamics.equivalent_wrapped_state(state)
     coords = torch.zeros(1, dynamics.state_dim + 1)
     coords[:, 0] = time
     coords[:, 1:] = state

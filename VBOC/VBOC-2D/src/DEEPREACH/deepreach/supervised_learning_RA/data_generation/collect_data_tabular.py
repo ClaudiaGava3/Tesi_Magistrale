@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-from Tesi_Claudia.src.DEEPREACH.deepreach.supervised_learning_RA.data_generation.system_dyn import x_next,pi,phi,c,r,gen_noise,u_max,d_max,x_th,gamma,distr,x_min,x_max,state_size,grid_max,grid_min
+from system_dyn import x_next,pi,phi,c,r,gen_noise,u_max,d_max,x_th,gamma,distr,x_min,x_max,state_size,grid_max,grid_min
 
 grid_state_size = 1000
 state_grid = np.linspace(grid_min,grid_max,grid_state_size+1)

@@ -3,7 +3,7 @@ import concurrent.futures
 import multiprocessing as mp
 
 import numpy as np
-from Tesi_Claudia.src.DEEPREACH.deepreach.supervised_learning_RA.quad_ocp import QuadOCP
+from quad_ocp import QuadOCP
 import matplotlib.pyplot as plt
 import tqdm as tqdm
 import pickle

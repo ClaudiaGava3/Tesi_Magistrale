@@ -1,0 +1,7 @@
+/data
+*.png
+*.pth
+*.pickle
+*.txt
+*idra-ws.*
+*.pyc

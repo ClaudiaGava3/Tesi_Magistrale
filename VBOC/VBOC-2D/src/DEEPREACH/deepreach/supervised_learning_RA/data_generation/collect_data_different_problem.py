@@ -9,9 +9,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from Tesi_Claudia.src.DEEPREACH.deepreach.supervised_learning_RA.data_generation.system_dyn import x_next,pi,phi,c,r,gen_noise,u_max,d_max,x_th,gamma,distr,x_min,x_max,state_size,failure_max,target_max
+from system_dyn import x_next,pi,phi,c,r,gen_noise,u_max,d_max,x_th,gamma,distr,x_min,x_max,state_size,failure_max,target_max
 
-from Tesi_Claudia.src.DEEPREACH.deepreach.supervised_learning_RA.data_generation.utils import generate_pairs
+from utils import generate_pairs
 episodes = 40000
 length = 200
 

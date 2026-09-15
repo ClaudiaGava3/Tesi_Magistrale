@@ -9,10 +9,9 @@ import numpy as np
 import pickle
 
 from datetime import datetime
-from Tesi_Claudia.src.DEEPREACH.deepreach.dynamics import dynamics 
-from Tesi_Claudia.src.DEEPREACH.deepreach.experiments import experiments
-from Tesi_Claudia.src.DEEPREACH.deepreach.utils import dataio, losses
-from Tesi_Claudia.src.DEEPREACH.deepreach.utils import modules
+from dynamics import dynamics 
+from experiments import experiments
+from utils import modules, dataio, losses
 
 import matplotlib.pyplot as plt
 

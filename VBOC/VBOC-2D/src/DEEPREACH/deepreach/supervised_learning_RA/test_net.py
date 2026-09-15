@@ -5,7 +5,7 @@ from matplotlib.patches import Circle
 from matplotlib.collections import LineCollection
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
-from Tesi_Claudia.src.DEEPREACH.deepreach.supervised_learning_RA.RA_learning import RAValueFunction
+from RA_learning import RAValueFunction
 import torch
 
 np.random.seed(0)

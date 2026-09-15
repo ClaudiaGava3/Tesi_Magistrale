@@ -4,6 +4,7 @@ import matplotlib.patches as patches
 import time
 import os
 import matplotlib.animation as animation
+from matplotlib.patches import Ellipse
 
 from parser import Parameters
 from src.MPC.mapping.mpc_abstract_obs import Model
@@ -17,8 +18,8 @@ from src.MPC.mapping.lidar import min_cube_select_base, get_lidar_hits_2d_qualsi
 plt.rcParams.update({
     'axes.titlesize': 28,     # Title size
     'axes.labelsize': 24,     # Axis label size (X and Y)
-    'xtick.labelsize': 12,    # X-axis tick label size
-    'ytick.labelsize': 12,    # Y-axis tick label size
+    'xtick.labelsize': 22,    # X-axis tick label size
+    'ytick.labelsize': 22,    # Y-axis tick label size
     'legend.fontsize': 22,    # Legend font size
     'font.size': 22           # Base font size for all other text
 })
@@ -202,7 +203,7 @@ def anteprima_ambiente(num_rombi=10):
     ax.set_ylim(-1, 12)
     ax.set_aspect('equal')
     ax.grid(True, linestyle='--', alpha=0.5)
-    ax.set_title("Test Environment A")
+    # ax.set_title("Test Environment A")
     ax.set_xlabel("X [m]")
     ax.set_ylabel("Z [m]")
     # ax.legend(loc='lower left')
@@ -212,8 +213,8 @@ def anteprima_ambiente(num_rombi=10):
 
 def main_statistico(N_TESTS):
 
-    np.random.seed(68)
-    random.seed(68)
+    # np.random.seed(68)
+    # random.seed(68)
     
     risultati = {"Successes": 0, "Timeout": 0, "Crashes": 0}
     traiettorie_riuscita = []
@@ -283,7 +284,7 @@ def main_statistico(N_TESTS):
         # SETUP VIDEO REAL-TIME & SALVATAGGIO
         # ==========================================
         plt.ion() # Enable real-time video mode
-        fig_anim, ax_anim = plt.subplots(figsize=(18, 5))
+        fig_anim, ax_anim = plt.subplots(figsize=(10, 5))
         
         # Draw the fixed environment only once
         for poli in poligoni:
@@ -291,11 +292,13 @@ def main_statistico(N_TESTS):
         # ax_anim.scatter(target_base[0], target_base[1], color='red', marker='X', s=200, zorder=8)
         ax_anim.scatter(1.0, 5.0, color='blue', s=150, zorder=8)
         
-        linea_traj, = ax_anim.plot([], [], color='black', linewidth=2, zorder=6)
-        linea_pred, = ax_anim.plot([], [], color='orange', linewidth=2, zorder=5)
-        punto_drone = ax_anim.scatter([], [], color='green', s=150, zorder=7)
+        # linea_traj, = ax_anim.plot([], [], color='black', linewidth=2, zorder=6)
+        # linea_pred, = ax_anim.plot([], [], color='orange', linewidth=2, zorder=5)
+        # punto_drone = ax_anim.scatter([], [], color='green', s=150, zorder=7)
+        drone_patch = Ellipse((0, 0), width=0.30, height=0.10, color='green', zorder=7) # width 0.30 è raggio x * 2
+        ax_anim.add_patch(drone_patch)
 
-        linea_angolo_drone, = ax_anim.plot([], [], color='red', linewidth=3, zorder=8)
+        linea_angolo_drone, = ax_anim.plot([], [], color='red', linewidth=0.3, zorder=8)
 
         punti_lidar_scatter = ax_anim.scatter([], [], color='red', s=10, zorder=9, label="LiDAR Hits")
 
@@ -623,14 +626,16 @@ def main_statistico(N_TESTS):
             if t % 5 == 0:  
 
                 traj_attuale = np.array(x_history)
-                linea_traj.set_data(traj_attuale[:, 0], traj_attuale[:, 1])
+                # linea_traj.set_data(traj_attuale[:, 0], traj_attuale[:, 1])
 
                 if x_sol is not None:
                     traj_pred_array = np.array(x_sol)
-                    linea_pred.set_data(traj_pred_array[:, 0], traj_pred_array[:, 1])
+                    # linea_pred.set_data(traj_pred_array[:, 0], traj_pred_array[:, 1])
                 
                 # Update the drone's position
-                punto_drone.set_offsets([[current_x[0], current_x[1]]])
+                # punto_drone.set_offsets([[current_x[0], current_x[1]]])
+                drone_patch.set_center((current_x[0], current_x[1]))
+                drone_patch.set_angle(np.degrees(current_x[2])) # Se vuoi anche che si inclini visivamente in base al pitch!
 
                 lunghezza_corpo = 0.8
                 theta = current_x[2] 
@@ -782,7 +787,7 @@ def main_statistico(N_TESTS):
         plt.close(fig_anim)
 
         if len(frames_animazione) > 0:
-            cartella_video = "video_MPC-NN.2"
+            cartella_video = "video_MPC-NN_obst_mob_2"
             os.makedirs(cartella_video, exist_ok=True)
             
             print(f"Generazione del video per il Target {test_idx+1} in corso...")
@@ -875,7 +880,7 @@ def main_statistico(N_TESTS):
 
 
 if __name__ == "__main__":
-    N_TESTS = 50
+    N_TESTS = 10
     
     main_statistico(N_TESTS)
 

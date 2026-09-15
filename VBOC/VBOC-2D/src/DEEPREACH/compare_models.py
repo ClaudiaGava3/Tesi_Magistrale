@@ -17,7 +17,7 @@ from learning import NeuralNetwork
 
 def main():
     # --- A. DATA LOADING ---
-    dataset_path = "data/dataset_confronto/sth_TEST_dataset_classification.npy"
+    dataset_path = "data/dataset_confronto/sth_TEST_dataset_classification2_5m.npy"
     data = np.load(dataset_path)
     print(f"Dataset caricato: {data.shape[0]} campioni.")
 
