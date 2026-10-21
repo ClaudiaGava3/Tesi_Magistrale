@@ -1,3 +1,17 @@
+
+# ==========================================================================================================================================================
+"""Run a statistical MPC safety campaign with a known fixed wall.
+
+The script simulates 400 planar drone flights from the origin with randomized
+orientation and velocities. A wall is placed at a fixed position and each
+target is sampled shortly before it. The active MPC controller is evaluated
+by target reach, physical impact, and solver/timeout failure; successful
+trajectories are collected for plotting. To compare NN-constrained and
+standard MPC variants, run the campaign separately with each controller
+configuration; this script does not execute both variants in one run.
+"""
+# ==========================================================================================================================================================
+
 import os
 import sys
 import numpy as np
@@ -5,23 +19,25 @@ import matplotlib.pyplot as plt
 import time
 import random
 
-# Import your libraries
+# Import the model, controller, and simulation parameters.
 from parser import Parameters
 from mpc_abstract import Model
 from mpc_controller import MpcController
 
-# always 400 tests
+# Historical comparison notes from prior campaigns; current test count and
+# conditions are defined below and in Parameters.
+# 400 tests
 
-# short horizon N=15
+# Short horizon N=15 in the recorded runs below.
 
-# speed between +-1 and angles between +-pi/4
+# Recorded success rates for randomized speeds in [-1, 1] and angles in [-pi/4, pi/4].
 # obstacle at 4m: NN->95.5, naive->95.8
 # obstacle at 6m: NN->87.2, naive->87.5
 # obstacle at 8m: NN->85, naive->34
 # obstacle at 10m: NN->82.2, naive->1.8
 # obstacle at 12m: NN->79.2, naive->0.2
 
-# zero speed and angles
+# Recorded success rates for zero initial speed and orientation.
 # obstacle at 4m: NN->100, naive->100
 # obstacle at 6m: NN->100, naive->93.8
 # obstacle at 8m: NN->100, naive->62.0
@@ -40,15 +56,12 @@ plt.rcParams.update({
 })
 
 def genera_condizioni_iniziali(x_muro_fisso):
-    """
-    Generate random initial states and target positions
-    following exactly the definition from Chapter 5.2.2.
-    """
+    """Sample an initial state and a target offset before the fixed wall."""
     # 1. Fixed initial position (origin)
     x0_pos = 0.0
     z0_pos = 0.0 
     
-    # 2. Random angles and velocities
+    # Sample pitch and translational/angular velocities.
     theta0 = np.random.uniform(-np.pi/4, np.pi/4) 
     vx0 = np.random.uniform(-1.0, 1.0) 
     vz0 = np.random.uniform(-1.0, 1.0)
@@ -56,12 +69,12 @@ def genera_condizioni_iniziali(x_muro_fisso):
     
     x0 = np.array([x0_pos, z0_pos, theta0, vx0, vz0, wy0])
     
-    # 3. Random obstacle delta between 0.2 and 0.6 meters
+    # Sample the target clearance from the wall.
     delta_obs = np.random.uniform(0.2, 0.6)
     
-    # 4. Target position: just before the obstacle
+    # Place the target on the centerline, just before the wall.
     xref_pos = x_muro_fisso - delta_obs
-    zref_pos = 0.0  # Volo in linea retta
+    zref_pos = 0.0  # Keep the target on the centerline.
     
     x_ref = np.array([xref_pos, zref_pos, 0.0, 0.0, 0.0, 0.0])
     
@@ -83,8 +96,8 @@ def main():
     SIM_TIME = 3.5
     N_SIM = int(SIM_TIME / DT)
     
-    TOLLERANZA_TARGET = 0.1  # Errore massimo accettabile dal target
-    X_MURO_FISSO = 8.0       # Ostacolo sufficientemente lontano
+    TOLLERANZA_TARGET = 0.1  # Max error acceptable to consider the target
+    X_MURO_FISSO = 8.0       # Known wall position [m].
 
     # Statistical counters
     arrivati = 0
@@ -115,7 +128,7 @@ def main():
         controller.x_guess = np.tile(x_guess_safe, (controller.N, 1))
         controller.u_guess = np.full((controller.N, model.nu), u_hover)
 
-        # Simulation loop for the single flight
+        # Closed-loop simulation for this sampled flight.
         for t in range(N_SIM):
             x_sol, u_sol, alpha_curr, status = controller.solve_step(current_x, x_ref, X_MURO_FISSO)
             
@@ -124,7 +137,7 @@ def main():
                 impatto_fisico = True
                 break
                 
-            # Mathematical failure check of the MPC (Status 4)
+            # Treat any status other than success/acceptable (0 or 2) as failure.
             if status not in [0, 2]:
                 solver_fallito = True
                 break
@@ -133,11 +146,11 @@ def main():
             x_hist.append(current_x)
 
         # --- FINAL FLIGHT EVALUATION ---
-        # If it impacted or crossed the wall at the last moment
+        # Count physical contact, including crossing on the final simulation step.
         if impatto_fisico or current_x[0] >= X_MURO_FISSO:
             impattati += 1
             esito = "Impatto"
-        # If the optimizer panicked (Naive myopia)
+        # Count a solver failure or failure to reach the target before timeout.
         elif solver_fallito:
             falliti_matematicamente += 1
             esito = "Infeasible (Status 4)"
@@ -157,7 +170,7 @@ def main():
                         "delta_obs": delta_obs
                     })
             else:
-                # Caso raro: il tempo è scaduto prima che arrivasse
+                # The flight ended without reaching the target within tolerance.
                 falliti_matematicamente += 1 
 
         # Progress bar
@@ -179,7 +192,7 @@ def main():
     print(f"Fallimenti (Infeasible/Status4): {falliti_matematicamente} ({(falliti_matematicamente/NUM_TESTS)*100:.1f}%)")
     print("================================================\n")
 
-    # --- GENERATE PLOTS FOR THE 10 SUCCESSFUL TESTS ---
+    # --- Plot up to 10 successful trajectories ---
     if len(voli_successo) > 0:
         cartella_plots = os.path.join("plots", "statistica")
         os.makedirs(cartella_plots, exist_ok=True)

@@ -1,3 +1,16 @@
+
+# ==========================================================================================================================================================
+"""Test waypoint MPC navigation, mapping, stall handling, and recovery.
+
+The file defines three rectangular maze layouts and one separate environment
+with arbitrary oblique polygon walls. ``main`` selects one layout at a time;
+the current selection is ``genera_labirinto_1`` and therefore uses the
+axis-aligned-rectangle LiDAR routine. The simulation builds a local safe box,
+tracks successive waypoints, and exercises solver recovery and stall escape.
+To test another layout, select its matching generator and LiDAR detector.
+"""
+# ==========================================================================================================================================================
+
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -28,7 +41,7 @@ import matplotlib.patches as patches
 
 
 def genera_labirinto_1():
-    """Defines the cave obstacles and waypoints."""
+    """Return the first rectangular maze and its active waypoint list."""
 
     # --- OBSTACLE DEFINITION ---
     ostacoli = []
@@ -52,7 +65,7 @@ def genera_labirinto_1():
     return ostacoli, waypoints
 
 def genera_labirinto_2():
-    """ Complex 2D maze with a long sliding section """
+    """Return the second rectangular maze and a sequence of navigation waypoints."""
     ostacoli = []
     
     # Outer edges (Floor and Ceiling) - extended to 45m
@@ -104,7 +117,7 @@ def genera_labirinto_2():
     return ostacoli, waypoints
 
 def genera_labirinto_3():
-    """2D maze with narrow corridors and 90-degree turns (Pipe Maze)."""
+    """Return a rectangular maze with narrow corridors and right-angle turns."""
     ostacoli = []
     
     # Outer edges (Floor and Ceiling)
@@ -152,8 +165,7 @@ def genera_labirinto_3():
 
 def genera_ambiente_obliquo():
     """
-    Environment with generic obstacles (inclined walls, diamonds, triangles).
-    Returns a flat list of segments (walls) and the waypoints.
+    Return arbitrary polygon walls as line segments and their navigation waypoints.
     """
     # Define obstacles as closed polygons (list of vertices [X, Z])
     poligoni = [
@@ -210,8 +222,8 @@ def main():
     # Initial state
     x0 = np.array([0.0, 5.0, 0.0, 0.0, 0.0, 0.0])
 
-    # Select the environment to generate: labirinto_1/2/3 or ambiente_obliquo
-    # Then select the right LiDAR detector!
+    # Select one environment generator. Use get_lidar_hits_2d for its
+    # axis-aligned rectangles, or get_lidar_hits_2d_qualsiasi for wall segments.
     ostacoli, waypoints = genera_labirinto_1()
     current_x = x0.copy()
 
@@ -246,8 +258,7 @@ def main():
             timer_recovery -= 1
             if timer_recovery <= 0:
                 in_recovery = False
-                # END OF EMERGENCY:
-                # Restore the neural network constraints
+                # End recovery and restore the mapped-box terminal clearances.
                 controller.ocp_solver.constraints_set(controller.N, "lh", np.zeros(4))
                 
                 lbx_e_curr = controller.ocp_solver.constraints_get(controller.N, "lbx")
@@ -264,10 +275,11 @@ def main():
         else:
             x_ref_attuale = waypoints[target_idx]
 
-        # 1. LiDAR and Safe-Box
-        # Select the right LiDAR detector based on the environment: get_lidar_hits_2d or get_lidar_hits_2d_qualsiasi
+        # 1. Map nearby rectangular obstacles and construct the local safe box.
+        # This selected maze uses the axis-aligned rectangle detector.
         hits, radii = get_lidar_hits_2d(current_x[0], current_x[1], ostacoli, num_rays=360, max_range=2.0)
-        # max range 1.5 for cave without recovery help; 2.0 is fine if infeasibility handling is present; for maze 2.0 avoids seeing too close
+        # The selected detector uses a 2 m range; tune this when changing the
+        # environment or the recovery strategy.
         Q_rel = hits.copy()
         if len(hits) > 0:
             Q_rel[:, 0] -= current_x[0]
@@ -294,9 +306,10 @@ def main():
             print(f"3. Local Target  : X={x_ref_attuale[0]:.2f}, Z={x_ref_attuale[1]:.2f}")
             
             
-            # Compute the distance between the drone and the local target
+            # Diagnostic only: this expression mixes absolute position with
+            # target-relative offsets, so do not interpret it as a true distance.
             dist_to_local = np.linalg.norm(current_x[:2] - np.array([target_rel_x, target_rel_z])[:2])
-            print(f"5. Distance remaining inside the box: {dist_to_local:.3f} meters")
+            print(f"5. Diagnostic value (coordinate frames differ): {dist_to_local:.3f}")
         # ==========================================
 
         # 2. SOLVE MPC

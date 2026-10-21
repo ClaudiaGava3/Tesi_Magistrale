@@ -59,7 +59,7 @@
 #define STH_NS0    0
 #define STH_NSN    0
 #define STH_NG     0
-#define STH_NBXN   6
+#define STH_NBXN   0
 #define STH_NGN    0
 #define STH_NY0    0
 #define STH_NY     0

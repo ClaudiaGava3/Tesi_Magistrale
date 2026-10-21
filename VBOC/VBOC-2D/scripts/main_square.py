@@ -1,3 +1,15 @@
+
+# ==========================================================================================================================================================
+"""Generate VBOC data and train a neural network for square-box viability.
+
+The data-generation stage solves a VBOC optimal control problem for sampled
+planar drone states in a square box. The training stage uses only the initial
+orientation and velocities as network inputs; the box dimensions are omitted
+because their normalized values are identical for all four sides. The network
+learns to predict the optimized box scale.
+"""
+# ==========================================================================================================================================================
+
 from __future__ import annotations
 # Standard library
 import os
@@ -20,10 +32,10 @@ from tqdm import tqdm
 from urdf_parser_py.urdf import URDF
 
 # Local
-from src.VBOC.abstract import Model
-from src.VBOC.controller import ViabilityController
-from src.VBOC.learning import NeuralNetwork, NovelNeuralNetwork, RegressionNN, plot_brs
-from src.VBOC.parser import Parameters, parse_args
+from RBOC.abstract_square import Model
+from RBOC.controller_square import ViabilityController
+from src.RBOC.learning import NeuralNetwork, NovelNeuralNetwork, RegressionNN, plot_brs
+from src.RBOC.parser import Parameters, parse_args
 
 # Global font size settings
 plt.rcParams.update({
@@ -51,7 +63,7 @@ def plot_histogram(
     xticks: list = None
 ) -> None:
     """
-    Plot a grid of histograms (up to 6) for each dimension of the input data.
+    Plot a grid of histograms.
 
     The figure is saved as a PNG file in the specified directory and
     automatically closed after saving.
@@ -105,7 +117,8 @@ def ensure_clean_dir(path: str) -> None:
     """
     Ensure that a directory exists and is empty.
 
-    If the directory exists, all files inside are deleted.
+    If the directory exists, regular files directly inside it are deleted.
+    Subdirectories and their contents are left unchanged.
     If it does not exist, it is created (including any missing parent 
     directories).
 
@@ -135,43 +148,35 @@ def compute_data_on_border(
     """
     Compute a single data point on the border of the viability kernel.
 
-    Solves a VBOC problem from a given configuration along a random (or fixed)
-    velocity direction, extending the horizon iteratively if needed.
+    Solves a VBOC problem from a given initial state and reference box,
+    extending the horizon iteratively if needed.
 
     Parameters
     ----------
     q_init : np.ndarray
-        Initial joint configuration of shape (nq,).
+        Initial state ``[x, z, theta, vx, vz, wy]`` of shape (6,).
+    ref_box : np.ndarray
+        Reference proportions of the four box sides.
+    box_guess : float
+        Initial guess for the box scale.
     N_guess : int
         Initial prediction horizon length.
     N_increment : int
         Number of time steps added per VBOC iteration.
     vboc_repeat : int
         Maximum number of VBOC solve repetitions before declaring failure.
-    box_min_values : np.ndarray
-        Lower bounds of the obstacle bounding box.
-    box_max_values : np.ndarray
-        Upper bounds of the obstacle bounding box.
-    random_seed : int
-        Seed for NumPy's RNG, used to sample the velocity direction.
-
     Returns
     -------
     x0 : np.ndarray or None
-        First state of the optimal trajectory (the border point); None if 
-        infeasible.
+        First state of the optimal trajectory; None if infeasible.
     x_star : np.ndarray or None
         Full optimal state trajectory of shape (N, nx); None if infeasible.
     u_star : np.ndarray or None
         Optimal control sequence of shape (N, nu); None if infeasible.
-    box_min_values : np.ndarray
-        Unchanged lower obstacle bounds.
-    box_max_values : np.ndarray
-        Unchanged upper obstacle bounds.
+    N_final : int or None
+        Final prediction horizon; None if the solve fails.
     status : int
-        Solver exit status (0 = success).
-    d : np.ndarray
-        Unit velocity direction used in the OCP.
+        Solver exit status (0 or 2 indicates an accepted solution).
     """
     global progress_var
     
@@ -183,7 +188,7 @@ def compute_data_on_border(
     x_guess = np.zeros((N_guess, model.nx))
     # Keep the position flat and the scaling constant for the entire guess
     x_guess[:, :2] = q_init[:2]  
-    # Initial guess for the 4 sides (we imagine they start as 1.0 proportional squares)
+    # Initialize all four side proportions equally; the shared scale is set below.
     x_guess[:, 6:10] = 1.0
     x_guess[:, 10] = box_guess 
 
@@ -192,12 +197,7 @@ def compute_data_on_border(
     x_guess[0, :6] = q_init
 
 
-    # 1. Define a flat initial-state guess
-    x_flat = np.zeros(11)
-    x_flat[:2] = q_init[:2]  # Copy only the positions (X, Z)
-    x_flat[10] = box_guess    # Copy the scaling (Index 6 in 2D)
-
-    # 2. Build the allocation matrix for 2D: a 6x2 matrix.
+    # Build the allocation matrix for 2D: a 6x2 matrix.
     allocation_matrix = np.vstack((model.F, model.M))
 
     # 3. Physical objective: [Fx, Fy, Fz, Mx, My, Mz]
@@ -540,7 +540,7 @@ if __name__ == '__main__':
                             # Compute the rotated occupancy of the drone
                             ellips_r = []
                             for h in range(len(t)):
-                                # The state in x_traj already has exactly 10 elements (6 kinematics + 4 box)
+                                # State layout: 6 kinematics + 4 box sides + 1 scale.
                                 full_x = x_traj[k][h, :]
                                 ellips_r.append(np.sqrt(normals[i].T @ model.Q(full_x).full() @ normals[i]))
                             
@@ -715,8 +715,7 @@ if __name__ == '__main__':
                         saving_dir=hist_dir
                     )
 
-        # Drop position columns and prepend box dimensions as input features
-        #in 2D
+        # Use orientation and velocities as inputs, with box scale as target.
         dataset = np.hstack(( x_data[:, 2:6], b_data))
         np.random.shuffle(dataset)
 
@@ -737,7 +736,7 @@ if __name__ == '__main__':
         x_val = x_data[train_size:train_size + val_size]
         x_test = x_data[train_size + val_size:]
 
-        # --- Standardize box + orientation features using training statistics 
+        # --- Standardize orientation and velocity inputs using training statistics
         mean = np.mean(x_train, axis=0)
         std = np.std(x_train, axis=0)
         for x_input in [x_train, x_val, x_test]:
@@ -873,7 +872,7 @@ if __name__ == '__main__':
     # =========================================================================
         fig, ax = plt.subplots(1, 2, figsize=(12, 5))
         
-        # In 2D, the indices in x_data_raw are: vx=3, vz=4, scale=6
+        # In 2D, the indices in x_data_raw are: vx=3, vz=4, scale=10.
         v_x = x_data_raw[:, 3]
         v_z = x_data_raw[:, 4]
         scale = x_data_raw[:, 10]

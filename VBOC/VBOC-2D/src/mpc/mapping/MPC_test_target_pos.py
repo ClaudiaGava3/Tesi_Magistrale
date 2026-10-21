@@ -1,3 +1,24 @@
+
+# ==========================================================================================================================================================
+"""Run a 13-target position-navigation campaign in a fixed polygonal map.
+
+Each run starts from the same point, maps arbitrary wall segments with LiDAR,
+builds a local safe box, and uses feedback MPC with stall handling and
+infeasibility recovery. The campaign records navigation and recursive-box
+feasibility outcomes across the predefined target set.
+
+WARNING: set the state-cost weights ``Q_cost`` in ``mpc_abstract_obs.py`` for
+position tracking before running this test. The state order is
+``[x, z, theta, vx, vz, wy]``; increase the position weights for this case.
+This script does not change the MPC weights automatically. Its local
+``Q_COST`` is only used to report closed-loop cost. The tuning notes below
+record historical runs and do not necessarily match the current settings. The
+controller reports the NN margin but does not include it in the normal
+terminal-clearance constraint; this test uses it when relaxing that constraint
+during recovery.
+"""
+# ==========================================================================================================================================================
+
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -10,75 +31,6 @@ from mpc_abstract_obs import Model
 from mpc_controller_obs import MpcController
 from lidar import min_cube_select_base, get_lidar_hits_2d_qualsiasi, min_cube_select_directional, force_trajectory_in_box, min_cube_warm_start
 
-
-# sui primi 6 targets
-# con N=10 vede troppi errori e entra in loop e non avanza, anche con time recovery troppo alti ex 60
-# con N=15, raggiolidar=1.5, -alpha_curr e +-10 x rilassamento vincoli, passi indietro 3, W=0.5, itermax=50, terget update=+20, spostamento<0.01, sim time=40, time recovery =20 ==> successi =3, timout =1, fallimenti =2
-# aumento passi indietro e riduco recovery time, stringo rilassamento velocità
-# con N=15, raggiolidar=1.5, -alpha_curr e +-5 x rilassamento vincoli, passi indietro 10, W=0.5, itermax=50, terget update=+20, spostamento<0.01, sim time=40, time recovery =40 ==> successi =3, timout =1, fallimenti =2
-# riduco raggio lidar
-# con N=15, raggiolidar=1.0, -alpha_curr e +-5 x rilassamento vincoli, passi indietro 10, W=0.5, itermax=50, terget update=+20, spostamento<0.01, sim time=40, time recovery =40 ==> successi =4, timout =0, fallimenti =2
-# aumento peso allungamento box W
-# con N=15, raggiolidar=1.0, -alpha_curr e +-5 x rilassamento vincoli, passi indietro 10, W=15.0, itermax=50, terget update=+20, spostamento<0.01, sim time=40, time recovery =40 ==> successi =4, timout =0, fallimenti =2
-# non cambia niente, lo lascio alto e aumento range velocità (con W alto fallisce nei punti al centro)
-# con N=15, raggiolidar=1.0, -alpha_curr e +-10 x rilassamento vincoli, passi indietro 10, W=15.0, itermax=50, terget update=+20, spostamento<0.01, sim time=40, time recovery =40 ==> successi =4, timout =0, fallimenti =2
-# non cambia niente, rimetto range velocità stringente e aumento passi indietro
-# con N=15, raggiolidar=1.0, -alpha_curr e +-5 x rilassamento vincoli, passi indietro 20, W=15.0, itermax=50, terget update=+20, spostamento<0.01, sim time=40, time recovery =40 ==> successi =4, timout =0, fallimenti =2
-# non cambia niente, rimetto passi indietro a 10 e allargo time recovery
-# con N=15, raggiolidar=1.0, -alpha_curr e +-5 x rilassamento vincoli, passi indietro 10, W=15.0, itermax=50, terget update=+20, spostamento<0.01, sim time=40, time recovery =60 ==> successi =4, timout =0, fallimenti =2
-# non cambia proprio niente, rimetto time recovery come prima e allargo orizzonte
-# con N=20, raggiolidar=1.0, -alpha_curr e +-5 x rilassamento vincoli, passi indietro 10, W=15.0, itermax=50, terget update=+20, spostamento<0.01, sim time=40, time recovery =40 ==> successi =6, timout =0, fallimenti =0
-# sta andando meglio, provo a riallargare raggio lidar
-# con N=20, raggiolidar=1.5, -alpha_curr e +-5 x rilassamento vincoli, passi indietro 10, W=15.0, itermax=50, terget update=+20, spostamento<0.01, sim time=40, time recovery =40 ==> successi =6, timout =0, fallimenti =0
-# va anche così, provo con tutti i target
-
-# su tutti i targets
-# con N=20, raggiolidar=1.5, -alpha_curr e +-5 x rilassamento vincoli, passi indietro 10, W=15.0, itermax=50, terget update=+20, spostamento<0.01, sim time=40, time recovery =40 ==> successi =9, timout =4, fallimenti =0
-
-# RISULTATI PER STATISTICA (13 targets)
-# N=10 e raggio 1.5 con NN: successi = 8, timeout = 2, schianti = 3 (recovery totali 120)
-# N=15 e raggio 1.5 con NN: successi = 7, timeout = 3, schianti = 3 (recovery totali 59)
-# N=20 e raggio 1.5 con NN: successi = 9, timeout = 4, schianti = 0 (recovery totali 73)
-# N=20 e raggio 1.0 con NN: successi = 10, timeout = 3, schianti = 0 (recovery totali 12)
-# N=20 e raggio 2.0 con NN: successi = 5, timeout = 2, schianti = 6 (recovery totali 34)
-# N=20 e raggio 2.5 con NN: successi = 3, timeout = 3, schianti = 7 (recovery totali 68)
-# N=20 e raggio 3.0 con NN: successi = 3, timeout = 4, schianti = 6 (recovery totali 74)
-# N=30 e raggio 1.5 con NN: successi = 6, timeout = 7, schianti = 0 (recovery totali 119)
-
-
-
-# N=10 e raggio 1.5 senza NN: successi = 1, timeout = 0, schianti = 12 (recovery totali 16)
-# N=15 e raggio 1.5 senza NN: successi = 5 (3), timeout = 0, schianti = 8 (10) (recovery totali 9 )
-# N=20 e raggio 1.5 senza NN: successi = 7 (4), timeout = 2, schianti = 4 (7) (recovery totali 6)
-# N=20 e raggio 1.0 senza NN: successi = 8 (5), timeout = 4, schianti = 1 (4) (recovery totali 1 )
-# N=20 e raggio 2.0 senza NN: successi = 6 (2), timeout = 0, schianti = 7 (11) (recovery totali 12)
-# N=20 e raggio 2.5 senza NN: successi = 5 (2), timeout = 0, schianti = 8 (11) (recovery  totali 12)
-# N=20 e raggio 3.0 senza NN: successi = 5 (2), timeout = 0, schianti = 8 (11) (recovery totali 13)
-# N=30 e raggio 1.5 senza NN: successi = 4, timeout = 9, schianti = 0 (recovery totali 0) #non passa più attraverso con orizzonti più lunghi
-
-
-
-# RISULTATI CON PUSH BONUS e MIN CUBE SEL 2D W=15 (box deciso con target) =case1
-# N=20 e raggio 1.5 con NN: successi = 9, timeout = 4, schianti = 0 (recovery totali 73)
-# RISULTATI CON PUSH BONUS e MIN CUBE SEL 2D W=50 (box deciso con x_current=velocità attuali)= case5
-# N=20 e raggio 1.5 con NN: successi = 5, timeout = 1, schianti = 7 (recovery totali 22)
-# RISULTATI CON PUSH BONUS e MIN CUBE SEL DIRECTIONAL W=0 -> solo area con expando directional e expand generico (box deciso con x_sol_precedente[5][0] - current_x[0])=case 3 4
-# N=20 e raggio 1.5 con NN: successi = 3, timeout = 0, schianti = 10 (recovery totali 63)
-# RISULTATI CON PUSH BONUS e MIN CUBE SEL 2D W=50 (box deciso con x_sol_precedente[5][0] - current_x[0])=case6
-# N=20 e raggio 1.5 con NN: successi = 11, timeout = 2, schianti = 0 (recovery totali 30)
-# RISULTATI CON PUSH NOT BLOCKED FACES e MIN CUBE SEL DIRECTIONAL W=0 -> solo area (box deciso con x_sol_precedente[5][0] - current_x[0])=case2
-# N=20 e raggio 1.5 con NN: successi = 1, timeout = 0, schianti = 12 (recovery totali 49)
-# RISULTATI CON PUSH NOT BLOCKED FACES e MIN CUBE SEL DIRECTIONAL W=0 -> solo area (box deciso con x_sol_precedente[2][0] - current_x[0])
-# N=20 e raggio 1.5 con NN: successi = 1, timeout = 0, schianti = 12 (recovery totali 15)
-# RISULTATI CON PUSH NOT BLOCKED FACES e MIN CUBE SEL DIRECTIONAL W=0 -> solo area (box deciso con x_sol_precedente[20][0] - current_x[0])
-# N=20 e raggio 1.5 con NN: successi = , timeout = , schianti = (recovery totali ) #da 100% successi ma attraversa gli ostacoli in realtàs
-
-
-
-# RISULTATI CON PUSH BONUS e MIN CUBE SEL 2D W=50 (box deciso con x_sol_precedente[5][0] - current_x[0])
-# N=20 e raggio 1.5 con NN: successi = 11, timeout = 2, schianti = 0 (recovery totali 30)
-# RISULTATI CON PUSH BONUS e MIN CUBE SEL 2D W=50 (box deciso con x_sol_precedente[5][0] - current_x[0])
-# N=20 e raggio 3.0 con NN: successi = 5, timeout = 3, schianti = 5 (recovery totali 124)
 
 # Global font size settings
 plt.rcParams.update({
@@ -117,9 +69,6 @@ def genera_ambiente_2d_test():
         for i in range(n):
             segments.append([poli[i], poli[(i + 1) % n]])
     segments.append([[21.0, -4.0], [21.0, -2.0]])
-            
-
-    
 
     # targets
     targets = [
@@ -137,7 +86,6 @@ def genera_ambiente_2d_test():
         np.array([20.1, 3.4, 0.0, 0.0, 0.0, 0.0]),
         np.array([22.5, 0.4, 0.0, 0.0, 0.0, 0.0])
     ]
-    
     
     return poligoni, segments, targets, roof
 
@@ -203,7 +151,7 @@ def main_statistico():
         
 
         # ==========================================
-        # SETUP VIDEO REAL-TIME & SALVATAGGIO
+        # SET UP REAL-TIME VIDEO DISPLAY AND FRAME CAPTURE.
         # ==========================================
         plt.ion() # Enable real-time video mode
         fig_anim, ax_anim = plt.subplots(figsize=(12, 7))
@@ -268,7 +216,7 @@ def main_statistico():
                 Q_rel[:, 0] -= current_x[0]
                 Q_rel[:, 1] -= current_x[1]
                 
-            # --- Direction calculation (final target) (Case 1) ---
+            # Direction signal from the current local position target (Case 1).
             target_rel_x = x_ref_attuale[0] - current_x[0]
             target_rel_z = x_ref_attuale[1] - current_x[1]
 
@@ -276,14 +224,15 @@ def main_statistico():
             dz = target_rel_z
 
 
-            # CHOOSE BETWEEN DIFFERENT TARGETS FOR DIRECTION CALCULATION
-            # !!! If you comment both you will use the final target (Case 1)!!!
+            # Choose the direction signal used by the safe-box selector.
+            # If both alternatives remain commented, the local target is used.
             # !!! The selection is ininfluent for Cases (2,3,4), have W=0 !!!
 
             # # --- Direction calculation: use current velocity (Case 5) ---
-            # # If velocity is relevant, follow velocity; if stopped, aim at the target.
-            # dx = current_x[2] if abs(current_x[2]) > 0.1 else target_rel_x
-            # dz = current_x[3] if abs(current_x[3]) > 0.1 else target_rel_z
+            # # Alternative: use current velocity when significant; otherwise
+            # # fall back to the local target direction.
+            # dx = current_x[3] if abs(current_x[3]) > 0.1 else target_rel_x
+            # dz = current_x[4] if abs(current_x[4]) > 0.1 else target_rel_z
 
             # --- Direction calculation: use predicted trajectory (Case 6) ---
             if x_sol_prev is not None and len(x_sol_prev) > 5:
@@ -304,7 +253,7 @@ def main_statistico():
 
         
 
-            # # WARM START SAFE BOX
+            # # WARM START SAFE BOX (OLD VERSION)
             # if box_abs_prev is not None:
             #     box_prev_rel = [
             #         box_abs_prev[0] - current_x[0],
@@ -354,59 +303,6 @@ def main_statistico():
             # W=50, rel=0.1)
 
 
-#             ####################################################################################################################################################################################################################################################################################################################################
-# # provare con 0.01-0.05 nei due parametri anche espansione score e direzionale del mode diractional poi vedere se case 6 e ws restano buoni, W=50
-# # con 0.01 in entrambi, il case 3 (general) da 6 succ 7 fall, il case 3 (score) da 6 succ 6 fall 1 time, il case 4 (directional) da 4 succ 6 time 3 fall???
-
-# # togliendo check vett piccoli e usando 0.1 nel lidar con W=50, il case 3 (general) da 6 succ 7 fall, il case 3 (score) da 6 succ 1 time 6 fall, il case 4 (directional) da 3 succ 7 time e 3 fall 
-# # case 6 da 11 succ e 2 time, case ws score da 3 succ 10 time, case ws con directional da 2 succ 11 time
-# 
-# con W=0: score da 6 succ e 7 fall, general da 5 succ 8 fall
-# con W=100: score da 7 succ 1 time 5 fall, general da 6 succ e 7 fall *******
-# con W200: score da 6 succ 1 time 6 fall
-
-##########################
-# CASO MIGLIORE SAREBBE SCORE CON REL=0.1, NO ELSIF, W=100 CON 7SUCC 1TIME 5FALL, IN QUESTA MODALITà HO RISULTATI GENERAL 6SUCC 7FALL MA NON DIRECTIONAL (DA AGGIUNGERE EVENTUALMENTE); SE MANTENGO W=50 CASE GENERAL è UGUALE E SCORE DA 6SUCC 1TIME E 6FALL, DIRECTIONAL DA 3SUCC 7TIME 3FALL
-##########################
-# 
-# resto con W=50 , rel=0.1 e senza elsif, provo best case con orizzonti diversi e raggio lidar = 1.5
-#
-# su 13 targets:
-# con lidar 1.5
-# case 6 NN con N=10: 4  succ 6 time 3 fall
-# case 6 NN con N=15: 5  succ 2 time 6 fall
-# case 6 NN con N=20: 11 succ 2 time 0 fall (anche con rel=0.01)
-# case 6 NN con N=25: 10 succ 3 time 0 fall
-# case 6 NN con N=30: 7  succ 6 time 0 fall (DA FINIRE, mancano 4 video)
-
-# con lidar 2.0
-# case 6 NN con N=10: 4  succ 5 time 4 fall
-# case 6 NN con N=20: 11 succ 2 time 0 fall
-# case 6 NN con N=30: 6  succ 5 time 2 fall
-
-# con lidar 3.0
-# case 6 NN con N=10: 4 succ 7 time 2 fall
-# case 6 NN con N=15: 4 succ 1 time 8 fall
-# case 6 NN con N=20: 5 succ 3 time 5 fall*** (5,1,7 con vett piccoli)
-# case 6 NN con N=25: 3 succ 4 time 6 fall
-# case 6 NN con N=30: 3 succ 9 time 1 fall
-
-# con lidar 4.5
-# case 6 NN con N=10: 3 succ 7 time 3 fall, 3,4,2 to add + 0,3,1???, 2,6,4 prima
-# case 6 NN con N=15: 3 succ 9 time 1 fall
-# case 6 NN con N=20: 6 succ 4 time 3 fall
-# case 6 NN con N=25: 6 succ 1 time 6 fall
-# case 6 NN con N=30: 6 succ 4 time 3 fall
-
-# **** ---> BEST CASE: N=20 LD=1.5
-# NAIVE: case 6 naive con N=20 e lidar 1.5: 3 succ 10 fall 0 tim
-# NN 100 test: case 6 NN con N=20 e lidar 1.5: DA FARE ***
-
-##############################################################################################################################################################################################
-# ws modificato (DA PROVARE)  (aggiunta tolleranza E AGGIUNTA LOGICA PER ESPENSIONE X Z!!!)
-
-
-
             # # classical
             # xMin_r, xMax_r, zMin_r, zMax_r, _ = min_cube_select_base(
             #      Q_rel, radii, dx, dz, drone_radius=0.1, W=50, rel=0.1)
@@ -422,7 +318,8 @@ def main_statistico():
 
             # ==========================================
             # FORZATURA DEL BOX (Test)
-            # Allarga artificialmente il safe-box per inglobare la traiettoria K
+            # Optional experiment: expand the mapped safe box to contain the
+            # previous MPC-predicted trajectory.
             # ==========================================
             # if x_sol_prev is not None:
             #     box_abs = force_trajectory_in_box(box_abs, x_sol_prev)
@@ -432,7 +329,8 @@ def main_statistico():
 
             # ==========================================
             # CHECK RECURSIVE FEASIBILITY
-            # Check if the trajectory at step K (x_sol_prev) is inside the box just generated at step K+1 (box_abs)
+            # Check whether the previous predicted trajectory lies inside the
+            # safe box mapped at the current step.
             # ==========================================
             if x_sol_prev is not None:
                 is_outside = False
@@ -468,7 +366,7 @@ def main_statistico():
                 
             #     # Compute distance between drone and local target
             #     dist_to_local = np.linalg.norm(current_x[:2] - np.array([target_rel_x, target_rel_z])[:2])
-            #     print(f"5. Distance to local target: {dist_to_local:.3f} metri")
+            #     print(f"5. Distance to local target: {dist_to_local:.3f} m")
             # # ==========================================
 
 
@@ -609,14 +507,15 @@ def main_statistico():
             # ==========================================
 
 
-            # TWO WAYS TO MANAGE THE STALL WITH ARRIVAL AT THE RAISED OR THE ORIGINAL TARGET
+            # Alternative stall policy: raise the local target, then return to
+            # the original target after reaching the raised waypoint.
 
             # # ==========================================
             # # STALL HANDLING
             # # ==========================================
             # if t > 0:
-            #     spostamento = np.linalg.norm(current_x[:2] - x_history[-2][:2])
-            #     if spostamento < 0.01:
+            #     displacement = np.linalg.norm(current_x[:2] - x_history[-2][:2])
+            #     if displacement < 0.01:
             #         contatore_stallo += 1
             #     else:
             #         contatore_stallo = 0 
@@ -633,7 +532,7 @@ def main_statistico():
             # ==========================================
             # STALL HANDLING AND RETURN TO BASE TARGET
             # ==========================================
-            # 1. ABSOLUTE SUCCESS CHECK (end test with Success)
+            # 1. End the trial when the base target is reached.
             dist_target_reale = np.linalg.norm(current_x[:2] - target_base[:2])
             if dist_target_reale < 0.3:
                 esito = "Successes"
@@ -650,12 +549,12 @@ def main_statistico():
                 if contatore_stallo >= MAX_STALLO_ITER:
                     print(f"\n⚠️ STALL DETECTED (Step {t})! Perturb the target upward.")
                     
-                    Z_MAX_SICURA = roof - 0.2  # Margine di sicurezza sotto il soffitto
+                    Z_MAX_SICURA = roof - 0.2  # Keep the waypoint 0.2 m below the ceiling.
                     current_target[1] = min(current_target[1] + 0.20, Z_MAX_SICURA)
                     x_ref_attuale = current_target.copy()
                     contatore_stallo = 0
 
-                # 3. LOCAL TARGET ARRIVAL CHECK
+                # 3. Return to the base target after reaching the raised waypoint.
                 dist_al_locale = np.linalg.norm(current_x[:2] - current_target[:2])
                 if dist_al_locale < 0.3:
                     if not np.array_equal(current_target, target_base):
@@ -725,9 +624,6 @@ def main_statistico():
         # ----------------------------------------
 
 
-
-
-
         # ==========================================
         # END OF VIDEO
         # ==========================================
@@ -773,7 +669,7 @@ def main_statistico():
     # STATISTICAL PLOT
     # ==========================================
     
-    # # CORRECTION 3: individual plot for each target to analyze the green boxes
+    # # Optional per-target plot for inspecting the mapped safe boxes.
     # plt.figure(figsize=(10, 6))
     # for poli in poligoni:
     #     plt.gca().add_patch(patches.Polygon(poli, closed=True, facecolor='gray', edgecolor='black', alpha=0.5))
@@ -785,12 +681,12 @@ def main_statistico():
     #     plt.gca().add_patch(patches.Rectangle((box[0], box[2]), box_w, box_h, edgecolor='lime', facecolor='none', linewidth=0.8, alpha=0.4))
             
     # traj = np.array(x_history)
-    # plt.plot(traj[:, 0], traj[:, 1], color='cyan', linewidth=2.5, label=f'Traiettoria Target {test_idx+1}')
+    # plt.plot(traj[:, 0], traj[:, 1], color='cyan', linewidth=2.5, label=f'Trajectory for target {test_idx+1}')
     # plt.scatter(target_base[0], target_base[1], color='red', marker='X', s=150, zorder=5, label='Target')
     # plt.scatter(0.0, 0.0, color='blue', s=100, label='Start')
     # plt.xlim(-2, 25)
     # plt.ylim(-6, 6)
-    # plt.title(f"Analisi di Volo - Target {test_idx+1} (Esito: {esito})")
+    # plt.title(f"Flight analysis - target {test_idx+1} (outcome: {esito})")
     # plt.grid(True, linestyle='--', alpha=0.5)
     # plt.legend(loc='upper right', fontsize=10)
     # plt.show()
@@ -807,7 +703,7 @@ def main_statistico():
 #     explode = (0.1, 0, 0) 
 
 #     ax1.pie(sizes, explode=explode, labels=labels, colors=colors, autopct='%1.1f%%', shadow=True, startangle=140)
-#     ax1.set_title('Tasso di Successo')
+#     ax1.set_title('Success rate')
 
 #     for poli in poligoni:
 #         poly_patch = patches.Polygon(poli, closed=True, facecolor='gray', edgecolor='black', alpha=0.5)
@@ -819,7 +715,7 @@ def main_statistico():
 #     ax2.scatter(target_base[0], target_base[1], color='red', marker='X', s=100, label='Target', zorder=5)
 #     ax2.set_xlim(-1, 20)
 #     ax2.set_ylim(-6, 6)
-#     ax2.set_title('Top 10 Traiettorie di Successo')
+#     ax2.set_title('Top 10 successful trajectories')
 #     ax2.legend(loc='upper right', fontsize=8)
 #     ax2.grid(True, linestyle='--', alpha=0.6)
 
@@ -857,8 +753,8 @@ def main_statistico():
 
     # print(f"\n--- RISULTATI FINALI ---")
     # print(f"Successes: {risultati['Successes']} | Timeout: {risultati['Timeout']} | Crashes: {risultati['Crashes']}")
-    # print(f"Recovery totali innescate: {totale_recovery_attivate}")
-    # print(f"Schianti dovuti a Feasibility Persa (traiettoria fuori dal box): {crashes_per_feasibility}/{risultati['Crashes']}")
+    # print(f"Total recovery attempts: {totale_recovery_attivate}")
+    # print(f"Crashes associated with lost feasibility (trajectory outside box): {crashes_per_feasibility}/{risultati['Crashes']}")
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(17, 6))
 
@@ -904,7 +800,7 @@ def main_statistico():
     #         z_ord = 3
     #     elif esito_traj == "Crashes":
     #         colore = 'red'
-    #         z_ord = 4 # Lo teniamo più in alto per vederlo bene
+    #         z_ord = 4  # Keep crash trajectories above other plot elements.
     #     else: # Timeout
     #         colore = 'orange'
     #         z_ord = 3

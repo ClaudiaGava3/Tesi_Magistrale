@@ -29,11 +29,8 @@ extern "C" {
 #endif
 
 /* Add prefix to internal symbols */
-#define casadi_c0 CASADI_PREFIX(c0)
-#define casadi_c1 CASADI_PREFIX(c1)
 #define casadi_copy CASADI_PREFIX(copy)
 #define casadi_f0 CASADI_PREFIX(f0)
-#define casadi_f1 CASADI_PREFIX(f1)
 #define casadi_s0 CASADI_PREFIX(s0)
 #define casadi_s1 CASADI_PREFIX(s1)
 #define casadi_s2 CASADI_PREFIX(s2)
@@ -70,25 +67,10 @@ static const casadi_int casadi_s1[4] = {0, 1, 0, 0};
 static const casadi_int casadi_s2[14] = {10, 1, 0, 10, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 static const casadi_int casadi_s3[8] = {4, 1, 0, 4, 0, 1, 2, 3};
 
-static const casadi_real casadi_c0[4] = {-3.8669162915629480e-03, 3.0640952534681156e-03, 2.8944561402987571e-03, -2.3298475797608998e-03};
-static const casadi_real casadi_c1[4] = {9.0566385081320011e-01, 5.7646684472156984e-01, 5.7664981477303345e-01, 5.7616926977401506e-01};
-
-/* External functions */
-int drone_viability_net(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem);
-
-
-/* drone_viability_net:(i0[1x4])->(o0) */
-static int casadi_f1(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem) {
-  if (drone_viability_net(arg, res, iw, w, mem)) return 1;
-  return 0;
-}
-
 /* sth_constr_h_e_fun:(i0[6],i1[0],i2[0],i3[10])->(o0[4]) */
 static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem) {
-  casadi_int i;
-  casadi_real **res1=res+1, *rr, *ss;
-  const casadi_real **arg1=arg+4, *cs;
-  casadi_real *w0=w+0, w1, *w2=w+7, w3, w4, w5, w6, w7, *w8=w+16, *w9=w+20;
+  casadi_real *rr, *ss;
+  casadi_real *w0=w+0, w1, *w2=w+7, w3;
   /* #0: @0 = input[0][0] */
   casadi_copy(arg[0], 6, w0);
   /* #1: @1 = @0[0] */
@@ -99,62 +81,27 @@ static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   for (rr=(&w3), ss=w2+0; ss!=w2+1; ss+=1) *rr++ = *ss;
   /* #4: @3 = (@1-@3) */
   w3  = (w1-w3);
-  /* #5: @4 = @0[2] */
-  for (rr=(&w4), ss=w0+2; ss!=w0+3; ss+=1) *rr++ = *ss;
-  /* #6: @5 = @0[3] */
-  for (rr=(&w5), ss=w0+3; ss!=w0+4; ss+=1) *rr++ = *ss;
-  /* #7: @6 = @0[4] */
-  for (rr=(&w6), ss=w0+4; ss!=w0+5; ss+=1) *rr++ = *ss;
-  /* #8: @7 = @0[5] */
-  for (rr=(&w7), ss=w0+5; ss!=w0+6; ss+=1) *rr++ = *ss;
-  /* #9: @8 = vertcat(@4, @5, @6, @7) */
-  rr=w8;
-  *rr++ = w4;
-  *rr++ = w5;
-  *rr++ = w6;
-  *rr++ = w7;
-  /* #10: @9 = [-0.00386692, 0.0030641, 0.00289446, -0.00232985] */
-  casadi_copy(casadi_c0, 4, w9);
-  /* #11: @8 = (@8-@9) */
-  for (i=0, rr=w8, cs=w9; i<4; ++i) (*rr++) -= (*cs++);
-  /* #12: @9 = [0.905664, 0.576467, 0.57665, 0.576169] */
-  casadi_copy(casadi_c1, 4, w9);
-  /* #13: @8 = (@8/@9) */
-  for (i=0, rr=w8, cs=w9; i<4; ++i) (*rr++) /= (*cs++);
-  /* #14: @8 = @8' */
-  /* #15: @4 = drone_viability_net(@8) */
-  arg1[0]=w8;
-  res1[0]=(&w4);
-  if (casadi_f1(arg1, res1, iw, w, 0)) return 1;
-  /* #16: @3 = (@3-@4) */
-  w3 -= w4;
-  /* #17: output[0][0] = @3 */
+  /* #5: output[0][0] = @3 */
   if (res[0]) res[0][0] = w3;
-  /* #18: @3 = @2[1] */
+  /* #6: @3 = @2[1] */
   for (rr=(&w3), ss=w2+1; ss!=w2+2; ss+=1) *rr++ = *ss;
-  /* #19: @3 = (@3-@1) */
+  /* #7: @3 = (@3-@1) */
   w3 -= w1;
-  /* #20: @3 = (@3-@4) */
-  w3 -= w4;
-  /* #21: output[0][1] = @3 */
+  /* #8: output[0][1] = @3 */
   if (res[0]) res[0][1] = w3;
-  /* #22: @3 = @0[1] */
+  /* #9: @3 = @0[1] */
   for (rr=(&w3), ss=w0+1; ss!=w0+2; ss+=1) *rr++ = *ss;
-  /* #23: @1 = @2[2] */
+  /* #10: @1 = @2[2] */
   for (rr=(&w1), ss=w2+2; ss!=w2+3; ss+=1) *rr++ = *ss;
-  /* #24: @1 = (@3-@1) */
+  /* #11: @1 = (@3-@1) */
   w1  = (w3-w1);
-  /* #25: @1 = (@1-@4) */
-  w1 -= w4;
-  /* #26: output[0][2] = @1 */
+  /* #12: output[0][2] = @1 */
   if (res[0]) res[0][2] = w1;
-  /* #27: @1 = @2[3] */
+  /* #13: @1 = @2[3] */
   for (rr=(&w1), ss=w2+3; ss!=w2+4; ss+=1) *rr++ = *ss;
-  /* #28: @1 = (@1-@3) */
+  /* #14: @1 = (@1-@3) */
   w1 -= w3;
-  /* #29: @1 = (@1-@4) */
-  w1 -= w4;
-  /* #30: output[0][3] = @1 */
+  /* #15: output[0][3] = @1 */
   if (res[0]) res[0][3] = w1;
   return 0;
 }
@@ -232,18 +179,18 @@ CASADI_SYMBOL_EXPORT const casadi_int* sth_constr_h_e_fun_sparsity_out(casadi_in
 }
 
 CASADI_SYMBOL_EXPORT int sth_constr_h_e_fun_work(casadi_int *sz_arg, casadi_int* sz_res, casadi_int *sz_iw, casadi_int *sz_w) {
-  if (sz_arg) *sz_arg = 8;
+  if (sz_arg) *sz_arg = 6;
   if (sz_res) *sz_res = 2;
   if (sz_iw) *sz_iw = 0;
-  if (sz_w) *sz_w = 24;
+  if (sz_w) *sz_w = 12;
   return 0;
 }
 
 CASADI_SYMBOL_EXPORT int sth_constr_h_e_fun_work_bytes(casadi_int *sz_arg, casadi_int* sz_res, casadi_int *sz_iw, casadi_int *sz_w) {
-  if (sz_arg) *sz_arg = 8*sizeof(const casadi_real*);
+  if (sz_arg) *sz_arg = 6*sizeof(const casadi_real*);
   if (sz_res) *sz_res = 2*sizeof(casadi_real*);
   if (sz_iw) *sz_iw = 0*sizeof(casadi_int);
-  if (sz_w) *sz_w = 24*sizeof(casadi_real);
+  if (sz_w) *sz_w = 12*sizeof(casadi_real);
   return 0;
 }
 

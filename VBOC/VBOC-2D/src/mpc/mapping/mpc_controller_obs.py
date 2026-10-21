@@ -1,3 +1,12 @@
+"""Add mapped-box constraints and neural-network evaluation to feedback MPC.
+
+The controller loads the trained network and embeds it through L4CasADi. At
+each MPC stage it constrains the drone center to the four mapped box limits;
+the terminal constraint currently also enforces box containment, while the
+predicted network margin is evaluated and returned for diagnostics but is not
+subtracted from the active terminal constraint.
+"""
+
 from __future__ import annotations
 import torch
 import numpy as np
@@ -10,7 +19,7 @@ from src.MPC.mapping.learning import NeuralNetwork
 
 
 class MpcController(AbstractController):
-    """MPC controller using a Neural Network as a terminal constraint."""
+    """MPC controller using mapped bounds and a trained viability network."""
 
     def __init__(self, model) -> None:
         super().__init__(model)
@@ -36,7 +45,7 @@ class MpcController(AbstractController):
         net.load_state_dict(checkpoint['model'])
         net.eval()
         
-        # 3. L4CASADI AND TERMINAL CONSTRAINT
+        # Integrate the network and prepare mapped-box constraints.
         # In the MPC state [x, z, theta, vx, vz, wy], the network uses indices [2, 3, 4, 5]
         theta_sym = self.model.x[2]
         vx_sym = self.model.x[3]
@@ -54,7 +63,7 @@ class MpcController(AbstractController):
         alpha_pred = self.l4c_model(x_norm.T)
 
 
-        # Extract the drone's future position and box limits from parameters
+        # Use the stage position and mapped box limits supplied as OCP parameters.
         x_drone = self.model.x[0]
         z_drone = self.model.x[1]
         x_min_box = self.model.p[0]
@@ -71,13 +80,13 @@ class MpcController(AbstractController):
             z_max_box - z_drone   # Ceiling
         )
         self.ocp.model.con_h_expr = h_expr_path
-        # Enforce that all 4 values are between 0 and infinity
+        # Enforce nonnegative clearances with a finite upper bound of 1e5.
         self.ocp.constraints.lh = np.array([0.0, 0.0, 0.0, 0.0])
         self.ocp.constraints.uh = np.array([1e5, 1e5, 1e5, 1e5])
 
 
-        # --- TERMINAL CONSTRAINT (4 ASYMMETRIC SIDES) ---
-        # All 4 distances to the walls minus the predicted alpha must be >= 0
+        # --- TERMINAL CONSTRAINT (4 MAPPED BOX SIDES) ---
+        # Require terminal containment; the NN margin subtraction is currently disabled.
         h_expr_terminal = cs.vertcat(
             x_drone - x_min_box - alpha_pred,  # Left wall
             x_max_box - x_drone - alpha_pred,  # Right wall
@@ -86,7 +95,7 @@ class MpcController(AbstractController):
         )
 
         self.ocp.model.con_h_expr_e = h_expr_terminal
-        # Enforce that all 4 values are between 0 and infinity
+        # Enforce nonnegative clearances with a finite upper bound of 1e5.
         self.ocp.constraints.lh_e = np.array([0.0, 0.0, 0.0, 0.0])
         self.ocp.constraints.uh_e = np.array([1e5, 1e5, 1e5, 1e5])
 
@@ -112,16 +121,19 @@ class MpcController(AbstractController):
     ) -> tuple[np.ndarray, np.ndarray, float, int]:
         """
         Performs a single MPC optimization step.
-        Returns: (state_trajectory, input_trajectory, predicted_alpha, status)
+        Returns the state trajectory, input sequence, NN margin evaluated at
+        the terminal solver iterate, and solver status. The margin is reported
+        but is not an active terminal clearance constraint; after a failed
+        solve, the terminal iterate may not be feasible.
         """
         self.ocp_solver.reset()
 
-        # Initial state set to current sensor measurements
+        # Fix the initial node to the current measured or estimated state.
         self.ocp_solver.constraints_set(0, "lbx", current_x)
         self.ocp_solver.constraints_set(0, "ubx", current_x)
 
 
-        # 2. Parameter vector: [alpha_real_min(1), x_ref(6)]
+        # Parameter vector: [x_min, x_max, z_min, z_max, x_ref(6)].
         p_val = np.hstack([box_abs, x_ref])
 
         
@@ -145,7 +157,7 @@ class MpcController(AbstractController):
         # Solver
         status = self.ocp_solver.solve()
 
-        # --- DETAILED DEBUG ANALYSIS BLOCK ---
+        # --- Optional terminal-clearance diagnostics (currently disabled) ---
         # x_terminal = self.ocp_solver.get(self.N, 'x')
         # x_norm = (x_terminal[2:6] - self.mean_X) / self.std_X
         # with torch.no_grad():
@@ -174,14 +186,14 @@ class MpcController(AbstractController):
         #     print(f"✅ ALL CONSTRAINTS SATISFIED")
         # # -------------------------------------------
 
-        # Query the network to return the correct value even if it fails
+        # Evaluate the network at the solver's terminal iterate for reporting.
+        # If the solve failed, this iterate is not guaranteed to be feasible.
         x_terminal = self.ocp_solver.get(self.N, 'x')
         x_norm = (x_terminal[2:6] - self.mean_X) / self.std_X
         with torch.no_grad():
             alpha_pred_val = self.l4c_model.model(torch.tensor(x_norm, dtype=torch.float32).unsqueeze(0)).item()
 
-        # --- THE CORRECT DEBUG PRINT GOES HERE ---
-        # Compute the REAL DISTANCE AT THE TERMINAL NODE
+        # Compute terminal clearances for optional diagnostics.
         dist_x_min = x_terminal[0] - box_abs[0]
         dist_x_max = box_abs[1] - x_terminal[0]
         dist_z_min = x_terminal[1] - box_abs[2]

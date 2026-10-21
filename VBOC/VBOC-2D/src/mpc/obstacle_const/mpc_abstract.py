@@ -1,3 +1,14 @@
+
+# ==========================================================================================================================================================
+"""Define the planar drone model and the base feedback-MPC formulation.
+
+The model builds the symbolic rigid-body dynamics, rotor mappings, and state
+and input dimensions used by Acados. The abstract controller configures the
+tracking cost, wall-clearance path constraint, state and motor bounds, solver
+options, and warm-start storage used by specialized MPC controllers.
+"""
+# ==========================================================================================================================================================
+
 from __future__ import annotations
 import re
 import numpy as np
@@ -13,10 +24,10 @@ from acados_template import AcadosModel, AcadosOcp, AcadosOcpSolver
 class Model:
     """Multirotor rigid-body model with CasADi symbolic expressions for acados.
 
-    Builds the full symbolic state-space representation of a Star-shaped
+    Builds the symbolic planar state-space representation of a Star-shaped
     Tilted Hexarotor (STH), including rotation matrices, thrust/torque
-    allocation matrices, explicit dynamics, state/input bounds, and the
-    nonlinear obstacle-avoidance constraints required by the OCP.
+    allocation matrices, explicit dynamics, and the geometric representation
+    of the drone footprint.
 
     Parameters
     ----------
@@ -37,7 +48,7 @@ class Model:
         self.u_bar = params.u_bar 
         self.alpha_tilt = params.alpha_tilt
         self.eps = params.state_tol
-        self.vboc_repeat = params.vboc_repeat
+        self.rboc_repeat = params.rboc_repeat
 
         # --- Environment and drone size bounds ---
         self.min_width = params.min_width
@@ -123,15 +134,6 @@ class Model:
         ])
 
 
-        # exacopter in 3D
-        # self.F = self.cf * np.array([
-        #     [0, np.sqrt(3)/2 * sin_a, -np.sqrt(3)/2 * sin_a, 
-        #      0, np.sqrt(3)/2 * sin_a, -np.sqrt(3)/2 * sin_a],
-        #     [sin_a, -1/2 * sin_a, -1/2 * sin_a, 
-        #      sin_a, -1/2 * sin_a, -1/2 * sin_a],
-        #     [cos_a, cos_a, cos_a, 
-        #      cos_a, cos_a, cos_a]
-        # ])
 
         # M maps squared rotor speeds to body-frame torque components [3 × nu]
         # in 2D
@@ -141,28 +143,6 @@ class Model:
             [0.0,0.0]
         ])
 
-
-        # exacopter in 3D
-        # self.M = self.ct * np.array([
-        #     [0, 
-        #      np.sqrt(3)/2 * self.r * cos_a - np.sqrt(3)/2 * sin_a, 
-        #      np.sqrt(3)/2 * self.r * cos_a - np.sqrt(3)/2 * sin_a, 
-        #      0, 
-        #      -np.sqrt(3)/2 * self.r * cos_a + np.sqrt(3)/2 * sin_a, 
-        #      -np.sqrt(3)/2 * self.r * cos_a + np.sqrt(3)/2 * sin_a],
-        #     [-self.r * cos_a + sin_a, 
-        #      -1/2 * self.r * cos_a + 1/2 * sin_a, 
-        #       1/2 * self.r * cos_a - 1/2 * sin_a, 
-        #       self.r * cos_a - sin_a, 
-        #       1/2 * self.r * cos_a - 1/2 * sin_a,
-        #      -1/2 * self.r * cos_a + 1/2 * sin_a],
-        #     [self.r * sin_a + cos_a, 
-        #      -self.r * sin_a - cos_a, 
-        #       self.r * sin_a + cos_a, 
-        #      -self.r * sin_a - cos_a, 
-        #       self.r * sin_a + cos_a, 
-        #      -self.r * sin_a - cos_a]
-        # ])
 
         # CasADi functions for net control force and torque
         self.fc = Function(
@@ -208,52 +188,12 @@ class Model:
          # --- Acados model registration ---
         self.acados_model.f_expl_expr = self.f_expl
 
-        # exacopter in 3D
-        # self.f_expl = vertcat(
-        #     self.x[nq:nq+npos],
-        #     self.Tinv(self.x)@self.x[nq+npos:],
-        #     -self.g*np.array([[0], [0], [1]]) + self.fc(self.x, self.u) /
-        #     self.mass, 
-        #     np.linalg.inv(self.J) @ (
-        #         -cross(self.x[nq+npos:], self.J @ self.x[nq+npos:])) + 
-        #         np.linalg.inv(self.J) @ self.tc(self.u),
-        #     0.0,
-        #     0.0,
-        #     0.0,
-        #     0.0
-        # )
 
         # --- Input bounds ---
         self.u_max = np.full(nu, self.u_bar)
         self.u_min = np.zeros((nu,))
 
-        # --- Feasible orientation bounds (derived from actuator saturation) 
-        # ---
-        # Three regimes depending on the ratio between u_bar and hovering thrust
-        # if self.u_bar >= (self.mass*self.g)/(2*self.cf*cos_a):
-        #     ri = abs(-self.mass*self.g/2 * tan_a)
-        #     ro = self.mass*self.g * tan_a
-        # elif (self.mass*self.g) / (4*self.cf*cos_a) <= self.u_bar \
-        #       < (self.mass*self.g) / (2*self.cf*cos_a):
-        #     ri = min(
-        #         abs(-self.mass*self.g/2 * tan_a), 
-        #         abs(3*self.cf*self.u_bar*sin_a -self.mass*self.g/2 * tan_a)
-        #     )   
-        #     ro = np.linalg.norm(np.array([
-        #         np.sqrt(3)*self.cf*self.u_bar*sin_a, 
-        #         self.mass*self.g * tan_a - 3*self.cf*self.u_bar*sin_a
-        #     ]))
-        # else:
-        #     ri = 3*self.cf*self.u_bar*sin_a - self.mass*self.g/2 * tan_a
-        #     ro = self.mass * self.g * tan_a - 6* self.cf * self.u_bar * sin_a
-
-        # # Maximum tilt angles admissible for hovering and full actuation
-        # self.phi_hovering = np.arctan2(ri, self.mass * self.g)
-        # self.phi_hovering_max = np.arctan2(ro, self.mass * self.g) 
-        # self.phi_max = np.arccos(
-        #     (self.mass*self.g) / 
-        #     (self.cf * 6 * np.cos(self.alpha_tilt)*self.u_bar)
-        # )
+        
         self.phi_max = np.pi/2
 
         # --- Ellipsoidal obstacle-avoidance constraint ---
@@ -270,8 +210,7 @@ class Model:
             [self.R(self.x) @ D @ self.R(self.x).T]
         )
 
-        # Outward normals of the six faces of the axis-aligned bounding box
-        #in 2D
+        # Outward normals of the four faces of the planar axis-aligned box.
         box_normals = [
             DM([1.0,0.0,0.0]),
             DM([0.0,0.0,1.0]),
@@ -282,28 +221,7 @@ class Model:
 
         # Build one scalar constraint per face
         self.con_h_expr_list = []
-        # Gli indici delle dimensioni del box in self.x sono 6, 7, 8, 9
-        #box_vars_indices = [6, 7, 8, 9]
         
-        #TENTATIVO 1 CON SOLO DIM BOX
-        # for i,n in enumerate(box_normals):
-        #     box_dim = self.x[box_vars_indices[i]]
-        #     expr = sqrt(n.T @ self.Q(self.x) @ n) - box_dim
-        #     self.con_h_expr_list.append(expr)
-
-        # self.con_h_expr = vertcat(*self.con_h_expr_list)
-
-        #TENTATIVO 2 CON PROIEZIONE
-        # for i, n in enumerate(box_normals):
-        #     # Dimensione = fattore_di_scala (x[6]) * dimensione_base_fissa (p[i])
-        #     #in 2D
-        #     box_dim = self.x[10] * self.x[6+i]
-        #     pos_proj = n[0] * self.x[0] + n[2] * self.x[1]
-            
-        #     expr = pos_proj + sqrt(n.T @ self.Q(self.x) @ n) - box_dim
-        #     self.con_h_expr_list.append(expr)
-
-        # self.con_h_expr = vertcat(*self.con_h_expr_list)
 
         # Signed environment extents used as constraint bounds [m]
         self.env_dimensions = np.array([
@@ -334,7 +252,6 @@ class Model:
                                             # this model)
         self.npos = npos                    # Position sub-space dimension
         self.nori = nori                    # Orientation sub-space dimension
-        #self.nbox = self.con_h_expr.size()[0]  # Number of box-face constraints
 
 class AbstractController:
     """Base class for acados-based OCP controllers.
@@ -358,7 +275,7 @@ class AbstractController:
 
         self.N = self.params.N
         self.ocp = AcadosOcp()
-        self.vboc_repeat = self.params.vboc_repeat
+        self.rboc_repeat = self.params.rboc_repeat
         self.tol=self.params.state_tol
 
         # --- Horizon and time discretisation ---
@@ -368,12 +285,9 @@ class AbstractController:
         # --- Symbolic model ---
         self.ocp.model = self.model.amodel
 
-        # --- Stage cost: minimize box size ---
-        # Cost at the initial stage
         from scipy.linalg import block_diag # Make sure to import it at the top of the file!
 
-        # --- Stage cost: Target tracking ---
-        # --- Stage cost: Target tracking (EXTERNAL) ---
+        # --- External stage and terminal costs for target tracking ---
         self.ocp.cost.cost_type = 'EXTERNAL'
         self.ocp.cost.cost_type_e = 'EXTERNAL'
         
@@ -398,13 +312,12 @@ class AbstractController:
         self.ocp.model.cost_expr_ext_cost_e = cost_terminal
 
         
-        # Initialize parameters with default values (1 for alpha, 0 for x_ref)
+        # Default parameters: wall position 0 and zero target state.
         self.ocp.parameter_values = np.zeros(1 + self.model.nx)
         self.ocp.parameter_values[0] = 1.0
 
 
-        # --- Initial shooting node: position and velocity fixed ---
-        # Fix x, z, theta, vx, vz, wy (first 6 indices: 0,1,2,3,4,5)
+        # --- Initial shooting node: the complete six-element state is fixed ---
         self.ocp.constraints.idxbx_0 = np.arange(self.model.nq + self.model.nv) 
         self.ocp.constraints.lbx_0 = np.zeros(self.model.nq + self.model.nv)
         self.ocp.constraints.ubx_0 = np.zeros(self.model.nq + self.model.nv)
@@ -418,7 +331,7 @@ class AbstractController:
         self.ocp.constraints.lh = np.array([0.0])   # Distance to the wall >= 0
         self.ocp.constraints.uh = np.array([1e5])   # Up to infinity
 
-        # State box: theta (1), velocity (3), box (4)scale (1) = 9 elementi totali
+        # Bound orientation and the three velocity components at each stage.
         self.ocp.constraints.idxbx = np.arange(self.model.npos, self.model.nx) 
         self.ocp.constraints.lbx = np.hstack([
             np.full(self.model.nori, -np.pi), 

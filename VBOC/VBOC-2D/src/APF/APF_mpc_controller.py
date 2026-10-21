@@ -1,3 +1,14 @@
+
+# ==========================================================================================================================================================
+"""Solve feedback MPC steps for the APF-guided planar drone simulation.
+
+At each step, the controller fixes the measured/simulated current state,
+tracks the reference produced by the APF layer, and returns the optimized
+state trajectory, motor-input sequence, and solver status. Successful
+solutions are shifted forward to warm-start the next feedback step.
+"""
+# ==========================================================================================================================================================
+
 from __future__ import annotations
 import torch
 import numpy as np
@@ -10,7 +21,7 @@ from src.MPC.mapping.learning import NeuralNetwork
 
 
 class MpcController(AbstractController):
-    """MPC controller using a Neural Network as a terminal constraint."""
+    """Feedback MPC controller that tracks an APF-generated state reference."""
 
     def __init__(self, model) -> None:
         super().__init__(model)
@@ -28,22 +39,24 @@ class MpcController(AbstractController):
         current_x: np.ndarray,
         x_ref: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray, int]:
-        """
-        Performs a single MPC optimization step.
-        Returns: (state_trajectory, input_trajectory, status)
+        """Solve one MPC step from the current state toward ``x_ref``.
+
+        Returns the predicted state trajectory, optimized motor-input
+        sequence, and solver status. The trajectories are ``None`` if the
+        solver does not return an accepted solution.
         """
         self.ocp_solver.reset()
 
-        # Initial state set to current sensor measurements
+        # Fix the initial shooting node to the current measured/simulated state.
         self.ocp_solver.constraints_set(0, "lbx", current_x)
         self.ocp_solver.constraints_set(0, "ubx", current_x)
 
 
-        # 2. Parameter vector: x_ref(6)
+        # The six-element target state is the OCP parameter at each stage.
         p_val = x_ref
 
         
-        # 2. WARM-START AND PARAMETERS
+        # Warm-start primal variables and set the target parameter per stage.
         for i in range(self.N):
             if i == 0:
                 self.ocp_solver.set(i, 'x', current_x)
@@ -60,7 +73,7 @@ class MpcController(AbstractController):
 
         
         
-        # Solver
+        # Solve the finite-horizon feedback OCP.
         status = self.ocp_solver.solve()
 
         

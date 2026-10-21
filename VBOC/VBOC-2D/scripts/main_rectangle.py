@@ -1,3 +1,15 @@
+
+# ==========================================================================================================================================================
+"""Generate VBOC data and train a neural network for asymmetric-box viability.
+
+The data-generation stage solves a VBOC optimal control problem for sampled
+planar drone states and asymmetric rectangular boxes. The training stage uses
+the initial orientation and velocities together with the four normalized box
+side dimensions as inputs, and learns to predict the optimized box scale.
+"""
+# ==========================================================================================================================================================
+
+
 from __future__ import annotations
 # Standard library
 import os
@@ -20,10 +32,10 @@ from tqdm import tqdm
 from urdf_parser_py.urdf import URDF
 
 # Local
-from src.VBOC.abstract_copy import Model
-from src.VBOC.controller_copy import ViabilityController
-from src.VBOC.learning import NeuralNetwork, NovelNeuralNetwork, RegressionNN, plot_brs
-from src.VBOC.parser import Parameters, parse_args
+from RBOC.abstract_rectangle import Model
+from RBOC.controller_rectangle import ViabilityController
+from src.RBOC.learning import NeuralNetwork, NovelNeuralNetwork, RegressionNN, plot_brs
+from src.RBOC.parser import Parameters, parse_args
 
 # Global font size settings
 plt.rcParams.update({
@@ -64,14 +76,16 @@ def plot_histogram(
         dimensions to plot (max 6).
     title : str
         Title of the figure and name of the output PNG file.
-    xlabel : str
-        Label for the x-axis of each subplot.
+    xlabel : str or list
+        Label for the x-axis; a list provides a separate label per dimension.
     ylabel : str
         Label for the y-axis of each subplot.
     bins : int
         Number of bins for each histogram.
     saving_dir : str
         Directory where the PNG file will be saved.
+    subplot_titles : list or None
+        Optional title for each dimension's subplot.
     """
     #in 2D
     fig, axes = plt.subplots(2, 3, figsize=(16, 9))
@@ -116,7 +130,8 @@ def ensure_clean_dir(path: str) -> None:
     """
     Ensure that a directory exists and is empty.
 
-    If the directory exists, all files inside are deleted.
+    If the directory exists, regular files directly inside it are deleted.
+    Subdirectories and their contents are left unchanged.
     If it does not exist, it is created (including any missing parent 
     directories).
 
@@ -135,7 +150,7 @@ def ensure_clean_dir(path: str) -> None:
         os.makedirs(path)
 
 def compute_data_on_border(
-    q_init: np.ndarray, # MUST CONSIST OF POSITIONS AND VELOCITIES
+    q_init: np.ndarray, # Initial state: positions, orientation, and velocities.
     ref_box: np.ndarray,
     box_guess: float,
     N_guess: int,
@@ -146,55 +161,48 @@ def compute_data_on_border(
     """
     Compute a single data point on the border of the viability kernel.
 
-    Solves a VBOC problem from a given configuration along a random (or fixed)
-    velocity direction, extending the horizon iteratively if needed.
+    Solves a VBOC problem from an initial state and normalized asymmetric
+    box-side dimensions,
+    extending the horizon iteratively if needed.
 
     Parameters
     ----------
     q_init : np.ndarray
-        Initial joint configuration of shape (nq,).
+        Initial state ``[x, z, theta, vx, vz, wy]`` of shape (6,).
+    ref_box : np.ndarray
+        Normalized dimensions of the four asymmetric box sides in the order
+        ``[x_plus, z_plus, x_minus, z_minus]``.
+    box_guess : float
+        Initial guess for the common scale applied to the normalized side dimensions.
     N_guess : int
         Initial prediction horizon length.
     N_increment : int
         Number of time steps added per VBOC iteration.
     vboc_repeat : int
         Maximum number of VBOC solve repetitions before declaring failure.
-    box_min_values : np.ndarray
-        Lower bounds of the obstacle bounding box.
-    box_max_values : np.ndarray
-        Upper bounds of the obstacle bounding box.
-    random_seed : int
-        Seed for NumPy's RNG, used to sample the velocity direction.
-
     Returns
     -------
     x0 : np.ndarray or None
-        First state of the optimal trajectory (the border point); None if 
-        infeasible.
+        First state of the optimal trajectory; None if infeasible.
     x_star : np.ndarray or None
         Full optimal state trajectory of shape (N, nx); None if infeasible.
     u_star : np.ndarray or None
         Optimal control sequence of shape (N, nu); None if infeasible.
-    box_min_values : np.ndarray
-        Unchanged lower obstacle bounds.
-    box_max_values : np.ndarray
-        Unchanged upper obstacle bounds.
+    N_final : int or None
+        Final prediction horizon; None if the solve fails.
     status : int
-        Solver exit status (0 = success).
-    d : np.ndarray
-        Unit velocity direction used in the OCP.
+        Solver status returned by the final solve attempt (0 or 2 is accepted).
     """
     global progress_var
     
     controller.resetHorizon(N_guess)
 
 
-    # --- Initial guess: stationary at q_init with gravity compensation ---
-    #in 2D
+    # --- Initial state-trajectory and hover-control guesses for the planar OCP ---
     x_guess = np.zeros((N_guess, model.nx))
-    # Keep the position flat and the scaling constant for the entire guess
+    # Keep the position, side dimensions, and scale constant across the guess.
     x_guess[:, :2] = q_init[:2]  
-    # Initial guess for the 4 sides (we imagine they start as 1.0 proportional squares)
+    # Initialize the four normalized side dimensions sampled for this case.
     x_guess[:, 6:10] = ref_box
     x_guess[:, 10] = box_guess 
 
@@ -203,10 +211,10 @@ def compute_data_on_border(
     x_guess[0, :6] = q_init
 
 
-    # 1. Define a flat initial-state guess
+    # Flat-state vector retained from an earlier guess; not passed to the controller.
     x_flat = np.zeros(11)
     x_flat[:2] = q_init[:2]  # Copy only the positions (X, Z)
-    x_flat[10] = box_guess    # Copy the scaling (Index 6 in 2D)
+    x_flat[10] = box_guess    # The scale is state element 10.
 
     # 2. Build the allocation matrix for 2D: a 6x2 matrix.
     allocation_matrix = np.vstack((model.F, model.M))
@@ -353,15 +361,15 @@ if __name__ == '__main__':
     # =========================================================================
     if params.generation:
 
-        # In check mode, solve a single problem with a fixed configuration
+        # In check mode, solve one problem with fixed drone kinematics;
+        # the asymmetric box proportions are still sampled below.
         if params.check:
             params.prob_num = 1
         
         # --- Initial position: origin for all problems ---
         pos_init = np.zeros((params.prob_num, model.npos))
 
-        # --- Initial orientation: sampled within the allowed inclination  
-        # range ---
+        # --- Initial orientation: sampled within the allowed inclination range ---
         if(params.orient_g_rej):
             max_phi = np.pi/2
         else:
@@ -371,23 +379,23 @@ if __name__ == '__main__':
             orient_init = np.zeros((params.prob_num, model.nori))
             vel_init = np.zeros((params.prob_num, model.nv))
         else:
-            # Generate a random pitch
-            # in 2D
+            # Generate a random pitch in the planar model.
             orient_init = np.random.uniform(-max_phi, max_phi, params.prob_num).reshape(-1, 1)
 
             # Generate random VELOCITIES (vx, vz, wy)
             vel_init = np.random.uniform(-1.0, 1.0, (params.prob_num, model.nv))
 
-        # Create the initial state vector of 6 elements: [x, z, theta, vx, vz, wy]
+        # Create the 6-element drone state: [x, z, theta, vx, vz, wy].
         q_init = np.hstack([pos_init, orient_init, vel_init])
+        # Sample four proportions for the asymmetric box and normalize them.
         b_init_raw = np.random.uniform(0.1, 1.0, (params.prob_num, model.nbox))
         b_init = b_init_raw / np.linalg.norm(b_init_raw, axis=1, keepdims=True)
 
-        # --- Obstacle box bounds --- 
+        # --- Initial guess for the common box scale ---
         box_guess=1e1
 
 
-        # --- Random seeds, one per problem ---
+        # Generate legacy random seeds; they are not passed to the worker calls.
         randomSeeds = [random.randint(0, params.prob_num) 
                        for _ in range(params.prob_num)
         ]
@@ -405,8 +413,8 @@ if __name__ == '__main__':
         n_batch = int(params.prob_num/sub_batch)
 
 
-        # in 2D
-        ref_box = np.array([1.0, 1.0, 1.0, 1.0]) # Reference box 1:1
+        # Legacy equal-side reference proportions; workers receive sampled b_init.
+        ref_box = np.array([1.0, 1.0, 1.0, 1.0])
 
 
         print('Start data generation')
@@ -431,7 +439,7 @@ if __name__ == '__main__':
             b0_batch = b_init[(nb*sub_batch):((nb+1)*sub_batch)]
             
             for i in range(len(x_0)):
-                # Se ha successo prendiamo lo scale (indice 10), se fallisce mettiamo -1.0
+                # Use the optimized scale at index 10, or -1000.0 on failure.
                 scale_val = x_0[i][10] if x_0[i] is not None else -1000.0
                 
                 # q0_batch[i][2:6] salta x e z, prendendo solo theta, vx, vz, wy
@@ -462,7 +470,7 @@ if __name__ == '__main__':
             n_data = np.array([all_n_final[i] for i in range(len(all_n_final)) if all_x_0[i] is not None])  # Filter N_final using the same exact logic as x_data to keep alignment
             status_list = list(all_status)
             
-            # The optimized "box" is just a scaling factor!
+            # The optimized scale multiplies the four asymmetric side proportions.
             b_optimized = x_data[:, 10].reshape(-1, 1)
 
             actual_boxes = x_data[:, 6:10] * b_optimized
@@ -541,7 +549,7 @@ if __name__ == '__main__':
                         scale * l_z_minus
                     ])
 
-                    # Spatial limits for the plots (Pos_X_min, Pos_Z_min, Theta_min)
+                    # Plot limits for X, Z, and theta, respectively.
                     traj_xlim_min = [-box[2], -box[3], -np.rad2deg(max_phi)]
                     traj_xlim_max = [ box[0],  box[1],  np.rad2deg(max_phi)]
 
@@ -577,7 +585,7 @@ if __name__ == '__main__':
                             # Compute the rotated occupancy of the drone
                             ellips_r = []
                             for h in range(len(t)):
-                                # The state in x_traj already has exactly 10 elements (6 kinematics + 4 box)
+                                # State layout: 6 kinematics + 4 side proportions + 1 scale.
                                 full_x = x_traj[k][h, :]
                                 ellips_r.append(np.sqrt(normals[i].T @ model.Q(full_x).full() @ normals[i]))
                             
@@ -792,8 +800,7 @@ if __name__ == '__main__':
                 saving_dir=hist_dir
             )
 
-        # Drop position columns and prepend box dimensions as input features
-        #in 2D
+        # Use theta and velocities plus the four box-side proportions as inputs.
         dataset = np.hstack(( x_data[:, 2:6],x_data[:, 6:10], b_data))
         np.random.shuffle(dataset)
 
@@ -813,7 +820,8 @@ if __name__ == '__main__':
         x_val = x_data[train_size:train_size + val_size]
         x_test = x_data[train_size + val_size:]
 
-        # --- Standardize box + orientation features using training statistics 
+        # --- Standardize kinematic inputs and box-side proportions using
+        # training-set statistics ---
         # ---
         mean = np.mean(x_train, axis=0)
         std = np.std(x_train, axis=0)
@@ -957,7 +965,7 @@ if __name__ == '__main__':
     # =========================================================================
         fig, ax = plt.subplots(1, 2, figsize=(12, 5))
         
-        # In 2D, the indices in x_data_raw are: vx=3, vz=4, scale=6
+                    # In 2D, x_data_raw stores vx=3, vz=4, and scale=10.
         v_x = x_data_raw[:, 3]
         v_z = x_data_raw[:, 4]
         scale = x_data_raw[:, 10]

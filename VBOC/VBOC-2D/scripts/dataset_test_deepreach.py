@@ -1,3 +1,15 @@
+
+# ==========================================================================================================================================================
+"""Generate an OCP-based ground-truth dataset for safety validation.
+
+The standard VBOC optimal control problem is solved for sampled drone states
+and box dimensions. Its feasibility outcomes and optimized box scales provide
+ground truth for comparing safety validation with the VBOC method and
+DeepReach.
+"""
+# ==========================================================================================================================================================
+
+
 from __future__ import annotations
 # Standard library
 import os
@@ -20,10 +32,10 @@ from tqdm import tqdm
 from urdf_parser_py.urdf import URDF
 
 # Local
-from src.VBOC.abstract_set_test import Model
-from src.VBOC.controller_set_test import ViabilityController
-from src.VBOC.learning import NeuralNetwork, NovelNeuralNetwork, RegressionNN, plot_brs
-from src.VBOC.parser import Parameters, parse_args
+from RBOC.abstract_dataset_test_deepreach import Model
+from RBOC.controller_dataset_test_deepreach import ViabilityController
+from src.RBOC.learning import NeuralNetwork, NovelNeuralNetwork, RegressionNN, plot_brs
+from src.RBOC.parser import Parameters, parse_args
 
 # Global font size settings
 plt.rcParams.update({
@@ -45,7 +57,7 @@ np.set_printoptions(linewidth=np.inf)
 
 
 def compute_data_on_border(
-    q_init: np.ndarray, # MUST CONSIST OF POSITIONS AND VELOCITIES
+    q_init: np.ndarray, # Initial state: positions, orientation, and velocities.
     ref_box: np.ndarray,
     box_guess: float,
     N_guess: int,
@@ -56,55 +68,47 @@ def compute_data_on_border(
     """
     Compute a single data point on the border of the viability kernel.
 
-    Solves a VBOC problem from a given configuration along a random (or fixed)
-    velocity direction, extending the horizon iteratively if needed.
+    Solves the VBOC OCP from an initial drone state and box-side parameters,
+    extending the prediction horizon iteratively if needed.
 
     Parameters
     ----------
     q_init : np.ndarray
-        Initial joint configuration of shape (nq,).
+        Initial drone state ``[x, z, theta, vx, vz, wy]`` of shape (6,).
+    ref_box : np.ndarray
+        Parameters for the four box sides in the order
+        ``[x_plus, z_plus, x_minus, z_minus]``.
+    box_guess : float
+        Initial guess for the common scale applied to the box-side parameters.
     N_guess : int
         Initial prediction horizon length.
     N_increment : int
         Number of time steps added per VBOC iteration.
     vboc_repeat : int
         Maximum number of VBOC solve repetitions before declaring failure.
-    box_min_values : np.ndarray
-        Lower bounds of the obstacle bounding box.
-    box_max_values : np.ndarray
-        Upper bounds of the obstacle bounding box.
-    random_seed : int
-        Seed for NumPy's RNG, used to sample the velocity direction.
-
     Returns
     -------
     x0 : np.ndarray or None
-        First state of the optimal trajectory (the border point); None if 
-        infeasible.
+        First state of the optimal trajectory; None if infeasible.
     x_star : np.ndarray or None
         Full optimal state trajectory of shape (N, nx); None if infeasible.
     u_star : np.ndarray or None
         Optimal control sequence of shape (N, nu); None if infeasible.
-    box_min_values : np.ndarray
-        Unchanged lower obstacle bounds.
-    box_max_values : np.ndarray
-        Unchanged upper obstacle bounds.
+    N_final : int or None
+        Final prediction horizon; None if the solve fails.
     status : int
-        Solver exit status (0 = success).
-    d : np.ndarray
-        Unit velocity direction used in the OCP.
+        Solver status returned by the final solve attempt (0 or 2 is accepted).
     """
     global progress_var
     
     controller.resetHorizon(N_guess)
 
 
-    # --- Initial guess: stationary at q_init with gravity compensation ---
-    #in 2D
+    # --- Initial state and hover-control guesses for the planar OCP ---
     x_guess = np.zeros((N_guess, model.nx))
-    # Keep the position flat and the scaling constant for the entire guess
+    # Keep position and box variables constant across the initial guess.
     x_guess[:, :2] = q_init[:2]  
-    # Initial guess for the 4 sides (we imagine they start as 1.0 proportional squares)
+    # Initialize the four box-side parameters sampled for this case.
     x_guess[:, 6:10] = ref_box
     x_guess[:, 10] = box_guess 
 
@@ -113,10 +117,10 @@ def compute_data_on_border(
     x_guess[0, :6] = q_init
 
 
-    # 1. Define a flat initial-state guess
+    # Legacy flat-state vector; it is not passed to the controller.
     x_flat = np.zeros(11)
     x_flat[:2] = q_init[:2]  # Copy only the positions (X, Z)
-    x_flat[10] = box_guess    # Copy the scaling (Index 6 in 2D)
+    x_flat[10] = box_guess    # The scale is state element 10.
 
     # 2. Build the allocation matrix for 2D: a 6x2 matrix.
     allocation_matrix = np.vstack((model.F, model.M))
@@ -158,7 +162,8 @@ def ensure_clean_dir(path: str) -> None:
     """
     Ensure that a directory exists and is empty.
 
-    If the directory exists, all files inside are deleted.
+    If the directory exists, regular files directly inside it are deleted.
+    Subdirectories and their contents are left unchanged.
     If it does not exist, it is created (including any missing parent 
     directories).
 
@@ -168,7 +173,7 @@ def ensure_clean_dir(path: str) -> None:
         Path to the directory to clean or create.
     """
     if os.path.exists(path):
-        # Remove all files inside the directory
+        # Remove regular files directly inside the directory.
         for file in os.listdir(path):
             file_path = os.path.join(path, file)
             if os.path.isfile(file_path):
@@ -286,15 +291,15 @@ if __name__ == '__main__':
     # =========================================================================
     if params.generation:
 
-        # In check mode, solve a single problem with a fixed configuration
+        # In check mode, use one fixed drone initial state; box dimensions
+        # are still sampled below.
         if params.check:
             params.prob_num = 1
         
         # --- Initial position: origin for all problems ---
         pos_init = np.zeros((params.prob_num, model.npos))
 
-        # --- Initial orientation: sampled within the allowed inclination  
-        # range ---
+        # --- Initial orientation: sampled within the allowed inclination range ---
         if(params.orient_g_rej):
             max_phi = np.pi/2
         else:
@@ -304,22 +309,21 @@ if __name__ == '__main__':
             orient_init = np.zeros((params.prob_num, model.nori))
             vel_init = np.zeros((params.prob_num, model.nv))
         else:
-            # Generate a random pitch
-            # in 2D
+            # Generate a random pitch in the planar model.
             orient_init = np.random.uniform(-max_phi, max_phi, params.prob_num).reshape(-1, 1)
 
-            # Generate random VELOCITIES (vx, vz, wy)
+            # Generate random velocities (vx, vz, wy).
             vel_init = np.random.uniform(-1.0, 1.0, (params.prob_num, model.nv))
 
-        # Create the initial state vector of 6 elements: [x, z, theta, vx, vz, wy]
+        # Create the 6-element drone state: [x, z, theta, vx, vz, wy].
         q_init = np.hstack([pos_init, orient_init, vel_init])
         b_init = np.random.uniform(0.15, 4.0, (params.prob_num, model.nbox))
 
-        # --- Obstacle box bounds --- 
+        # --- Initial guess for the common box scale ---
         box_guess=1.0
 
 
-        # --- Random seeds, one per problem ---
+        # Generate legacy random seeds; they are not passed to the worker calls.
         randomSeeds = [random.randint(0, params.prob_num) 
                        for _ in range(params.prob_num)
         ]
@@ -337,8 +341,8 @@ if __name__ == '__main__':
         n_batch = int(params.prob_num/sub_batch)
 
 
-        # in 2D
-        ref_box = np.array([1.0, 1.0, 1.0, 1.0]) # Reference box 1:1
+        # Nominal equal-side parameters; worker calls use sampled b_init instead.
+        ref_box = np.array([1.0, 1.0, 1.0, 1.0])
 
 
         print('Start data generation')
@@ -359,30 +363,29 @@ if __name__ == '__main__':
             all_n_final.extend(n_final_list)
             all_status.extend(status)
 
-            # --- NUOVO BLOCCO PER IL SET DI TEST COMPLETO ---
+            # --- Build one classification-dataset row per attempted solve ---
             q0_batch = q_init[(nb*sub_batch):((nb+1)*sub_batch)]
             b0_batch = b_init[(nb*sub_batch):((nb+1)*sub_batch)]
             
             for i in range(len(x_0)):
-                # Se ha successo prendiamo lo scale (indice 10), se fallisce mettiamo -1.0
+                # Read the optimized scale at state index 10; use -1000.0 on failure.
                 scale_val = x_0[i][10] if x_0[i] is not None else -1000.0
 
-                # Deriviamo il successo in base allo status (0 o 2 = Successo -> 1.0)
-                # Correzione: è un successo SOLO SE lo status è buono E abbiamo una soluzione reale
+                # Mark success only when the solver status is accepted and a solution exists.
                 is_success = 1.0 if (status[i] in [0, 2] and x_0[i] is not None) else 0.0
                 
-                # q0_batch[i][2:6] salta x e z, prendendo solo theta, vx, vz, wy
+                # Store [theta, vx, vz, wy], sampled box-side parameters, status,
+                # optimized scale, and binary success label.
                 row = np.hstack([q0_batch[i][2:6], b0_batch[i], status[i], scale_val, is_success])
                 all_test_dataset.append(row)
             # ------------------------------------------------
 
-            # === NEW CODE: CAPTURE FAILED CASES ===
+            # Collect the initial drone states for failed solves.
             q0_batch = q_init[(nb*sub_batch):((nb+1)*sub_batch)]
             for i in range(len(x_0)):
                 if x_0[i] is None:
                     # If it failed, save its initial condition
                     all_failed_q_init.append(q0_batch[i])
-            # ============================================
 
             if all(item is None for item in x_0):
                 warnings.warn(f'No solution found for any problem in batch {nb}.', RuntimeWarning)
@@ -399,7 +402,7 @@ if __name__ == '__main__':
             n_data = np.array([all_n_final[i] for i in range(len(all_n_final)) if all_x_0[i] is not None])  # Filter N_final using the same exact logic as x_data to keep alignment
             status_list = list(all_status)
             
-            # The optimized "box" is just a scaling factor!
+            # The optimized common scale multiplies the four sampled side parameters.
             b_optimized = x_data[:, 10].reshape(-1, 1)
 
             actual_boxes = x_data[:, 6:10] * b_optimized

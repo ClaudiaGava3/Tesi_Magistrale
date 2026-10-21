@@ -1,3 +1,15 @@
+
+# ==========================================================================================================================================================
+"""Test neural-network-constrained MPC against a known fixed wall.
+
+The planar drone starts from rest and tracks a target just before a wall at a
+known position. At each simulation step, the MPC receives the current state,
+the target state, and the wall position; a physical collision check stops the
+run if the drone reaches the wall. The script plots the trajectory, motor
+inputs, and predicted terminal safety margin against the remaining clearance.
+"""
+# =========================================================================================================================================================
+
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -47,8 +59,7 @@ def main():
     x_ref = np.array([15.7, 0.0, 0.0, 0.0, 0.0, 0.0])
 
 
-    # Simulated sensor reading
-    # Fix the wall for now
+    # Use the known wall position directly as the obstacle measurement.
     X_muro_fisso = 16.0
 
     print(f"\nStato Iniziale: {x0}")
@@ -75,7 +86,7 @@ def main():
     for t in range(N_SIM):
         
 
-        # 3. Pass the current position to the solver
+        # Pass the current state, target state, and known wall position to MPC.
         x_sol, u_sol, alpha_curr, status = controller.solve_step(current_x, x_ref, X_muro_fisso)
 
         # Physical crash check
@@ -159,8 +170,7 @@ def main():
     plt.grid(True)
     plt.show()
 
-    # Plot alpha
-    # Plot security monitoring
+    # Compare the predicted terminal margin with the available wall clearance.
     plt.figure(figsize=(11, 6))
     time_alpha = np.arange(len(alpha_history)) * DT
     
@@ -177,12 +187,11 @@ def main():
     plt.grid(True)
     plt.show()
 
-    # --- NEW PLOT: SPATIAL VISUALIZATION ---
+    # --- Spatial view of the trajectory relative to the fixed wall ---
     plt.figure(figsize=(12, 6))
     ax = plt.gca()
 
-    # 1. Draw the wall as a gray block
-    # Assume a corridor height from -1 to 1 meter for visualization
+    # Draw the known wall as a gray block; its height is for visualization.
     muro = patches.Rectangle((X_muro_fisso, -1.0), 0.5, 2, facecolor='gray', alpha=0.7, label='Obstacle')
     ax.add_patch(muro)
 

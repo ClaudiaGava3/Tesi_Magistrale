@@ -1,3 +1,16 @@
+
+# ==========================================================================================================================================================
+"""Map nearby 2D obstacles into LiDAR hits and candidate safe boxes.
+
+The ray-casting routines return obstacle intersections and per-ray radii used
+to approximate the scanned beams. Axis-aligned rectangles use slab-style
+interval intersections; arbitrary wall segments use ray-segment intersections,
+with a vectorized alternative for performance experiments. Several safe-box
+selection strategies are also provided. Callers explicitly choose the detector
+and selector; switch alternatives in the calling code where they are invoked.
+"""
+# =========================================================================================================================================================
+
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -13,10 +26,10 @@ plt.rcParams.update({
 })
 
 # ============================================================================
-# 1. SIMULATION LIDAR AND TANGENT SPHERES
+# 1. RAY CASTING AND PER-RAY OBSTACLE APPROXIMATIONS
 # ============================================================================
 
-# FOR PARALLEL OBSTACLES
+# Ray casting against axis-aligned rectangular obstacles (slab intersections).
 def get_lidar_hits_2d(drone_x, drone_z, obstacles, num_rays=360, max_range=1.5):
     hits = []
     distances = []
@@ -61,13 +74,14 @@ def get_lidar_hits_2d(drone_x, drone_z, obstacles, num_rays=360, max_range=1.5):
         
     return hits, radii
 
-# FOR ARBITRARY OBSTACLES
+# Ray casting against arbitrary wall segments using line-segment intersections.
 def get_lidar_hits_2d_qualsiasi(drone_x, drone_z, segments, num_rays=360, max_range=1.5):
     hits = []
     distances = []
     filtered_segments = []
 
-    # # Segment filtering
+    # Optional segment prefilter; disabled, so every segment is tested below.
+    # Segment filtering
     # for seg in segments:
     #     (x_A, z_A), (x_B, z_B) = seg
         
@@ -154,7 +168,7 @@ def get_lidar_hits_2d_qualsiasi(drone_x, drone_z, segments, num_rays=360, max_ra
         
     return hits, radii
 
-# Matrix version to reduce ulterly the computation time (360 rays x M walls)
+# Vectorized ray-segment intersection version (rays x wall segments).
 def get_lidar_hits_2d_qualsiasi_2_0(drone_x, drone_z, segments, num_rays=360, max_range=1.5):
     # Compute the angle between rays
     angle_step_rad = (2 * np.pi) / num_rays
@@ -210,8 +224,10 @@ def get_lidar_hits_2d_qualsiasi_2_0(drone_x, drone_z, segments, num_rays=360, ma
     return hits, radii
 
 # =============================================================================
-# 2. ORIGINAL MAX ALGORITHM (Adapted to 2D)
+# 2. SAFE-BOX SELECTION AND EXPANSION STRATEGIES
 # =============================================================================
+# The original non-directional implementation is retained below as a commented
+# reference; active alternatives are selected by their callers.
 # def min_cube_select_2d(Q, R, drone_radius=0.1):
 #     """
 #     Q: array Nx2 of intersection points
@@ -243,7 +259,7 @@ def get_lidar_hits_2d_qualsiasi_2_0(drone_x, drone_z, segments, num_rays=360, ma
 #     exitflag = 1 if not np.any(_spheres_intersect_box_2d(Q, R, box)) else 0
 #     return box[0], box[1], box[2], box[3], exitflag
 
-# BOX SELECTION ALGORITHM WITH DIRECTIONAL BIAS TOWARD THE TARGET
+# Box selection that resolves obstacle intersections using area and target bias.
 def min_cube_select_base(Q, R, target_rel_x, target_rel_z, drone_radius=0.1, W=0, rel=0.1):
     """
     Q: array Nx2 of intersection points (obstacles seen by the lidar, relative coordinates)
@@ -288,7 +304,7 @@ def min_cube_select_base(Q, R, target_rel_x, target_rel_z, drone_radius=0.1, W=0
     exitflag = 1 if not np.any(_spheres_intersect_box_2d(Q, R, box)) else 0
     return box[0], box[1], box[2], box[3], exitflag
 
-# BOX SELECTION ALGORITHM WITH DIRECTIONAL BIAS TOWARD THE TARGET AND EXPANSION
+# Box selection with target bias followed by selectable face-expansion modes.
 def min_cube_select_directional(Q, R, target_rel_x, target_rel_z, drone_radius=0.1, expand_mode='general', W=0, rel=0.1):
     LIMIT = 1.0
     MARGIN = 0.15 #margin beyond the projection
@@ -353,7 +369,7 @@ def min_cube_select_directional(Q, R, target_rel_x, target_rel_z, drone_radius=0
             break
 
 
-    # 2 MODES FOR BOX EXPANSION
+    # 3 BOX-EXPANSION MODES: general, directional, and score-based.
     if expand_mode == 'general':
         box = _expand_faces(box, Q, R, LIMIT=LIMIT)
     elif expand_mode == 'directional':
@@ -370,7 +386,7 @@ def min_cube_select_directional(Q, R, target_rel_x, target_rel_z, drone_radius=0
     return box[0], box[1], box[2], box[3], exitflag
 
 
-# BOX SELECTION ALGORITHM WITH DIRECTIONAL BIAS TOWARD THE TARGET, EXPANSION, AND WARM START
+# Box selection initialized from the previous mapped box, then expanded.
 def min_cube_warm_start(Q, R, target_rel_x, target_rel_z, targetx, targetz, drone_radius=0.1, box_prev=None, expand_mode='general', W=0, rel=0.1):
     """
     Initializes from the previous box, checks for obstacles, protects the drone, and expands.
@@ -427,50 +443,7 @@ def _spheres_intersect_box_2d(Q, R, box, tol=1e-6):
     return dist2 < (R**2 - tol)
 
 
-# =============================================================================
-# 2. ORIGINAL MAX ALGORITHM (Adapted to 2D)
-# =============================================================================
-# def _push_faces_2d(box, Qi, Ri, drone_radius):
-#     xMin, xMax, zMin, zMax = box
-#     moved = False
 
-#     for i in range(len(Qi)):
-#         cx, cz = Qi[i]
-#         r = Ri[i]
-#         candidates = []
-
-#         # Valuta di spingere i 4 bordi
-#         new_xMin = cx + r + 1e-4
-#         if -5.0 <= new_xMin <= 0:
-#             candidates.append((0, new_xMin, (xMax - new_xMin) * (zMax - zMin)))
-
-#         new_xMax = cx - r - 1e-4
-#         if 0 <= new_xMax <= 5.0:
-#             candidates.append((1, new_xMax, (new_xMax - xMin) * (zMax - zMin)))
-
-#         new_zMin = cz + r + 1e-4
-#         if -5.0 <= new_zMin <= 0:
-#             candidates.append((2, new_zMin, (xMax - xMin) * (zMax - new_zMin)))
-
-#         new_zMax = cz - r - 1e-4
-#         if 0 <= new_zMax <= 5.0:
-#             candidates.append((3, new_zMax, (xMax - xMin) * (new_zMax - zMin)))
-
-#         if not candidates:
-#             continue
-
-#         # Choose the face that leaves the largest AREA
-#         face_idx, val, _ = max(candidates, key=lambda c: c[2])
-#         new_box = box.copy()
-#         new_box[face_idx] = val
-
-#         # Ensure it does not squeeze the drone
-#         if not (new_box[0] > -drone_radius or new_box[1] < drone_radius or 
-#                 new_box[2] > -drone_radius or new_box[3] < drone_radius):
-#             box = new_box
-#             moved = True
-
-#     return box, moved
 
 # FUNCTION THAT PUSHES THE BOX FACES WITH A DIRECTIONAL BONUS TOWARD THE TARGET
 def _push_faces_bonus(box, Qi, Ri, drone_radius, target_rel_x, target_rel_z, W=0, rel=0.1):
@@ -918,7 +891,7 @@ def _expand_faces_directional(box, Q, R, dx, dz, targetx, targetz, LIMIT=1.0):
 
     return new_box
 
-# FUNCTION THAT FORCES THE TRAJECTORY TO BE INSIDE THE BOX
+# Expand box limits, if needed, to include a previously predicted trajectory.
 def force_trajectory_in_box(box_abs, x_sol_prev):
     """
     Check if the predicted trajectory at the previous step is contained in the new box.
@@ -1187,7 +1160,7 @@ def run_test_and_plot():
 def run_test_and_plot2():
     # 1. Drone and target position
     drone_x, drone_z = 2.5,  7.0
-    target_rel_x, target_rel_z = 10.0, 0.0  # The target is at X=10, Z=5
+    target_rel_x, target_rel_z = 10.0, 0.0  # Target offset relative to the drone [m].
 
     # 2. Create an oblique wall (diagonal from X=3,Z=1 to X=7,Z=9)
     num_points = 50
@@ -1255,6 +1228,6 @@ def run_test_and_plot2():
     plt.savefig("Fallimento_Obliquo.png", dpi=300)
     plt.show()
     
-if __name__ == '__main__':
-    # run_test_and_plot()
-    test_confronto_metodi_obliqui()
+# if __name__ == '__main__':
+#     # run_test_and_plot()
+#     # test_confronto_metodi_obliqui()

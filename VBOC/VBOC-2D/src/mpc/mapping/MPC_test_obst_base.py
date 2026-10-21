@@ -1,3 +1,15 @@
+
+# ==========================================================================================================================================================
+"""Test LiDAR mapping and feedback MPC in four progressively harder rooms.
+
+Each room uses known axis-aligned obstacle rectangles, a fixed target, and a
+drone starting at the origin. The script maps nearby obstacles into a local
+safe box, passes that box to the feedback MPC, and plots the resulting flight.
+The fourth room approximates a diagonal wall with many small axis-aligned
+rectangles. The room list is selected and run in ``main``.
+"""
+# ==========================================================================================================================================================
+
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -6,7 +18,7 @@ import time
 import torch
 from learning import NeuralNetwork
 
-# Importo librerie acados/modelli
+# Import the Acados model, obstacle-aware MPC, and mapping functions.
 from parser import Parameters
 from mpc_abstract_obs import Model
 from mpc_controller_obs import MpcController
@@ -68,16 +80,14 @@ def get_ambiente(id_stanza):
         titolo = "Staggered Walls"
 
     elif id_stanza == 4:
-        # ROOM 4: Oblique wall (simulated with an AABB block sequence)
-        # The wall spans diagonally from X=3, Z=1 to X=6, Z=5
+        # ROOM 4: Approximate a diagonal wall with small axis-aligned boxes.
         obstacles = []
-        num_blocchi = 500 # More blocks make the surface look smoother (and harder for the AABB)
+        num_blocchi = 500  # More boxes give a denser approximation of the diagonal.
         x_vals = np.linspace(1.5, 3.0, num_blocchi)
         z_vals = np.linspace(-1.5, 1.5, num_blocchi)
          
         for i in range(num_blocchi):
-            # Build small 0.02x0.02 cubes along the diagonal
-            # Format: [x_min, x_max, y_min, y_max, z_min, z_max]
+            # Each obstacle is [x_min, x_max, z_min, z_max] in meters.
             obstacles.append([x_vals[i]-0.01, x_vals[i]+0.01, z_vals[i]-0.01, z_vals[i]+0.01])
 
         x_ref = np.array([3.0, 0.0, 0.0, 0.0, 0.0, 0.0])   
@@ -107,7 +117,7 @@ def plot_mappa_2d(x_history, box_history, obstacles, x_ref, x0, titolo):
     ax.plot(x_hist[:, 0], x_hist[:, 1], color='blue', label='Trajectory', 
             linewidth=1.5, marker='o', markersize=4)
     
-    # 3. Draw the asymmetric box computed by Max (every 10 steps to avoid overload)
+    # 3. Draw sampled mapped safe boxes (every 10 steps to reduce clutter).
     for t in range(0, len(box_history), 10):
         b_xmin, b_xmax, b_zmin, b_zmax = box_history[t]
         width = b_xmax - b_xmin
@@ -143,7 +153,7 @@ def main():
     SIM_TIME = 5.5
     N_SIM = int(SIM_TIME / DT)
 
-    # LOOP OVER THE 4 ROOMS
+    # Run the four room scenarios in sequence.
     for STANZA_ID in [1, 2, 3, 4]:
         obstacles, x_ref, titolo_stanza = get_ambiente(STANZA_ID)
         
@@ -155,23 +165,23 @@ def main():
         current_x = x0.copy()
 
         x_history = [x0]
-        box_history = []  # Now save the full box, not just alpha
+        box_history = []  # Store absolute mapped-box bounds for plotting.
 
         u_hover = (model.mass * 9.81) / (2.0 * model.cf)
         controller.ocp_solver.reset()
         controller.x_guess = np.tile(x0, (controller.N, 1))
         controller.u_guess = np.full((controller.N, model.nu), u_hover)
 
-        # stall detection
+        # Reserved stall-counter state; no active stall-handling check is used here.
         contatore_stallo = 0
         MAX_STALLO_ITER = 50
 
         for t in range(N_SIM):
             
-            # 1. Simulate LIDAR and create tangent rays
+            # 1. Cast LiDAR rays against the room's axis-aligned rectangles.
             hits, radii = get_lidar_hits_2d(current_x[0], current_x[1], obstacles, num_rays=360, max_range=2.0)
             
-            # 2. Max algorithm
+            # 2. Select a local safe box from LiDAR hits and the target direction.
             Q_rel = hits.copy()
             if len(hits) > 0:
                 Q_rel[:, 0] -= current_x[0]
@@ -181,7 +191,7 @@ def main():
             target_rel_x = x_ref[0] - current_x[0]
             target_rel_z = x_ref[1] - current_x[1]
 
-            # Pass relative parameters to the function
+            # Pass target offsets in drone-relative coordinates to the selector.
             xMin_rel, xMax_rel, zMin_rel, zMax_rel, _ = min_cube_select_base(
                 Q_rel, 
                 radii, 
@@ -200,7 +210,7 @@ def main():
 
             
 
-            # 4. MPC computes using the 4 absolute room sides
+            # 4. Run MPC using the mapped box limits in absolute coordinates.
             x_sol, u_sol, alpha_curr, status = controller.solve_step(current_x, x_ref, box_abs)
             
             # # Compute minimum distance to walls for terminal logging
@@ -237,9 +247,9 @@ def main():
 
 
         # if t > 0:
-        #     spostamento = np.linalg.norm(current_x[:2] - x_history[-2][:2])
+        #     displacement = np.linalg.norm(current_x[:2] - x_history[-2][:2])
             
-        #     if spostamento < 0.01:  # If it moved less than 1 cm
+        #     if displacement < 0.01:  # If it moved less than 1 cm.
         #         contatore_stallo += 1
         #     else:
         #         contatore_stallo = 0  # Reset the counter if it escapes

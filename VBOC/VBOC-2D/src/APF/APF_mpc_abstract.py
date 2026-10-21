@@ -1,3 +1,14 @@
+
+# ==========================================================================================================================================================
+"""Define the planar multirotor model and target-tracking MPC formulation.
+
+The model provides rigid-body dynamics, rotor force and torque mappings, and
+the geometric representation of the drone footprint. The abstract controller
+builds the Acados MPC with state-reference and motor-effort costs, state and
+input bounds, and warm-start storage for feedback control.
+"""
+# ==========================================================================================================================================================
+
 from __future__ import annotations
 import re
 import numpy as np
@@ -13,10 +24,10 @@ from acados_template import AcadosModel, AcadosOcp, AcadosOcpSolver
 class Model:
     """Multirotor rigid-body model with CasADi symbolic expressions for acados.
 
-    Builds the full symbolic state-space representation of a Star-shaped
+    Builds the symbolic planar state-space representation of a Star-shaped
     Tilted Hexarotor (STH), including rotation matrices, thrust/torque
-    allocation matrices, explicit dynamics, state/input bounds, and the
-    nonlinear obstacle-avoidance constraints required by the OCP.
+    allocation matrices, explicit dynamics, state/input metadata, and the
+    rotated ellipsoidal footprint representation.
 
     Parameters
     ----------
@@ -37,7 +48,7 @@ class Model:
         self.u_bar = params.u_bar 
         self.alpha_tilt = params.alpha_tilt
         self.eps = params.state_tol
-        self.vboc_repeat = params.vboc_repeat
+        self.rboc_repeat = params.rboc_repeat
 
         # --- Environment and drone size bounds ---
         self.min_width = params.min_width
@@ -174,7 +185,7 @@ class Model:
         
         self.phi_max = np.pi/2
 
-        # --- Ellipsoidal obstacle-avoidance constraint ---
+        # --- Ellipsoidal representation of the drone footprint ---
         # Q(x) = R(x) · diag(half-axes²) · R(x)ᵀ encodes drone occupancy as
         # a rotation-aware ellipsoid; constraint: nᵢᵀ p + √(nᵢᵀ Q nᵢ) ≤ bound_i
         D = diag(vertcat(
@@ -188,8 +199,7 @@ class Model:
             [self.R(self.x) @ D @ self.R(self.x).T]
         )
 
-        # Outward normals of the six faces of the axis-aligned bounding box
-        #in 2D
+        # Outward normals of the four faces of the planar axis-aligned box.
         box_normals = [
             DM([1.0,0.0,0.0]),
             DM([0.0,0.0,1.0]),
@@ -198,7 +208,7 @@ class Model:
         ]
 
 
-        # Build one scalar constraint per face
+        # Reserve storage for scalar face-clearance expressions.
         self.con_h_expr_list = []
         
         # Signed environment extents used as constraint bounds [m]
@@ -253,7 +263,7 @@ class AbstractController:
 
         self.N = self.params.N
         self.ocp = AcadosOcp()
-        self.vboc_repeat = self.params.vboc_repeat
+        self.rboc_repeat = self.params.rboc_repeat
         self.tol=self.params.state_tol
 
         # --- Horizon and time discretisation ---
@@ -263,12 +273,10 @@ class AbstractController:
         # --- Symbolic model ---
         self.ocp.model = self.model.amodel
 
-        # --- Stage cost: minimize box size ---
-        # Cost at the initial stage
         from scipy.linalg import block_diag # Make sure to import it at the top of the file!
 
         # --- Stage cost: Target tracking ---
-        # --- Stage cost: Target tracking (EXTERNAL) ---
+        # --- External stage and terminal costs for target tracking ---
         self.ocp.cost.cost_type = 'EXTERNAL'
         self.ocp.cost.cost_type_e = 'EXTERNAL'
         
@@ -277,7 +285,7 @@ class AbstractController:
         Q_cost = diag(vertcat(100, 100, 0.0001, 100.0, 100.0, 0.0001))
         R_cost = diag(vertcat(0.0001, 0.0001))
         
-        # Calcula the error between the current state and the target
+        # State tracking error relative to the MPC reference.
         err_x = self.model.x - self.model.x_ref
         # Calculate theoretical thrust to counteract gravity
         # u_hover = (m * g) / (2 * cf)
@@ -286,7 +294,7 @@ class AbstractController:
         
 
         cost_step = err_x.T @ Q_cost @ err_x + err_u.T @ R_cost @ err_u
-        # At the terminal node, do not use the motors
+        # The terminal cost penalizes state error only; it has no motor term.
         cost_terminal = err_x.T @ Q_cost @ err_x * 20
         
         # Assign the expressions to Acados

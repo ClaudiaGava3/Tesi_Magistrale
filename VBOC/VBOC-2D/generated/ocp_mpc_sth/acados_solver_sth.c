@@ -687,35 +687,6 @@ void sth_acados_setup_nlp_in(sth_solver_capsule* capsule, const int N, double* n
 
     /* terminal constraints */
 
-    // set up bounds for last stage
-    // x
-    int* idxbx_e = malloc(NBXN * sizeof(int));
-    idxbx_e[0] = 0;
-    idxbx_e[1] = 1;
-    idxbx_e[2] = 2;
-    idxbx_e[3] = 3;
-    idxbx_e[4] = 4;
-    idxbx_e[5] = 5;
-    double* lubx_e = calloc(2*NBXN, sizeof(double));
-    double* lbx_e = lubx_e;
-    double* ubx_e = lubx_e + NBXN;
-    lbx_e[0] = -100;
-    ubx_e[0] = 100;
-    lbx_e[1] = -100;
-    ubx_e[1] = 100;
-    lbx_e[2] = -1.5707963267948966;
-    ubx_e[2] = 1.5707963267948966;
-    lbx_e[3] = -1;
-    ubx_e[3] = 1;
-    lbx_e[4] = -1;
-    ubx_e[4] = 1;
-    lbx_e[5] = -1;
-    ubx_e[5] = 1;
-    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "idxbx", idxbx_e);
-    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "lbx", lbx_e);
-    ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, nlp_out, N, "ubx", ubx_e);
-    free(idxbx_e);
-    free(lubx_e);
 
 
 

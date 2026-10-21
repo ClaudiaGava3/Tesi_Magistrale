@@ -1,3 +1,14 @@
+
+# ==========================================================================================================================================================
+"""Define the planar drone model and base mapped-environment MPC problem.
+
+The symbolic model provides the multirotor dynamics, rotor mappings, and
+state/input metadata. The abstract controller builds the Acados tracking MPC
+with general state and motor bounds; mapped-box constraints and network-margin
+evaluation are added by the specialized obstacle-aware controller.
+"""
+# ==========================================================================================================================================================
+
 from __future__ import annotations
 import re
 import numpy as np
@@ -13,10 +24,10 @@ from acados_template import AcadosModel, AcadosOcp, AcadosOcpSolver
 class Model:
     """Multirotor rigid-body model with CasADi symbolic expressions for acados.
 
-    Builds the full symbolic state-space representation of a Star-shaped
+    Builds the symbolic planar state-space representation of a Star-shaped
     Tilted Hexarotor (STH), including rotation matrices, thrust/torque
-    allocation matrices, explicit dynamics, state/input bounds, and the
-    nonlinear obstacle-avoidance constraints required by the OCP.
+    allocation matrices, explicit dynamics, and the drone-footprint geometry.
+    Mapped obstacle constraints are added by the specialized controller.
 
     Parameters
     ----------
@@ -37,7 +48,7 @@ class Model:
         self.u_bar = params.u_bar 
         self.alpha_tilt = params.alpha_tilt
         self.eps = params.state_tol
-        self.vboc_repeat = params.vboc_repeat
+        self.rboc_repeat = params.rboc_repeat
 
         # --- Environment and drone size bounds ---
         self.min_width = params.min_width
@@ -181,7 +192,7 @@ class Model:
         
         self.phi_max = np.pi/2
 
-        # --- Ellipsoidal obstacle-avoidance constraint ---
+        # --- Ellipsoidal representation of the drone footprint ---
         # Q(x) = R(x) · diag(half-axes²) · R(x)ᵀ encodes drone occupancy as
         # a rotation-aware ellipsoid; constraint: nᵢᵀ p + √(nᵢᵀ Q nᵢ) ≤ bound_i
         D = diag(vertcat(
@@ -195,8 +206,7 @@ class Model:
             [self.R(self.x) @ D @ self.R(self.x).T]
         )
 
-        # Outward normals of the six faces of the axis-aligned bounding box
-        #in 2D
+        # Outward normals of the four faces of the planar axis-aligned box.
         box_normals = [
             DM([1.0,0.0,0.0]),
             DM([0.0,0.0,1.0]),
@@ -205,7 +215,7 @@ class Model:
         ]
 
 
-        # Build one scalar constraint per face
+        # Initialize storage for optional face-clearance expressions.
         self.con_h_expr_list = []
         
         # Signed environment extents used as constraint bounds [m]
@@ -242,9 +252,8 @@ class Model:
 class AbstractController:
     """Base class for acados-based OCP controllers.
 
-    Builds and compiles a shared AcadosOcp object from the supplied model and
-    parameter set. Subclasses implement specific solve strategies on top of
-    the common solver infrastructure created here.
+    Builds a shared AcadosOcp object from the supplied model and parameter
+    set. Specialized subclasses add their constraints and compile the solver.
 
     Parameters
     ----------
@@ -261,7 +270,7 @@ class AbstractController:
 
         self.N = self.params.N
         self.ocp = AcadosOcp()
-        self.vboc_repeat = self.params.vboc_repeat
+        self.rboc_repeat = self.params.rboc_repeat
         self.tol=self.params.state_tol
 
         # --- Horizon and time discretisation ---
@@ -271,8 +280,6 @@ class AbstractController:
         # --- Symbolic model ---
         self.ocp.model = self.model.amodel
 
-        # --- Stage cost: minimize box size ---
-        # Cost at the initial stage
         from scipy.linalg import block_diag # Make sure to import it at the top of the file!
 
         # --- Stage cost: Target tracking ---
@@ -303,8 +310,7 @@ class AbstractController:
         self.ocp.model.cost_expr_ext_cost = cost_step
         self.ocp.model.cost_expr_ext_cost_e = cost_terminal
 
-        # #in 2D
-        # self.ocp.model.cost_expr_ext_cost_0 = 1.0 * self.model.x[10] # Costo = Scaling
+        
         
         # # Initialize parameters to default values (1 for alpha, 0 for x_ref)
         self.ocp.parameter_values = np.zeros(self.model.p.size()[0])
@@ -320,7 +326,7 @@ class AbstractController:
 
 
         # --- Path constraints ---
-        # Start from zero to constrain X and Z position as well
+        # Bound all state components, including X and Z positions.
         self.ocp.constraints.idxbx = np.arange(0, self.model.nx) 
         self.ocp.constraints.lbx = np.hstack([
             np.array([-100.0, -100.0]),

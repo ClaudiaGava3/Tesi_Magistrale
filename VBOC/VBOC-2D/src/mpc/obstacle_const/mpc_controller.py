@@ -1,3 +1,15 @@
+
+# ==========================================================================================================================================================
+"""Add a neural-network braking-margin constraint to the solver MPC.
+
+The controller loads the trained viability network, embeds it in the Acados
+OCP through L4CasADi, and constrains the terminal state to retain the predicted
+margin from the wall. Each solve fixes the current state, tracks a reference,
+and returns the predicted state and motor trajectories together with the
+network-predicted terminal margin and solver status.
+"""
+# ==========================================================================================================================================================
+
 from __future__ import annotations
 import torch
 import numpy as np
@@ -50,13 +62,13 @@ class MpcController(AbstractController):
         # L4CasADi function
         self.l4c_model = l4c.L4CasADi(net, name="drone_viability_net")
         
-        # Network output: predicted braking margin (Alpha)
+        # Network output: predicted braking margin required at the terminal state.
         alpha_pred = self.l4c_model(x_norm.T)
      
         
         
         # --- 2. TERMINAL CONSTRAINT ---
-        # The distance to the wall (p[0] - x[0]) must be greater than or equal to alpha_pred
+        # Constrain terminal wall clearance to be at least the predicted margin.
         self.ocp.model.con_h_expr_e = self.model.p[0] - self.model.x[0] - alpha_pred
         self.ocp.constraints.lh_e = np.array([0.0])   # Must be >= 0
         self.ocp.constraints.uh_e = np.array([1e5])
@@ -123,7 +135,7 @@ class MpcController(AbstractController):
             # Normalize
             x_norm = (x_nn_input - self.mean_X) / self.std_X
 
-            # Query the NN to obtain alpha for plotting
+            # Query the NN to report the terminal margin with the returned solution.
             with torch.no_grad():
                 alpha_val = self.l4c_model.model(torch.tensor(x_norm, dtype=torch.float32).unsqueeze(0)).item()
 
