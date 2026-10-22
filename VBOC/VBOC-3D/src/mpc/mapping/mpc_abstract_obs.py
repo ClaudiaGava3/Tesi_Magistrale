@@ -1,3 +1,14 @@
+
+# ==========================================================================================================================================================
+"""Define the planar drone model and base mapped-environment MPC problem.
+
+The symbolic model provides the multirotor dynamics, rotor mappings, and
+state/input metadata. The abstract controller builds the Acados tracking MPC
+with general state and motor bounds; mapped-box constraints and network-margin
+evaluation are added by the specialized obstacle-aware controller.
+"""
+# ==========================================================================================================================================================
+
 from __future__ import annotations
 import re
 import numpy as np
@@ -13,10 +24,10 @@ from acados_template import AcadosModel, AcadosOcp, AcadosOcpSolver
 class Model:
     """Multirotor rigid-body model with CasADi symbolic expressions for acados.
 
-    Builds the full symbolic state-space representation of a Star-shaped
+    Builds the symbolic planar state-space representation of a Star-shaped
     Tilted Hexarotor (STH), including rotation matrices, thrust/torque
-    allocation matrices, explicit dynamics, state/input bounds, and the
-    nonlinear obstacle-avoidance constraints required by the OCP.
+    allocation matrices, explicit dynamics, and the drone-footprint geometry.
+    Mapped obstacle constraints are added by the specialized controller.
 
     Parameters
     ----------
@@ -37,7 +48,7 @@ class Model:
         self.u_bar = params.u_bar 
         self.alpha_tilt = params.alpha_tilt
         self.eps = params.state_tol
-        self.vboc_repeat = params.vboc_repeat
+        self.rboc_repeat = params.rboc_repeat
 
         # --- Environment and drone size bounds ---
         self.min_width = params.min_width
@@ -111,7 +122,7 @@ class Model:
         tan_a = np.tan(self.alpha_tilt)
 
         # F maps squared rotor speeds to body-frame force components [3 × nu]
-        # in 2D
+        # in 3D
         self.F=self.cf*np.array([
             [0,0,0,0],
             [0,0,0,0],
@@ -121,7 +132,7 @@ class Model:
 
 
         # M maps squared rotor speeds to body-frame torque components [3 × nu]
-        # in 2D
+        # in 3D
         self.M = np.array([
             [0,      self.l*self.cf,  0,      -self.l*self.cf], # Roll
             [-self.l*self.cf, 0,      self.l*self.cf,  0     ], # Pitch
@@ -159,7 +170,7 @@ class Model:
 
         # --- Explicit continuous-time dynamics: x_dot = f(x, u) ---
 
-        # 2D
+        # 3D
         self.f_expl = vertcat(
         self.x[6:9],         # v_x, v_y, v_z
         euler_rates_3d,      # roll_dot, pitch_dot, yaw_dot
@@ -194,7 +205,6 @@ class Model:
         )
 
         # Outward normals of the six faces of the axis-aligned bounding box
-        #in 2D
         box_normals = [
             DM([1.0,0.0,0.0]),
             DM([0.0,1.0,0.0]),
@@ -242,9 +252,8 @@ class Model:
 class AbstractController:
     """Base class for acados-based OCP controllers.
 
-    Builds and compiles a shared AcadosOcp object from the supplied model and
-    parameter set. Subclasses implement specific solve strategies on top of
-    the common solver infrastructure created here.
+    Builds a shared AcadosOcp object from the supplied model and parameter
+    set. Specialized subclasses add their constraints and compile the solver.
 
     Parameters
     ----------
@@ -261,7 +270,7 @@ class AbstractController:
 
         self.N = self.params.N
         self.ocp = AcadosOcp()
-        self.vboc_repeat = self.params.vboc_repeat
+        self.rboc_repeat = self.params.rboc_repeat
         self.tol=self.params.state_tol
 
         # --- Horizon and time discretisation ---
@@ -272,10 +281,11 @@ class AbstractController:
         self.ocp.model = self.model.amodel
 
         # --- Stage cost: minimize box size ---
-        from scipy.linalg import block_diag # Assicurati di importarlo all'inizio del file!
+        from scipy.linalg import block_diag # Make sure to import it at the top of the file!
+
 
         # --- Stage cost: Target tracking ---
-        # --- Stage cost: Inseguimento Target (EXTERNAL) ---
+        # --- Stage cost: Target tracking (EXTERNAL) ---
         self.ocp.cost.cost_type = 'EXTERNAL'
         self.ocp.cost.cost_type_e = 'EXTERNAL'
         
@@ -310,7 +320,7 @@ class AbstractController:
 
 
         # --- Path constraints ---
-        # Partiamo da 0 per vincolare anche posizione X e Z
+        # Bound all state components, including X and Z positions.
         self.ocp.constraints.idxbx = np.arange(0, self.model.nx) 
         self.ocp.constraints.lbx = np.hstack([
             np.array([-100.0, -100.0,-100.0]),

@@ -18,6 +18,8 @@ from mpc_controller_obs import MpcController
 
 
 
+
+
 def visualizza_su_meshcat(facce_ostacoli, target_pos):
     vis = meshcat.Visualizer()
 
@@ -47,19 +49,20 @@ def visualizza_su_meshcat(facce_ostacoli, target_pos):
     vis["drone"]["corpo"].set_object(
       g.ObjMeshGeometry.from_file('drone_costum.obj')
     )
-    vis["drone"]["corpo"].set_transform(tf.scale_matrix(0.05))
+    scale_mat = tf.scale_matrix(0.05)
+    rot_x = tf.rotation_matrix(np.pi/2, [1, 0, 0])
+    rot_z = tf.rotation_matrix(0, [0, 0, 1])
+    vis["drone"]["corpo"].set_transform(rot_z @ rot_x @ scale_mat)
 
-    # Target a "X" rossa tridimensionale
+    # Disegna tutti i waypoint (X rosse 3D)
     mat_target = g.MeshLambertMaterial(color=0xFF0000, opacity=1.0)
-    c1 = g.Cylinder(height=0.4, radius=0.03)
-    vis["target"]["barra1"].set_object(c1, mat_target)
-    vis["target"]["barra1"].set_transform(tf.rotation_matrix(np.pi/4, [1, 1, 0]))
-    
-    c2 = g.Cylinder(height=0.4, radius=0.03)
-    vis["target"]["barra2"].set_object(c2, mat_target)
-    vis["target"]["barra2"].set_transform(tf.rotation_matrix(-np.pi/4, [1, -1, 0]))
-    vis["target"].set_transform(tf.translation_matrix(target_pos[:3]))
-
+    for i, wp in enumerate(target_pos): 
+        c1, c2 = g.Cylinder(height=0.4, radius=0.03), g.Cylinder(height=0.4, radius=0.03)
+        vis["target"][f"wp_{i}"]["b1"].set_object(c1, mat_target)
+        vis["target"][f"wp_{i}"]["b1"].set_transform(tf.rotation_matrix(np.pi/4, [1, 1, 0]))
+        vis["target"][f"wp_{i}"]["b2"].set_object(c2, mat_target)
+        vis["target"][f"wp_{i}"]["b2"].set_transform(tf.rotation_matrix(-np.pi/4, [1, -1, 0]))
+        vis["target"][f"wp_{i}"].set_transform(tf.translation_matrix(wp[:3]))
 
     time.sleep(1.0)
     return vis
@@ -69,15 +72,18 @@ def aggiorna_drone_meshcat(vis, current_x, box_abs=None):
     roll, pitch, yaw = current_x[3], current_x[4], current_x[5]
     
     # 1. Movimento fisico del drone (Rotazione + Traslazione)
-    rot_matrix = tf.euler_matrix(roll, pitch, yaw)
+    # rot_matrix = tf.euler_matrix(roll, pitch, yaw)
+    rot_matrix = tf.euler_matrix(roll, pitch, yaw, axes='rxyz')
     transform = rot_matrix.copy()
     transform[0:3, 3] = pos
     vis["drone"].set_transform(transform)
     
-    # 2. Telecamera (Follows the drone)
+    # 2. TELECAMERA FOLLOW (Trasla col drone ma non ruota)
+    # Spostando il nodo /Cameras/default, stiamo spostando il BERSAGLIO della telecamera.
+    # Meshcat manterrà l'angolazione 3D di default, seguendo il drone passo passo!
     vis["/Cameras/default"].set_transform(tf.translation_matrix(pos))
     
-    # 3. Safe box
+    # 3. DISEGNA IL SAFE-BOX VERDE IN 3D
     if box_abs is not None:
         w = box_abs[1] - box_abs[0]
         d = box_abs[3] - box_abs[2]
@@ -88,6 +94,7 @@ def aggiorna_drone_meshcat(vis, current_x, box_abs=None):
         cz = (box_abs[5] + box_abs[4]) / 2.0
         
         mat_box = g.MeshLambertMaterial(color=0x00FF00, opacity=0.15, transparent=True)
+        # Scommentato: ora si vedrà nel video!
         # vis["safe_box"].set_object(g.Box([w, d, h]), mat_box)
         # vis["safe_box"].set_transform(tf.translation_matrix([cx, cy, cz]))
 
@@ -95,12 +102,14 @@ def aggiorna_drone_meshcat(vis, current_x, box_abs=None):
 def genera_ambiente_3d_test():
     facce_ostacoli = []
     
+    # Allarghiamo la stanza a 20x20x6 per far respirare il randomizzatore
     ROOM_X, ROOM_Y, ROOF = 20.0, 20.0, 6.0
     
-    # 1. Floor and roof
+    # 1. Pavimento e Soffitto
     facce_ostacoli.append([[0, 0, 0], [ROOM_X, 0, 0], [ROOM_X, ROOM_Y, 0], [0, ROOM_Y, 0]])
     facce_ostacoli.append([[0, 0, ROOF], [ROOM_X, 0, ROOF], [ROOM_X, ROOM_Y, ROOF], [0, ROOM_Y, ROOF]])
     
+    # --- FUNZIONI GENERATRICI DEI SOLIDI (Facce perfettamente chiuse) ---
     def create_box(xmin, xmax, ymin, ymax, zmin, zmax):
         p0, p1, p2, p3 = [xmin, ymin, zmin], [xmax, ymin, zmin], [xmax, ymax, zmin], [xmin, ymax, zmin]
         p4, p5, p6, p7 = [xmin, ymin, zmax], [xmax, ymin, zmax], [xmax, ymax, zmax], [xmin, ymax, zmax]
@@ -129,44 +138,60 @@ def genera_ambiente_3d_test():
             facce.append([base[i], base[(i+1)%6], top[(i+1)%6], top[i]])
         return facce, [cx-r, cx+r, cy-r, cy+r, zmin, zmax]
 
-    
+    # --- SETUP POSIZIONI ---
     start = np.array([2.0, 2.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-   
-    t_x = np.random.uniform(12.0, 18.0)
-    t_y = np.random.uniform(12.0, 18.0)
-    t_z = np.random.uniform(1.0, 4.5)
-    targets = [np.array([t_x, t_y, t_z, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])]
-    
-    
+
+    # 1. INIZIALIZZAZIONE ZONE SICURE E FUNZIONE DI CHECK
+    # Mettiamo subito la zona di partenza tra quelle intoccabili
     occupied_aabbs = [
-        [0.0, 4.5, 0.0, 4.5, 0.0, ROOF], 
-        [t_x - 1.5, t_x + 1.5, t_y - 1.5, t_y + 1.5, 0.0, ROOF]
+        [0.0, 4.5, 0.0, 4.5, 0.0, ROOF] 
     ]
     
     def check_collision(new_aabb):
-        margin = 0.5 
+        margin = 0.5 # Mantiene almeno mezzo metro di distanza vuota tra ogni ostacolo
         nx_min, nx_max, ny_min, ny_max, nz_min, nz_max = new_aabb
         for ab in occupied_aabbs:
             x_overlap = not (nx_max + margin < ab[0] or nx_min - margin > ab[1])
             y_overlap = not (ny_max + margin < ab[2] or ny_min - margin > ab[3])
             z_overlap = not (nz_max + margin < ab[4] or nz_min - margin > ab[5])
             if x_overlap and y_overlap and z_overlap:
-                return True 
+                return True # C'è collisione!
         return False
 
-   
+    # 2. GENERAZIONE WAYPOINT
+    waypoints = []
+    while len(waypoints) < 3:
+        wp_x = np.random.uniform(4, 16)
+        wp_y = np.random.uniform(4, 16)
+        wp_z = np.random.uniform(1.0, 4.5)
+        
+        # Area sicura (colonna) attorno al singolo waypoint
+        wp_aabb = [wp_x - 1.5, wp_x + 1.5, wp_y - 1.5, wp_y + 1.5, 0.0, ROOF]
+        
+        # Se il posto è libero, salvalo e aggiungi l'area a quelle occupate!
+        if not check_collision(wp_aabb):
+            waypoints.append(np.array([wp_x, wp_y, wp_z, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]))
+            occupied_aabbs.append(wp_aabb) 
+    
+    targets = [waypoints]
+
+    # --- RICETTARIO OSTACOLI ---
+    # Grandi (Appoggiati a terra: tipo, [dimensioni chiave])
     specs = [
         ('box', [3.0, 2.5, 4.0]),      # dx, dy, dz
         ('box', [2.5, 4.0, 3.0]),
         ('pyramid', [3.0, 3.5]),       # lato base, altezza
         ('hex', [2.0, 3.5]),           # raggio, altezza
     ]
-    
+    # Piccoli (Fluttuanti in aria per far fare lo slalom in verticale al drone)
     for _ in range(7):
         specs.append(('small_box', [1.0, 1.0, 1.0]))
+
+    # --- GENERATORE RANDOM ---
+    # np.random.seed(42) # Scommenta questa riga se vuoi che il labirinto sia sempre uguale a ogni lancio
     
     for tipo, params in specs:
-        for _ in range(150):
+        for _ in range(150): # Prova fino a 150 volte a trovare un "buco" libero per l'ostacolo
             cx = np.random.uniform(3, ROOM_X - 3)
             cy = np.random.uniform(3, ROOM_Y - 3)
             
@@ -180,6 +205,7 @@ def genera_ambiente_3d_test():
                 dx, dy, dz = params
                 xmin, xmax = cx - dx/2, cx + dx/2
                 ymin, ymax = cy - dy/2, cy + dy/2
+                # Fluttuano tra 1.5m e 4.5m di altezza, non toccano né terra né soffitto
                 zmin = np.random.uniform(2.5, ROOF - dz - 0.5) 
                 faces, aabb = create_box(xmin, xmax, ymin, ymax, zmin, zmin + dz)
                 
@@ -191,20 +217,21 @@ def genera_ambiente_3d_test():
                 r, h = params
                 faces, aabb = create_hex_prism(cx, cy, 0.0, h, r)
             
+            # Controlla se la posizione è valida e non sbatte
             if not check_collision(aabb):
                 facce_ostacoli.extend(faces)
                 occupied_aabbs.append(aabb)
-                break
+                break # Posto trovato! Passa al prossimo ostacolo
     
     return facce_ostacoli, start, targets, ROOF
 
 
 def disegna_scia_drone(vis, x_history):
     """Disegna la linea della scia percorsa dal drone su Meshcat."""
-    
+    # Estrae le coordinate [x, y, z] dalla cronologia degli stati e le traspone (3xN)
     punti_scia = np.array([stato[:3] for stato in x_history], dtype=np.float32).T
     
-    
+    # Crea una linea luminosa (es. Azzurra/Cyan)
     materiale_linea = g.LineBasicMaterial(color=0x00FFFF, linewidth=5)
     vis["scia"].set_object(g.Line(g.PointsGeometry(punti_scia), materiale_linea))
 
@@ -214,17 +241,17 @@ def draw_3d_box(ax, box_abs, color='lime', alpha=0.3):
     """Disegna l'AABB 3D."""
     x_min, x_max, y_min, y_max, z_min, z_max = box_abs
     
+    # Vertici del box
     v = np.array([
         [x_min, y_min, z_min], [x_max, y_min, z_min], [x_max, y_max, z_min], [x_min, y_max, z_min],
         [x_min, y_min, z_max], [x_max, y_min, z_max], [x_max, y_max, z_max], [x_min, y_max, z_max]
     ])
     
     facce = [
-        [v[0], v[1], v[2], v[3]], [v[4], v[5], v[6], v[7]],
-        [v[0], v[1], v[5], v[4]], [v[2], v[3], v[7], v[6]],
-        [v[1], v[2], v[6], v[5]], [v[4], v[7], v[3], v[0]]
+        [v[0], v[1], v[2], v[3]], [v[4], v[5], v[6], v[7]], # Basso, Alto
+        [v[0], v[1], v[5], v[4]], [v[2], v[3], v[7], v[6]], # Davanti, Dietro
+        [v[1], v[2], v[6], v[5]], [v[4], v[7], v[3], v[0]]  # Destra, Sinistra
     ]
-
     ax.add_collection3d(Poly3DCollection(facce, facecolors=color, linewidths=1, edgecolors=color, alpha=alpha))
 
 def main_statistico():
@@ -256,9 +283,11 @@ def main_statistico():
 
     
     
-    for test_idx, target_base in enumerate(targets):
-        
-        current_x = start.copy() # Fixed starting point
+    for test_idx, lista_waypoints in enumerate(targets):
+        wp_index = 0
+        target_base = lista_waypoints[wp_index]
+        # Punto di partenza fisso
+        current_x = start.copy()
         
         x_history = [current_x.copy()]
         u_history = []
@@ -267,6 +296,7 @@ def main_statistico():
         recovery_in_questo_test = 0
         esito = "Timeout" 
 
+        # Variabili di stato di labirinto.py
         contatore_stallo = 0
         MAX_STALLO_ITER = 50
         in_recovery = True
@@ -318,6 +348,8 @@ def main_statistico():
 
             pos_3d = current_x[0:3]
 
+            print(f"Step {t} - Pitch reale: {np.degrees(current_x[4]):.1f}°")
+
             hits, radii = get_lidar_hits_3d_qualsiasi(pos_3d, facce, num_rays=1000, max_range=3.0)
             
             Q_rel = hits.copy()
@@ -334,6 +366,8 @@ def main_statistico():
             dx, dy, dz = target_rel_x, target_rel_y, target_rel_z
 
 
+  
+
             # --- Direction calculation: use predicted trajectory (Case 6) ---
             if x_sol_prev is not None and len(x_sol_prev) > 5:
                 
@@ -341,16 +375,19 @@ def main_statistico():
                 dy = x_sol_prev[5][1] - current_x[1]
                 dz = x_sol_prev[5][2] - current_x[2]
               
+
             else:
+                # Al primissimo passo (t=0)
                 dx = target_rel_x
                 dy = target_rel_y
                 dz = target_rel_z
 
 
             # ==========================================
-            # WARM START SAFE BOX (MODIFIED)
+            # WARM START SAFE BOX (MODIFICATO)
             # ==========================================
             if x_sol_prev is not None:
+                # 1. Calcola il bounding box (min e max) dell'INTERA traiettoria predetta al passo precedente
                 traj_xmin = np.min(x_sol_prev[:, 0])
                 traj_xmax = np.max(x_sol_prev[:, 0])
                 traj_ymin = np.min(x_sol_prev[:, 1])
@@ -358,6 +395,7 @@ def main_statistico():
                 traj_zmin = np.min(x_sol_prev[:, 2])
                 traj_zmax = np.max(x_sol_prev[:, 2])
 
+                # 2. Converti questo Bounding Box in coordinate RELATIVE rispetto al drone attuale (current_x)
                 margin = 0.35
                 box_prev_rel = [
                     traj_xmin - current_x[0] - margin,
@@ -486,14 +524,14 @@ def main_statistico():
                         esito = "Crashes"
                         in_recovery = False
 
-                        # --- START CRASH CHECK ---
+                        # --- INIZIO CHECK AUTOPSIA CRASH ---
                         if x_sol_prev is not None:
                             punti_fuori = sum(1 for p in x_sol_prev if (p[0] < box_abs[0]-1e-3 or p[0] > box_abs[1]+1e-3 or p[1] < box_abs[2]-1e-3 or p[1] > box_abs[3]+1e-3 or p[2] < box_abs[4]-1e-3 or p[2] > box_abs[5]+1e-3))
                             print(f"💀 AUTOPSIA CRASH (Step {t}): {punti_fuori}/{len(x_sol_prev)} punti della traiettoria precedente erano finiti FUORI dal box fatale!")
 
                             if punti_fuori > 0:
                                 crashes_per_feasibility += 1
-                        # --- CHECK END ---
+                        # --- FINE CHECK ---
 
                         break
                 
@@ -517,8 +555,9 @@ def main_statistico():
             x_history.append(current_x.copy())
 
             aggiorna_drone_meshcat(vis, current_x, box_abs)
-            time.sleep(0.03)
+            time.sleep(0.03) # Rallenta leggermente per godersi l'animazione nel browser
 
+            # Cattura il frame dal browser (rallenterà leggermente la simulazione)
             frame = vis.get_image()
             if frame is not None:
                 frames_animazione.append(np.asarray(frame))
@@ -527,14 +566,21 @@ def main_statistico():
             box_abs_prev = box_abs.copy()
 
 
+            
             # ==========================================
             # STALL HANDLING AND RETURN TO BASE TARGET
             # ==========================================
-            # 1. ABSOLUTE SUCCESS CHECK (end test with Success)
-            dist_target_reale = np.linalg.norm(current_x[:3] - target_base[:3])
-            if dist_target_reale < 0.3:
-                esito = "Successes"
-                break
+            # 1. WAYPOINT REACHED CHECK (Passa al successivo)
+            if np.linalg.norm(current_x[:3] - target_base[:3]) < 0.3:
+                wp_index += 1
+                if wp_index >= len(lista_waypoints): # Finiti i waypoint!
+                    esito = "Successes"
+                    break
+                else:
+                    print(f"✅ Waypoint {wp_index} raggiunto! Verso il prossimo...")
+                    target_base = lista_waypoints[wp_index].copy()
+                    current_target = target_base.copy()
+                    x_ref_attuale = current_target.copy()
                             
             if t > 0:
                 # 2. NORMAL STALL HANDLING
@@ -547,7 +593,7 @@ def main_statistico():
                 if contatore_stallo >= MAX_STALLO_ITER:
                     print(f"\n⚠️ STALL DETECTED (Step {t})! Perturb the target upward.")
                     
-                    Z_MAX_SICURA = roof - 0.2  # Roof margin
+                    Z_MAX_SICURA = roof - 0.2  # Margine di sicurezza sotto il soffitto
                     current_target[2] = min(current_target[2] + 0.20, Z_MAX_SICURA)
                     x_ref_attuale = current_target.copy()
                     contatore_stallo = 0
@@ -642,29 +688,41 @@ def main_statistico():
 
     # ==========================================
     # END OF VIDEO
-    # ==========================================    
+    # ==========================================
+    # ==========================================
+    # ESPORTAZIONE E SALVATAGGIO DEL VIDEO
+    # ==========================================
+        
+
     if len(frames_animazione) > 0:
-        cartella_video = "video_traiettorie_telecamera"
+        cartella_video = "video_traiettorie_telecamera/nuovi"
         os.makedirs(cartella_video, exist_ok=True)
             
         print(f"Generazione del video per il Target {test_idx+1} in corso...")
-        fig_movie = plt.figure(figsize=(12, 7))
-        ax_movie = fig_movie.add_subplot(111)
+
+        h, w, _ = frames_animazione[0].shape
+        dpi = 300
+        fig_movie = plt.figure(figsize=(w/100, h/100), dpi=dpi)        
+        ax_movie = fig_movie.add_axes([0, 0, 1, 1]) 
         ax_movie.axis('off')
             
+        # Mostra il primo frame
         im = ax_movie.imshow(frames_animazione[0])
-            
+
         def update_frame(i):
             im.set_data(frames_animazione[i])
             return [im]
             
+        # Crea l'animazione dalle immagini salvate
         ani = animation.FuncAnimation(fig_movie, update_frame, frames=len(frames_animazione), blit=True)
             
-        nome_video = os.path.join(cartella_video, f"Video_Target_{test_idx+10:02d}_{esito}.mp4")
+        # Configura il nome del file video
+        nome_video = os.path.join(cartella_video, f"Video_Target_{test_idx+5:02d}_{esito}.mp4")
             
-        # Save
+        # Salva come MP4 (richiede ffmpeg installato sul PC)
+        # Se ffmpeg dà problemi, puoi cambiare l'estensione in '.gif' e usare il writer 'pillow'
         try:
-            ani.save(nome_video, writer='ffmpeg', fps=10)
+            ani.save(nome_video, writer='ffmpeg', fps=10, dpi=dpi)
             print(f"🎬 Video salvato con successo: {nome_video}")
         except Exception as e:
             print("Nota: 'ffmpeg' non trovato, provo a salvare in formato .gif...")
@@ -674,6 +732,8 @@ def main_statistico():
                 
 
         # ==========================================
+        # ==========================================
+
     return facce, tutte_le_traiettorie, vis
 
 
@@ -683,6 +743,6 @@ if __name__ == "__main__":
 
     if len(traiettorie) > 0:
         traj_completa, esito = traiettorie[0]
-        
+        # vis è l'istanza del visualizzatore creata nel main
         disegna_scia_drone(vis, traj_completa)
     

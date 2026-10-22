@@ -1,3 +1,15 @@
+
+# ==========================================================================================================================================================
+"""Define the tridimensional drone model and the base feedback-MPC formulation.
+
+The model builds the symbolic rigid-body dynamics, rotor mappings, and state
+and input dimensions used by Acados. The abstract controller configures the
+tracking cost, wall-clearance path constraint, state and motor bounds, solver
+options, and warm-start storage used by specialized MPC controllers.
+"""
+# ==========================================================================================================================================================
+
+
 from __future__ import annotations
 import re
 import numpy as np
@@ -13,10 +25,10 @@ from acados_template import AcadosModel, AcadosOcp, AcadosOcpSolver
 class Model:
     """Multirotor rigid-body model with CasADi symbolic expressions for acados.
 
-    Builds the full symbolic state-space representation of a Star-shaped
+    Builds the symbolic planar state-space representation of a Star-shaped
     Tilted Hexarotor (STH), including rotation matrices, thrust/torque
-    allocation matrices, explicit dynamics, state/input bounds, and the
-    nonlinear obstacle-avoidance constraints required by the OCP.
+    allocation matrices, explicit dynamics, and the geometric representation
+    of the drone footprint.
 
     Parameters
     ----------
@@ -50,7 +62,7 @@ class Model:
         self.v_max = params.v_max
         
 
-        # --- State and input dimensions 2D---
+        # --- State and input dimensions 3D---
         nq = 6  # Pose: 3 position + 3 orientation (Euler angles)
         nv = 6
         nu = 4  # Input: 4 squared rotor spinning rates
@@ -59,18 +71,16 @@ class Model:
         #nbox = 6    # Obstacle box constraint dimension
         #nscale = 1  # FATTORE DI SCALA (Sostituisce nbox)
 
-      # --- PARAMETRI MPC ---
+      # --- PARAMETERS MPC ---
         self.alpha_real = MX.sym('alpha_real', 1)   # Lo spazio letto dai sensori
         self.x_ref = MX.sym('x_ref', nq+nv)       # Il target da raggiungere (6 elementi)
         
-        # Unisco tutto nel vettore dei parametri 'p'
         self.p = vertcat(self.alpha_real, self.x_ref)
         
         # --- Acados model registration ---
         self.acados_model = AcadosModel()
         self.acados_model.name = params.robot_name
         
-        # ASSEGNAZIONE CORRETTA:
         self.acados_model.p = self.p
 
         
@@ -123,16 +133,6 @@ class Model:
         ])
 
 
-        # exacopter in 3D
-        # self.F = self.cf * np.array([
-        #     [0, np.sqrt(3)/2 * sin_a, -np.sqrt(3)/2 * sin_a, 
-        #      0, np.sqrt(3)/2 * sin_a, -np.sqrt(3)/2 * sin_a],
-        #     [sin_a, -1/2 * sin_a, -1/2 * sin_a, 
-        #      sin_a, -1/2 * sin_a, -1/2 * sin_a],
-        #     [cos_a, cos_a, cos_a, 
-        #      cos_a, cos_a, cos_a]
-        # ])
-
         # M maps squared rotor speeds to body-frame torque components [3 × nu]
         # in 2D
         self.M = np.array([
@@ -141,28 +141,6 @@ class Model:
             [self.ct, -self.ct,      self.ct, -self.ct       ]  # Yaw
         ])
 
-
-        # exacopter in 3D
-        # self.M = self.ct * np.array([
-        #     [0, 
-        #      np.sqrt(3)/2 * self.r * cos_a - np.sqrt(3)/2 * sin_a, 
-        #      np.sqrt(3)/2 * self.r * cos_a - np.sqrt(3)/2 * sin_a, 
-        #      0, 
-        #      -np.sqrt(3)/2 * self.r * cos_a + np.sqrt(3)/2 * sin_a, 
-        #      -np.sqrt(3)/2 * self.r * cos_a + np.sqrt(3)/2 * sin_a],
-        #     [-self.r * cos_a + sin_a, 
-        #      -1/2 * self.r * cos_a + 1/2 * sin_a, 
-        #       1/2 * self.r * cos_a - 1/2 * sin_a, 
-        #       self.r * cos_a - sin_a, 
-        #       1/2 * self.r * cos_a - 1/2 * sin_a,
-        #      -1/2 * self.r * cos_a + 1/2 * sin_a],
-        #     [self.r * sin_a + cos_a, 
-        #      -self.r * sin_a - cos_a, 
-        #       self.r * sin_a + cos_a, 
-        #      -self.r * sin_a - cos_a, 
-        #       self.r * sin_a + cos_a, 
-        #      -self.r * sin_a - cos_a]
-        # ])
 
         # CasADi functions for net control force and torque
         self.fc = Function(
@@ -193,10 +171,10 @@ class Model:
         # --- Explicit continuous-time dynamics: x_dot = f(x, u) ---
 # 3D
         self.f_expl = vertcat(
-            self.x[6:9],         # Derivata posizioni: vx, vy, vz
-            euler_rates_3d,      # Derivata angoli: phi_dot, theta_dot, psi_dot
-            accel_3d,            # Derivata velocità lineari: ax, ay, az
-            alpha_3d             # Derivata velocità angolari: p_dot, q_dot, r_dot
+            self.x[6:9],         # x_dot, y_dot, z_dot
+            euler_rates_3d,      # phi_dot, theta_dot, psi_dot
+            accel_3d,            # vx_dot, vy_dot, vz_dot
+            alpha_3d             # wx_dot, wy_dot, wz_dot
             #0.0, 0.0, 0.0, 0.0,   # Derivate dei 4 parametri del box (costanti)
             #0.0     # Derivata dello scaling (costante)
             
@@ -206,52 +184,11 @@ class Model:
          # --- Acados model registration ---
         self.acados_model.f_expl_expr = self.f_expl
 
-        # exacopter in 3D
-        # self.f_expl = vertcat(
-        #     self.x[nq:nq+npos],
-        #     self.Tinv(self.x)@self.x[nq+npos:],
-        #     -self.g*np.array([[0], [0], [1]]) + self.fc(self.x, self.u) /
-        #     self.mass, 
-        #     np.linalg.inv(self.J) @ (
-        #         -cross(self.x[nq+npos:], self.J @ self.x[nq+npos:])) + 
-        #         np.linalg.inv(self.J) @ self.tc(self.u),
-        #     0.0,
-        #     0.0,
-        #     0.0,
-        #     0.0
-        # )
 
         # --- Input bounds ---
         self.u_max = np.full(nu, self.u_bar)
         self.u_min = np.zeros((nu,))
 
-        # --- Feasible orientation bounds (derived from actuator saturation) 
-        # ---
-        # Three regimes depending on the ratio between u_bar and hovering thrust
-        # if self.u_bar >= (self.mass*self.g)/(2*self.cf*cos_a):
-        #     ri = abs(-self.mass*self.g/2 * tan_a)
-        #     ro = self.mass*self.g * tan_a
-        # elif (self.mass*self.g) / (4*self.cf*cos_a) <= self.u_bar \
-        #       < (self.mass*self.g) / (2*self.cf*cos_a):
-        #     ri = min(
-        #         abs(-self.mass*self.g/2 * tan_a), 
-        #         abs(3*self.cf*self.u_bar*sin_a -self.mass*self.g/2 * tan_a)
-        #     )   
-        #     ro = np.linalg.norm(np.array([
-        #         np.sqrt(3)*self.cf*self.u_bar*sin_a, 
-        #         self.mass*self.g * tan_a - 3*self.cf*self.u_bar*sin_a
-        #     ]))
-        # else:
-        #     ri = 3*self.cf*self.u_bar*sin_a - self.mass*self.g/2 * tan_a
-        #     ro = self.mass * self.g * tan_a - 6* self.cf * self.u_bar * sin_a
-
-        # # Maximum tilt angles admissible for hovering and full actuation
-        # self.phi_hovering = np.arctan2(ri, self.mass * self.g)
-        # self.phi_hovering_max = np.arctan2(ro, self.mass * self.g) 
-        # self.phi_max = np.arccos(
-        #     (self.mass*self.g) / 
-        #     (self.cf * 6 * np.cos(self.alpha_tilt)*self.u_bar)
-        # )
         self.phi_max = np.pi/2
 
         # --- Ellipsoidal obstacle-avoidance constraint ---
@@ -269,7 +206,6 @@ class Model:
         )
 
         # Outward normals of the six faces of the axis-aligned bounding box
-        #in 2D
         box_normals = [
             DM([1.0,0.0,0.0]),
             DM([0.0,1.0,0.0]),
@@ -282,29 +218,8 @@ class Model:
 
         # Build one scalar constraint per face
         self.con_h_expr_list = []
-        # Gli indici delle dimensioni del box in self.x sono 6, 7, 8, 9
-        #box_vars_indices = [6, 7, 8, 9]
         
-        #TENTATIVO 1 CON SOLO DIM BOX
-        # for i,n in enumerate(box_normals):
-        #     box_dim = self.x[box_vars_indices[i]]
-        #     expr = sqrt(n.T @ self.Q(self.x) @ n) - box_dim
-        #     self.con_h_expr_list.append(expr)
-
-        # self.con_h_expr = vertcat(*self.con_h_expr_list)
-
-        #TENTATIVO 2 CON PROIEZIONE
-        # for i, n in enumerate(box_normals):
-        #     # Dimensione = fattore_di_scala (x[6]) * dimensione_base_fissa (p[i])
-        #     #in 2D
-        #     box_dim = self.x[10] * self.x[6+i]
-        #     pos_proj = n[0] * self.x[0] + n[2] * self.x[1]
-            
-        #     expr = pos_proj + sqrt(n.T @ self.Q(self.x) @ n) - box_dim
-        #     self.con_h_expr_list.append(expr)
-
-        # self.con_h_expr = vertcat(*self.con_h_expr_list)
-
+        
         # Signed environment extents used as constraint bounds [m]
         self.env_dimensions = np.array([
             -self.max_width, -self.max_length, -self.max_height,
@@ -368,64 +283,54 @@ class AbstractController:
         # --- Symbolic model ---
         self.ocp.model = self.model.amodel
 
-        # --- Stage cost: minimize box size ---
-        # Costo allo stadio iniziale
-        from scipy.linalg import block_diag # Assicurati di importarlo all'inizio del file!
+        from scipy.linalg import block_diag # Make sure to import it at the top of the file!
 
-        # --- Stage cost: Target tracking ---
-        # --- Stage cost: Inseguimento Target (EXTERNAL) ---
+        # --- External stage and terminal costs for target tracking ---
         self.ocp.cost.cost_type = 'EXTERNAL'
         self.ocp.cost.cost_type_e = 'EXTERNAL'
         
-        # Definiamo i pesi (Q_cost per lo stato, R_cost per i motori)
-        # Ordine stato: [x, z, theta, vx, vz, wy]
+        # Weights (Q_cost for state, R_cost for motors)
+        # State order: [x, y, z, phi, theta, psi, vx, vy, vz, wx, wy, wz]
         Q_cost = diag(vertcat(
-                100.0, 100.0, 100.0,  # Posizioni
-                20.0, 20.0, 20.0,        # Angoli
-                1.0, 1.0, 1.0,           # Vel. Lineari
-                1.0, 1.0, 1.0            # Vel. Angolari
-            ))
+                100.0, 100.0, 100.0, 20.0, 20.0, 20.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0))
         R_cost = diag(vertcat(0.0001, 0.0001, 0.0001, 0.0001))
         
-        # Calcoliamo l'errore tra dove siamo (x) e dove vogliamo andare (x_ref)
+        
         err_x = self.model.x - self.model.x_ref
-        # Calcoliamo la spinta teorica per contrastare la gravità
-        # u_hover = (m * g) / (2 * cf)
+        
         u_hover_val = (self.model.mass * self.model.g) / (4.0 * self.model.cf)
         err_u = self.model.u - u_hover_val
         
 
         cost_step = err_x.T @ Q_cost @ err_x + err_u.T @ R_cost @ err_u
-        # Al nodo finale non uso i motori
+        # At the terminal node I do not penalize motor effort
         cost_terminal = err_x.T @ Q_cost @ err_x * 20
         
         # Assegno le espressioni ad Acados
         self.ocp.model.cost_expr_ext_cost = cost_step
         self.ocp.model.cost_expr_ext_cost_e = cost_terminal
 
-        # #in 2D
-        # self.ocp.model.cost_expr_ext_cost_0 = 1.0 * self.model.x[10] # Costo = Scaling
         
-        # Inizializziamo i parametri con dei valori di default (1 per alpha, 0 per x_ref)
+        
+        # Default parameters: wall position 0 and zero target state.
         self.ocp.parameter_values = np.zeros(1 + self.model.nx)
         self.ocp.parameter_values[0] = 1.0
 
 
-        # --- Initial shooting node: position and velocity fixed ---
-        # Fissiamo x, z, theta, vx, vz, wy (Primi 6 indici: 0,1,2,3,4,5)
+        # --- Initial shooting node: the complete twelve-element state is fixed ---
         self.ocp.constraints.idxbx_0 = np.arange(self.model.nq + self.model.nv) 
         self.ocp.constraints.lbx_0 = np.zeros(self.model.nq + self.model.nv)
         self.ocp.constraints.ubx_0 = np.zeros(self.model.nq + self.model.nv)
 
         # --- Path constraints ---
-        # VINCOLO SEMPLIFICATO SOLO PER X
-        # Aggiungiamo il vincolo fisico: il drone non deve superare il muro
-        # obs_x è self.model.p[0], x del drone è self.model.x[0]
+        # Simplified constraint only for X
+        # Add the physical constraint: the drone must not cross the wall
+        # obs_x is self.model.p[0], drone x is self.model.x[0]
         self.ocp.model.con_h_expr = self.model.p[0] - self.model.x[0]
-        self.ocp.constraints.lh = np.array([0.0])   # Distanza dal muro >= 0
-        self.ocp.constraints.uh = np.array([1e5])   # Fino a infinito
+        self.ocp.constraints.lh = np.array([0.0])   # Distance to the wall >= 0
+        self.ocp.constraints.uh = np.array([1e5])   # Up to infinity
 
-        # State box: theta (1), velocity (3), box (4)scale (1) = 9 elementi totali
+        # Bound orientation and the three velocity components at each stage.
         self.ocp.constraints.idxbx = np.arange(self.model.npos, self.model.nx) 
         self.ocp.constraints.lbx = np.hstack([
             np.full(self.model.nori, -np.pi), 
@@ -436,8 +341,7 @@ class AbstractController:
             np.full(self.model.nv, 1e1)
         ])
 
-        # --- Terminal constraints per caso con NN---
-        # non lo obbligo a fermarsi!!!!!
+        # --- Terminal constraints for NN ---
         self.ocp.constraints.idxbx_e = np.arange(self.model.npos, self.model.nx)
         self.ocp.constraints.lbx_e = np.hstack([np.full(self.model.nori, -np.pi/2), np.full(self.model.nv, -1)
         ])

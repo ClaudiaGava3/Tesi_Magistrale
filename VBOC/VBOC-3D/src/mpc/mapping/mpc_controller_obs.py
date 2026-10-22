@@ -1,3 +1,13 @@
+
+"""Add mapped-box constraints and neural-network evaluation to feedback MPC.
+
+The controller loads the trained network and embeds it through L4CasADi. At
+each MPC stage it constrains the drone center to the four mapped box limits;
+the terminal constraint currently also enforces box containment, while the
+predicted network margin is evaluated and returned for diagnostics but is not
+subtracted from the active terminal constraint.
+"""
+
 from __future__ import annotations
 import torch
 import numpy as np
@@ -10,12 +20,12 @@ from learning import NeuralNetwork
 
 
 class MpcController(AbstractController):
-    """Controller MPC che usa una Rete Neurale come vincolo terminale"""
+    """MPC controller using mapped bounds and a trained viability network."""
 
     def __init__(self, model) -> None:
         super().__init__(model)
         
-        # 2. NEURAL NETWORK LOADING
+        # 2. LOAD NEURAL NETWORK
         nn_filename = f"{self.params.NN_DIR}{self.params.robot_name}_{self.params.act}.pt"
         print(f"--- Caricamento Rete Neurale da {nn_filename} ---")
         
@@ -23,7 +33,7 @@ class MpcController(AbstractController):
         self.mean_X = checkpoint['mean']
         self.std_X = checkpoint['std']
         
-        
+        # Neural network initialization (4D input for 2D: theta, vx, vz, wy)
         net = NeuralNetwork(
             input_size=9, 
             hidden_size=self.params.hidden_size, 
@@ -48,9 +58,7 @@ class MpcController(AbstractController):
         alpha_pred = self.l4c_model(x_norm.T)
         
 
-        # Dynamic distance: Posizione Muro fissa (p[0]) - Posizione drone futura (x[0])
-        #dist_dinamica = self.model.p[0] - self.model.x[0]
-
+        # Use the stage position and mapped box limits supplied as OCP parameters.
         x_drone = self.model.x[0]
         y_drone = self.model.x[1]
         z_drone = self.model.x[2]
@@ -111,11 +119,15 @@ class MpcController(AbstractController):
         #obs_x: float
     ) -> tuple[np.ndarray, np.ndarray, float, int]:
         """
-        Esegue un singolo step di ottimizzazione MPC.
-        Restituisce: (traiettoria_stati, traiettoria_input, alpha_predetto, status)
+        Performs a single MPC optimization step.
+        Returns the state trajectory, input sequence, NN margin evaluated at
+        the terminal solver iterate, and solver status. The margin is reported
+        but is not an active terminal clearance constraint; after a failed
+        solve, the terminal iterate may not be feasible.
         """
         self.ocp_solver.reset()
 
+        # Fix the initial node to the current measured or estimated state.
         self.ocp_solver.constraints_set(0, "lbx", current_x)
         self.ocp_solver.constraints_set(0, "ubx", current_x)
 

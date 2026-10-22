@@ -1,3 +1,14 @@
+
+# ==========================================================================================================================================================
+"""Test waypoint MPC navigation, mapping, stall handling, and recovery (environment 2).
+
+The file defines different maze layouts ``main`` selects one layout at a time;
+The simulation builds a local safe box,
+tracks successive waypoints, and exercises solver recovery and stall escape.
+To test another layout, select its matching generator and LiDAR detector.
+"""
+# ==========================================================================================================================================================
+
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -6,13 +17,11 @@ import matplotlib.animation as animation
 from itertools import product, combinations
 import time
 
-# Importo le tue librerie
 from parser import Parameters
 from mpc_abstract_obs import Model
 from mpc_controller_obs import MpcController
 from lidar import get_lidar_hits_3d, min_cube_select_3d
 
-# Impostazioni globali per le dimensioni del font
 plt.rcParams.update({
     'axes.titlesize': 20,     
     'axes.labelsize': 16,     

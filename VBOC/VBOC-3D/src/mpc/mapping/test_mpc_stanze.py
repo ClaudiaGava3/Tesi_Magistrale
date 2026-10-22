@@ -1,3 +1,15 @@
+
+# ==========================================================================================================================================================
+"""Test LiDAR mapping and feedback MPC in four progressively harder rooms.
+
+Each room uses known axis-aligned obstacle rectangles, a fixed target, and a
+drone starting at the origin. The script maps nearby obstacles into a local
+safe box, passes that box to the feedback MPC, and plots the resulting flight.
+The fourth room approximates a diagonal wall with many small axis-aligned
+rectangles. The room list is selected and run in ``main``.
+"""
+# ==========================================================================================================================================================
+
 import os
 import numpy as np
 import matplotlib.pyplot as plt
@@ -17,7 +29,7 @@ from MPC.mapping.lidar import get_lidar_hits_3d, min_cube_select_3d
 
 
 def get_ambiente(id_stanza):
-    """Restituisce gli ostacoli 3D, il target a 12 stati e il titolo per la stanza selezionata."""
+    """Return obstacles, target, and title for the selected room."""
     
     # Target initialization
     x_ref = np.zeros(12)
@@ -65,7 +77,7 @@ def get_ambiente(id_stanza):
     return obstacles, x_ref, titolo
 
 def plot_mappa_3d(x_history, box_history, obstacles, x_ref, x0, titolo):
-    """Disegna la mappa 3D completa con due viste: 3/4 e frontale (X-Z)."""
+    """Draw the full 3D map with trajectory and obstacles."""
 
     fig = plt.figure(figsize=(15, 7)) 
     
@@ -137,7 +149,7 @@ def main():
     SIM_TIME = 5.5
     N_SIM = int(SIM_TIME / DT)
 
-    # LOOP SULLE 3 STANZE
+    # Run the four room scenarios in sequence.
     for STANZA_ID in [3, 2, 3]:
         obstacles, x_ref, titolo_stanza = get_ambiente(STANZA_ID)
         

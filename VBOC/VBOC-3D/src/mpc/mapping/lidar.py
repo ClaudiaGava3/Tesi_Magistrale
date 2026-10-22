@@ -1,16 +1,29 @@
+
+# ==========================================================================================================================================================
+"""Map nearby 3D obstacles into LiDAR hits and candidate safe boxes.
+
+The ray-casting routines return obstacle intersections and per-ray radii used
+to approximate the scanned beams. Axis-aligned parallelepiped use slab-style
+interval intersections; arbitrary wall segments use ray-plane intersections,
+with a vectorized alternative for performance experiments. Several safe-box
+selection strategies are also provided. Callers explicitly choose the detector
+and selector; switch alternatives in the calling code where they are invoked.
+"""
+# =========================================================================================================================================================
+
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
-# Global settings for font dimension
+# Global font size settings
 plt.rcParams.update({
-    'axes.titlesize': 28,     # Dimensione titolo
-    'axes.labelsize': 24,     # Dimensione etichette assi (X e Y)
-    'xtick.labelsize': 12,    # Dimensione numeri asse X
-    'ytick.labelsize': 12,    # Dimensione numeri asse Y
-    'legend.fontsize': 22,    # Dimensione legenda
-    'font.size': 22           # Dimensione base per tutto il resto
+    'axes.titlesize': 28,     # Title size
+    'axes.labelsize': 24,     # Axis label size (X and Y)
+    'xtick.labelsize': 12,    # X-axis tick label size
+    'ytick.labelsize': 12,    # Y-axis tick label size
+    'legend.fontsize': 22,    # Legend font size
+    'font.size': 22           # Base font size for all other text
 })
 
 # FUNCTION TO INDIVIDUATE THE AXIS_ALIGNED OBSTACLES
