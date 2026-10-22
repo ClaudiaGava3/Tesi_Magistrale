@@ -43,7 +43,7 @@ def main():
     params.act = 'gelu'
     params.build = True
 
-    # Inizializzo Modello e Controller MPC
+    # Initialize Model and Controller MPC
     model = Model(params)
     controller = MpcController(model)
 
@@ -126,7 +126,7 @@ def main():
         print("Nessun dato da plottare.")
         return
 
-    # Plot positions
+    # Plot positions and angles
     plt.figure(figsize=(10, 6))
     plt.plot(time_axis, x_history[:, 0], label='X Drone', color='b')
     plt.plot(time_axis, x_history[:, 1], label='Z Drone', color='g')

@@ -3,62 +3,23 @@ prob_num: 20000          # number of OCP to create dataset
 cpu_num: 26
 
 N: 20                # horizon in number of samples
+                      # N must to be changed manually in the different problems because all the files refere to this value!
 N_increment: 0            # increment of the horizon
 dt: 20e-3                 # time step
 #alpha: 15                # safety margin 
 
-# con box max 1.0 m succ_ocp=17693/20000
-# --- RISULTATI TUA RETE NEURALE ---
-# Veri Positivi (VP): 1768
-# Falsi Positivi (FP): 133
-# Veri Negativi (VN): 17560
-# Falsi Negativi (FN): 539
-
-# --- RISULTATI DEEPREACH ---
-# Veri Positivi (VP): 229
-# Falsi Positivi (FP): 250
-# Veri Negativi (VN): 17443
-# Falsi Negativi (FN): 2078
-
-# con box max 2.5 m succ_ocp=19160/20000
-# --- RISULTATI TUA RETE NEURALE ---
-# Veri Positivi (VP): 609
-# Falsi Positivi (FP): 55
-# Veri Negativi (VN): 19105
-# Falsi Negativi (FN): 231
-
-# --- RISULTATI DEEPREACH ---
-# Veri Positivi (VP): 77
-# Falsi Positivi (FP): 199
-# Veri Negativi (VN): 18961
-# Falsi Negativi (FN): 763
-
-# con box max 4.0 m succ_ocp=19501/20000
-# --- RISULTATI TUA RETE NEURALE ---
-# Veri Positivi (VP): 278
-# Falsi Positivi (FP): 20
-# Veri Negativi (VN): 19481
-# Falsi Negativi (FN): 221
-
-# --- RISULTATI DEEPREACH ---
-# Veri Positivi (VP): 42
-# Falsi Positivi (FP): 155
-# Veri Negativi (VN): 19346
-# Falsi Negativi (FN): 457
-
-
 
 solver_mode: 'BALANCE'    # HPIPM mode, can be --> 'BALANCE', 'ROBUST', 'SPEED', 'SPEED_ABS'
-nlp_max_iter: 5 #1000
-qp_max_iter: 100 #200
+nlp_max_iter: 5        #1000 in the OCP to create the dataset for NN
+qp_max_iter: 100       #200 in the OCP to create the dataset for NN
 alpha_reduction: 0.3
 alpha_min: 1e-2
 levenberg_marquardt: 1e-9
 
-state_tol: 1e-5 #1e-6           # state tolerance
+state_tol: 1e-5           # state tolerance
 # conv_tol: 1e-3          # convergence tolerance for the task
-cost_tol: 1e-3           # Tolerance for the cost
-vboc_repeat: 10 #5            # VBOC repetition
+cost_tol: 1e-3            # Tolerance for the cost
+vboc_repeat: 10           # VBOC repetition
 
 # Training Parameters
 learning_rate: 1e-4       # learning rate
@@ -66,26 +27,26 @@ batch_size: 1024          # batch size, 4096, 8192, 16384
 beta: 0.95                # low pass filter coefficient
 train_ratio: 0.7          # training dataset % size
 val_ratio: 0.2            # validation dataset % size
-hidden_size: 1024          # number of hidden units in the neural network
+hidden_size: 1024         # number of hidden units in the neural network
 hidden_layers: 2          # number of hidden layers in the neural network
 
 # Robot & Environment Parameters
-mass: 0.75 #3.5    # platform mass [kg]
+mass: 0.75    # platform mass [kg]
 J:            # platform inertia [kg*m^2]
 - [0.00775, 0.0, 0.0]
 - [0.0, 0.00735, 0.0]
 - [0.0, 0.0, 0.01255]
-l: 0.10     # length of the arm [m]
+l: 0.10       # length of the arm (motor-m.c.) [m]
 cf: 1.5e-3    # thrust coefficient [N/(Hz)^2]
 ct: 4.590e-5  # torque coefficient [Nm/(Hz)^2]
 max_w: 108    # max spinning rate [Hz]
 alpha_tilt: 20     # Tilt cant angle [degree]
 
-min_width: 0.15  # width/2 of the robot [m]
-min_length: 0.15 # length/2 of the robot [m]
+min_width: 0.15    # width/2 of the robot [m]
+min_length: 0.15   # length/2 of the robot [m]
 min_height: 0.05   # height/2 of the robot [m]
 
-max_width: 2 # max width/2 of the enviroment [m]
+max_width: 2  # max width/2 of the enviroment [m]
 max_length: 2 # max length/2 of the enviroment [m]
 max_height: 2 # max height/2 of the enviroment [m]
 

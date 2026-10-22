@@ -312,11 +312,9 @@ class AbstractController:
 
         
         
-        # # Initialize parameters to default values (1 for alpha, 0 for x_ref)
+        # Parameter initialization
         self.ocp.parameter_values = np.zeros(self.model.p.size()[0])
         # self.ocp.parameter_values[0] = 1.0
-
-
 
 
         # --- Initial shooting node ---

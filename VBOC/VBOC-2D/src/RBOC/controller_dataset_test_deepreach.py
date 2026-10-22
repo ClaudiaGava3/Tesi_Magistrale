@@ -33,8 +33,7 @@ class ViabilityController(AbstractController):
         self,
         q_init: np.ndarray,
         ref_box: np.ndarray,
-        # box_min_values: np.ndarray,
-        # box_max_values: np.ndarray,
+        
     ) -> int:
         """Warm-start and solve one OCP for a sampled initial drone state.
 
@@ -127,10 +126,7 @@ class ViabilityController(AbstractController):
     def solve_rboc(
         self,
         q_init: np.ndarray,
-        #box_guess: float,
         ref_box: np.ndarray,
-        #box_min_values: np.ndarray,
-        #box_max_values: np.ndarray,
         N_start: int,
         n: int = 1,
         repeat: int = 10
@@ -173,7 +169,7 @@ class ViabilityController(AbstractController):
 
         repeat = self.rboc_repeat
         for r in range(repeat):
-            status = self.solve(q_init, ref_box)#, d, box_min_values, box_max_values)
+            status = self.solve(q_init, ref_box)
 
             if status == 0 or status == 2:
                 # Read the initial-stage state to report the fixed scale.

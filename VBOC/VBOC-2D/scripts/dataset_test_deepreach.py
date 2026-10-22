@@ -2,9 +2,9 @@
 # ==========================================================================================================================================================
 """Generate an OCP-based ground-truth dataset for safety validation.
 
-The standard VBOC optimal control problem is solved for sampled drone states
+The standard optimal control problem is solved for sampled drone states
 and box dimensions. Its feasibility outcomes and optimized box scales provide
-ground truth for comparing safety validation with the VBOC method and
+ground truth for comparing safety validation with the RBOC method and
 DeepReach.
 """
 # ==========================================================================================================================================================
@@ -62,13 +62,13 @@ def compute_data_on_border(
     box_guess: float,
     N_guess: int,
     N_increment: int,
-    vboc_repeat: int,
+    rboc_repeat: int,
 
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, int]:
     """
     Compute a single data point on the border of the viability kernel.
 
-    Solves the VBOC OCP from an initial drone state and box-side parameters,
+    Solves the OCP from an initial drone state and box-side parameters,
     extending the prediction horizon iteratively if needed.
 
     Parameters
@@ -83,9 +83,9 @@ def compute_data_on_border(
     N_guess : int
         Initial prediction horizon length.
     N_increment : int
-        Number of time steps added per VBOC iteration.
-    vboc_repeat : int
-        Maximum number of VBOC solve repetitions before declaring failure.
+        Number of time steps added per OCP iteration.
+    rboc_repeat : int
+        Maximum number of OCP solve repetitions before declaring failure.
     Returns
     -------
     x0 : np.ndarray or None
@@ -136,9 +136,9 @@ def compute_data_on_border(
     controller.setGuess(x_guess, u_guess)
 
     # --- Solve the OCP ---
-    x_star, u_star, N_final, status = controller.solve_vboc(
+    x_star, u_star, N_final, status = controller.solve_rboc(
         q_init, ref_box, N_guess, n=N_increment,
-        repeat=vboc_repeat
+        repeat=rboc_repeat
     )
 
     # --- Update progress ---
@@ -261,7 +261,7 @@ if __name__ == '__main__':
         os.makedirs(params.NN_DIR)
     N = params.N
     N_increment = params.N_increment
-    vboc_repeat = params.vboc_repeat
+    rboc_repeat = params.rboc_repeat
     horizon = args['horizon']
     plots_dir = params.PLOTS_DIR
     if horizon is not None:
@@ -350,7 +350,7 @@ if __name__ == '__main__':
             with Pool(params.cpu_num) as p:
                 res = p.starmap(
                     compute_data_on_border, 
-                    [(q0, b0, box_guess, N, N_increment, vboc_repeat) 
+                    [(q0, b0, box_guess, N, N_increment, rboc_repeat) 
                      for q0, b0 in zip(q_init[(nb*sub_batch):((nb+1)*sub_batch)],
                                        b_init[(nb*sub_batch):((nb+1)*sub_batch)])]
                 )
@@ -409,16 +409,16 @@ if __name__ == '__main__':
 
             traj_kinematics = np.vstack([traj[:, 2:6] for traj in x_traj])
 
-            np.save(f'{params.DATA_DIR}{robotic_system}_x_vboc_dataset4m', x_data)
-            np.save(f'{params.DATA_DIR}{robotic_system}_b_vboc_dataset4m', b_optimized)
-            np.save(f'{params.DATA_DIR}{robotic_system}_n_horizons_vboc_dataset4m', n_data)
-            np.save(f'{params.DATA_DIR}{robotic_system}_status_vboc_dataset4m', status_list)
+            np.save(f'{params.DATA_DIR}{robotic_system}_x_rboc_dataset4m', x_data)
+            np.save(f'{params.DATA_DIR}{robotic_system}_b_rboc_dataset4m', b_optimized)
+            np.save(f'{params.DATA_DIR}{robotic_system}_n_horizons_rboc_dataset4m', n_data)
+            np.save(f'{params.DATA_DIR}{robotic_system}_status_rboc_dataset4m', status_list)
             # === SAVE FAILURES ===
-            np.save(f'{params.DATA_DIR}{robotic_system}_failed_q_init_vboc_dataset4m', np.array(all_failed_q_init))
+            np.save(f'{params.DATA_DIR}{robotic_system}_failed_q_init_rboc_dataset4m', np.array(all_failed_q_init))
 
-            np.save(f'{params.DATA_DIR}{robotic_system}_actual_boxes_vboc_dataset4m', actual_boxes)
-            np.save(f'{params.DATA_DIR}{robotic_system}_traj_kinematics_vboc_dataset4m', traj_kinematics)
-            np.save(f'{params.DATA_DIR}{robotic_system}_u_traj_vboc_dataset4m', np.vstack(u_traj))
+            np.save(f'{params.DATA_DIR}{robotic_system}_actual_boxes_rboc_dataset4m', actual_boxes)
+            np.save(f'{params.DATA_DIR}{robotic_system}_traj_kinematics_rboc_dataset4m', traj_kinematics)
+            np.save(f'{params.DATA_DIR}{robotic_system}_u_traj_rboc_dataset4m', np.vstack(u_traj))
 
             np.save(f'{params.DATA_DIR}{robotic_system}_TEST_dataset_classification4m', np.array(all_test_dataset))
             

@@ -1,8 +1,8 @@
 
 # ==========================================================================================================================================================
-"""Compare VBOC and DeepReach safety predictions against OCP ground truth.
+"""Compare RBOC and DeepReach safety predictions against OCP ground truth.
 
-For each sampled state and box, the script evaluates the VBOC-trained neural
+For each sampled state and box, the script evaluates the RBOC-trained neural
 network and the DeepReach value function, then compares their binary safety
 predictions with the OCP feasibility label. It reports confusion-matrix
 counts for both models; the positive class is defined as unsafe.
@@ -22,13 +22,13 @@ from try_bicopter_set import evaluate_V as evaluate_deep
 from try_bicopter_set import model as deep_model
 from try_bicopter_set import dynamics_obj as deep_dynamics
 
-# Import the VBOC-trained neural network architecture.
+# Import the RBOC-trained neural network architecture.
 os.chdir("/home/claudia/TESI/VBOC-2D/src/DEEPREACH")
 from learning import NeuralNetwork
 
 def main():
     # --- Load samples containing state, box dimensions, and OCP labels ---
-    dataset_path = "data/dataset_confronto/sth_TEST_dataset_classification2_5m.npy"
+    dataset_path = "src/DEEPREACH/sth_TEST_dataset_classification2_5m.npy"
     data = np.load(dataset_path)
     print(f"Dataset caricato: {data.shape[0]} campioni.")
 
@@ -71,9 +71,10 @@ def main():
         ocp_success = row[-1] 
 
         # --- DeepReach value-function sign: positive is classified as safe ---
+        alpha = 0.0
         deep_state = [0.0, 0.0, theta, x_min, x_max, z_min, z_max, vx, vz, wy]
         V_val = evaluate_deep(deep_model, deep_dynamics, deep_state, time=0.5)
-        deep_is_safe = (V_val > 0)
+        deep_is_safe = (V_val > alpha)
 
         # --- Test NN ---
         # 1. Recover the common box scale and normalize the four side dimensions.
@@ -87,8 +88,10 @@ def main():
         # 3. Predict the required scale; classify safe if it fits within the box.
         with torch.no_grad():
             alpha_pred = net(x_norm).item()
+
+        beta = 0.0
         
-        nn_is_safe = (alpha_pred <= norma)
+        nn_is_safe = (alpha_pred <= (1-beta)*norma)
 
         # --- NN confusion matrix (positive = unsafe; OCP label is ground truth) ---
         if not nn_is_safe and ocp_success == 0.0:

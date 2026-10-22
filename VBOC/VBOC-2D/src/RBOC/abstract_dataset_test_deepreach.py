@@ -198,15 +198,6 @@ class Model:
         # Build one scalar constraint per face
         self.con_h_expr_list = []
         # The four box-side state variables occupy indices 6 through 9.
-        #box_vars_indices = [6, 7, 8, 9]
-        
-        # Alternative formulation using side extents directly (inactive).
-        # for i,n in enumerate(box_normals):
-        #     box_dim = self.x[box_vars_indices[i]]
-        #     expr = sqrt(n.T @ self.Q(self.x) @ n) - box_dim
-        #     self.con_h_expr_list.append(expr)
-
-        # self.con_h_expr = vertcat(*self.con_h_expr_list)
 
         # Active formulation: projected drone footprint against each box face.
         for i, n in enumerate(box_normals):

@@ -1,8 +1,8 @@
 
 # ==========================================================================================================================================================
-"""Generate VBOC data and train a neural network for asymmetric-box viability.
+"""Generate RBOC data and train a neural network for asymmetric-box viability.
 
-The data-generation stage solves a VBOC optimal control problem for sampled
+The data-generation stage solves a RBOC optimal control problem for sampled
 planar drone states and asymmetric rectangular boxes. The training stage uses
 the initial orientation and velocities together with the four normalized box
 side dimensions as inputs, and learns to predict the optimized box scale.
@@ -155,13 +155,13 @@ def compute_data_on_border(
     box_guess: float,
     N_guess: int,
     N_increment: int,
-    vboc_repeat: int,
+    rboc_repeat: int,
 
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, int]:
     """
     Compute a single data point on the border of the viability kernel.
 
-    Solves a VBOC problem from an initial state and normalized asymmetric
+    Solves a RBOC problem from an initial state and normalized asymmetric
     box-side dimensions,
     extending the horizon iteratively if needed.
 
@@ -177,9 +177,9 @@ def compute_data_on_border(
     N_guess : int
         Initial prediction horizon length.
     N_increment : int
-        Number of time steps added per VBOC iteration.
-    vboc_repeat : int
-        Maximum number of VBOC solve repetitions before declaring failure.
+        Number of time steps added per RBOC iteration.
+    rboc_repeat : int
+        Maximum number of RBOC solve repetitions before declaring failure.
     Returns
     -------
     x0 : np.ndarray or None
@@ -230,9 +230,9 @@ def compute_data_on_border(
     controller.setGuess(x_guess, u_guess)
 
     # --- Solve the OCP ---
-    x_star, u_star, N_final, status = controller.solve_vboc(
+    x_star, u_star, N_final, status = controller.solve_rboc(
         q_init, ref_box, N_guess, n=N_increment,
-        repeat=vboc_repeat
+        repeat=rboc_repeat
     )
 
     # --- Update progress ---
@@ -331,7 +331,7 @@ if __name__ == '__main__':
         os.makedirs(params.NN_DIR)
     N = params.N
     N_increment = params.N_increment
-    vboc_repeat = params.vboc_repeat
+    rboc_repeat = params.rboc_repeat
     horizon = args['horizon']
     plots_dir = params.PLOTS_DIR
     if horizon is not None:
@@ -422,7 +422,7 @@ if __name__ == '__main__':
             with Pool(params.cpu_num) as p:
                 res = p.starmap(
                     compute_data_on_border, 
-                    [(q0, b0, box_guess, N, N_increment, vboc_repeat) 
+                    [(q0, b0, box_guess, N, N_increment, rboc_repeat) 
                      for q0, b0 in zip(q_init[(nb*sub_batch):((nb+1)*sub_batch)], b_init[(nb*sub_batch):((nb+1)*sub_batch)])]
                 )
 
@@ -477,16 +477,16 @@ if __name__ == '__main__':
 
             traj_kinematics = np.vstack([traj[:, 2:6] for traj in x_traj])
 
-            np.save(f'{params.DATA_DIR}{robotic_system}_x_vboc_randB', x_data)
-            np.save(f'{params.DATA_DIR}{robotic_system}_b_vboc_randB', b_optimized)
-            np.save(f'{params.DATA_DIR}{robotic_system}_n_horizons_vboc_randB', n_data)
-            np.save(f'{params.DATA_DIR}{robotic_system}_status_vboc_randB', status_list)
+            np.save(f'{params.DATA_DIR}{robotic_system}_x_rboc_randB', x_data)
+            np.save(f'{params.DATA_DIR}{robotic_system}_b_rboc_randB', b_optimized)
+            np.save(f'{params.DATA_DIR}{robotic_system}_n_horizons_rboc_randB', n_data)
+            np.save(f'{params.DATA_DIR}{robotic_system}_status_rboc_randB', status_list)
             # === SAVE FAILURES ===
-            np.save(f'{params.DATA_DIR}{robotic_system}_failed_q_init_vboc_randB', np.array(all_failed_q_init))
+            np.save(f'{params.DATA_DIR}{robotic_system}_failed_q_init_rboc_randB', np.array(all_failed_q_init))
 
-            np.save(f'{params.DATA_DIR}{robotic_system}_actual_boxes_vboc_randB', actual_boxes)
-            np.save(f'{params.DATA_DIR}{robotic_system}_traj_kinematics_vboc_randB', traj_kinematics)
-            np.save(f'{params.DATA_DIR}{robotic_system}_u_traj_vboc_randB', np.vstack(u_traj))
+            np.save(f'{params.DATA_DIR}{robotic_system}_actual_boxes_rboc_randB', actual_boxes)
+            np.save(f'{params.DATA_DIR}{robotic_system}_traj_kinematics_rboc_randB', traj_kinematics)
+            np.save(f'{params.DATA_DIR}{robotic_system}_u_traj_rboc_randB', np.vstack(u_traj))
 
             
             
@@ -695,14 +695,14 @@ if __name__ == '__main__':
     if params.training: 
 
         # --- Load data ---
-        x_data = np.load(f'{params.DATA_DIR}{robotic_system}_x_vboc_randB.npy')
-        b_data = np.load(f'{params.DATA_DIR}{robotic_system}_b_vboc_randB.npy')
-        status_data = np.load(params.DATA_DIR + 'sth_status_vboc_randB.npy')
+        x_data = np.load(f'{params.DATA_DIR}{robotic_system}_x_rboc_randB.npy')
+        b_data = np.load(f'{params.DATA_DIR}{robotic_system}_b_rboc_randB.npy')
+        status_data = np.load(params.DATA_DIR + 'sth_status_rboc_randB.npy')
         actual_boxes = np.load(f'{params.DATA_DIR}{robotic_system}_actual_boxes_randB2000.npy')
         traj_kinematics = np.load(f'{params.DATA_DIR}{robotic_system}_traj_kinematics_randB2000.npy')
         u_traj = np.load(f'{params.DATA_DIR}{robotic_system}_u_traj_randB2000.npy')
-        n_data = np.load(f'{params.DATA_DIR}{robotic_system}_n_horizons_vboc_randB.npy')
-        failed_file = f'{params.DATA_DIR}{robotic_system}_failed_q_init_vboc_randB.npy'
+        n_data = np.load(f'{params.DATA_DIR}{robotic_system}_n_horizons_rboc_randB.npy')
+        failed_file = f'{params.DATA_DIR}{robotic_system}_failed_q_init_rboc_randB.npy'
         
           
 
@@ -945,7 +945,7 @@ if __name__ == '__main__':
         ensure_clean_dir(brs_dir)
 
         # Reload the simulated data for the scatter plot
-        x_data_raw = np.load(f'{params.DATA_DIR}{robotic_system}_x_vboc.npy')
+        x_data_raw = np.load(f'{params.DATA_DIR}{robotic_system}_x_rboc.npy')
         # Extract only the 4 inputs [theta, vx, vz, wy] for the BRS plot
         x_data_plot = x_data_raw[:, 2:6]
 

@@ -70,7 +70,7 @@ class Model:
         #nbox = 4    # Obstacle box constraint dimension
         #nscale = 1  # FATTORE DI SCALA (Sostituisce nbox)
 
-      # --- PARAMETRI MPC ---
+      # --- PARAMETERS MPC ---
         #self.alpha_real = MX.sym('alpha_real', 1)   # Sensor-measured space
         self.obs_x = MX.sym('obs_x', 1)  # Absolute X position of the wall
         self.x_ref = MX.sym('x_ref', nq+nv)       
@@ -81,7 +81,6 @@ class Model:
         self.acados_model = AcadosModel()
         self.acados_model.name = params.robot_name
         
-        # ASSEGNAZIONE CORRETTA:
         self.acados_model.p = self.p
 
         
@@ -175,7 +174,7 @@ class Model:
         # 2D
         self.f_expl = vertcat(
             self.x[3:5],         # x_dot, z_dot
-            euler_rates_3d[1],   # theta_dot (derivato dal tuo Tinv!)
+            euler_rates_3d[1],   # theta_dot
             accel_3d[0],         # vx_dot
             accel_3d[2],         # vz_dot
             alpha_3d[1],         # wy_dot (derivato dalla tua equazione con cross!)
@@ -342,7 +341,7 @@ class AbstractController:
             np.full(self.model.nv, 1e2)
         ])
 
-        # --- Terminal constraints per caso con NN ---
+        # --- Terminal constraints for NN ---
         self.ocp.constraints.idxbx_e = np.arange(self.model.npos, self.model.nx)
         self.ocp.constraints.lbx_e = np.hstack([np.full(self.model.nori, -np.pi/2), np.full(self.model.nv, -1)
         ])

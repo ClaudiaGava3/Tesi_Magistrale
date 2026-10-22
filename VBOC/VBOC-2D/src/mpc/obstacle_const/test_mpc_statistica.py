@@ -24,26 +24,6 @@ from parser import Parameters
 from mpc_abstract import Model
 from mpc_controller import MpcController
 
-# Historical comparison notes from prior campaigns; current test count and
-# conditions are defined below and in Parameters.
-# 400 tests
-
-# Short horizon N=15 in the recorded runs below.
-
-# Recorded success rates for randomized speeds in [-1, 1] and angles in [-pi/4, pi/4].
-# obstacle at 4m: NN->95.5, naive->95.8
-# obstacle at 6m: NN->87.2, naive->87.5
-# obstacle at 8m: NN->85, naive->34
-# obstacle at 10m: NN->82.2, naive->1.8
-# obstacle at 12m: NN->79.2, naive->0.2
-
-# Recorded success rates for zero initial speed and orientation.
-# obstacle at 4m: NN->100, naive->100
-# obstacle at 6m: NN->100, naive->93.8
-# obstacle at 8m: NN->100, naive->62.0
-# obstacle at 10m: NN->100, naive->0.0
-# obstacle at 12m: NN->100, naive->3.2
-
 
 # Global font size settings
 plt.rcParams.update({
