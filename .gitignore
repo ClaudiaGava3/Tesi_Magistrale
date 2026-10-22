@@ -1,0 +1,21 @@
+# File temporanei di Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+
+# File di configurazione degli editor (VS Code, ecc.)
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Se usi LaTeX, ignora i file ausiliari generati durante la compilazione
+*.aux
+*.log
+*.toc
+*.synctex.gz
+*.fdb_latexmk
+*.fls
